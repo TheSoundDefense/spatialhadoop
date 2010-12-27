@@ -1,6 +1,5 @@
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.LineNumberInputStream;
 import java.io.LineNumberReader;
 
 import org.apache.hadoop.conf.Configuration;
