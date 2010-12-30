@@ -42,7 +42,7 @@ public class RecordCount {
       JobConf conf = new JobConf(RecordCount.class);
       conf.setJobName("recordcount");
       // Set record length to 64 bytes
-      conf.set(ByteRecordReader.RECORD_LENGTH, "1024");
+      conf.set(ByteRecordReader.RECORD_LENGTH, "65536");
 
       conf.setOutputKeyClass(IntWritable.class);
       conf.setOutputValueClass(IntWritable.class);
