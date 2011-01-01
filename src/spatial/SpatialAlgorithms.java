@@ -10,14 +10,16 @@ import java.util.Collection;
  */
 public class SpatialAlgorithms {
 	
-	public static Collection<Pair<Rectangle, Rectangle>> spatialJoin(Collection<Rectangle> rectangles) {
-		Collection<Pair<Rectangle, Rectangle>> matches = new ArrayList<Pair<Rectangle,Rectangle>>();
+	public static Collection<PairOfRectangles> spatialJoin(Collection<Rectangle> rectangles) {
+		if (rectangles.size() > 0)
+			System.out.println("Doing spatial joing for " + rectangles.size() + " rectangles");
+		Collection<PairOfRectangles> matches = new ArrayList<PairOfRectangles>();
 		
 		// TODO use a sweep line algorithm instead of this quadratic algorithm
 		for (Rectangle r1 : rectangles) {
 			for (Rectangle r2 : rectangles) {
-				if (r1.intersects(r2)) {
-					matches.add(new Pair<Rectangle, Rectangle>(r1, r2));
+				if (r1 != r2 && r1.intersects(r2)) {
+					matches.add(new PairOfRectangles(r1, r2));
 				}
 			}
 		}
@@ -36,12 +38,12 @@ public class SpatialAlgorithms {
 		rectangles.add(r3);
 		rectangles.add(r4);
 		
-		Collection<Pair<Rectangle, Rectangle>> results = spatialJoin(rectangles);
-		if (!results.contains(new Pair<Rectangle, Rectangle>(r1, r2)))
+		Collection<PairOfRectangles> results = spatialJoin(rectangles);
+		if (!results.contains(new PairOfRectangles(r1, r2)))
 			System.err.println("error1");
-		if (results.contains(new Pair<Rectangle, Rectangle>(r1, r3)))
+		if (results.contains(new PairOfRectangles(r1, r3)))
 			System.err.println("error2");
-		if (results.contains(new Pair<Rectangle, Rectangle>(r1, r4)))
+		if (results.contains(new PairOfRectangles(r1, r4)))
 			System.err.println("error3");
 	}
 }

@@ -1,8 +1,6 @@
 package spatial.mapReduce;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Collection;
 
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
@@ -21,7 +19,7 @@ import org.apache.hadoop.mapred.RecordReader;
 import spatial.Rectangle;
 
 
-public class SpatialRecordReader implements RecordReader<Rectangle, Collection<Rectangle>> {
+public class SpatialRecordReader implements RecordReader<Rectangle, CollectionWritable<Rectangle>> {
 
 	public static final String RECORD_LENGTH =
 		"mapreduce.input.byterecordreader.record.length";
@@ -80,7 +78,7 @@ public class SpatialRecordReader implements RecordReader<Rectangle, Collection<R
 	}
 
 	@Override
-	public boolean next(Rectangle key, Collection<Rectangle> value) throws IOException {
+	public boolean next(Rectangle key, CollectionWritable<Rectangle> value) throws IOException {
 		// Clear all existing rectangle in value
 		value.clear();
 		
@@ -95,7 +93,7 @@ public class SpatialRecordReader implements RecordReader<Rectangle, Collection<R
 	    	if (i == buffer.length) {
 	    		// A null record indicates end of file
 	    		// Return items read so far
-	    		return true;
+	    		return value.size() > 0;
 	    	}
 	    	// Parse rectangle
 	    	String rect = new String(buffer, "ASCII");
@@ -108,20 +106,20 @@ public class SpatialRecordReader implements RecordReader<Rectangle, Collection<R
 	    	// Add to list of rectangles
 	    	value.add(new Rectangle(id, x1, y1, x2, y2));
 	        pos += buffer.length;
-	        return true;
 	    }
-	    return false;
+		// Return true if was able to read at least one rectangle
+	    return value.size() > 0;
 	}
 
 	@Override
 	public Rectangle createKey() {
-		return new Rectangle(0, 0, 0, 0, 0);
+		return new Rectangle();
 	}
 
 
 	@Override
-	public Collection<Rectangle> createValue() {
-		return new ArrayList<Rectangle>();
+	public CollectionWritable<Rectangle> createValue() {
+		return new ArrayListWritable<Rectangle>();
 	}
 
 	@Override

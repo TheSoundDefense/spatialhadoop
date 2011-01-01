@@ -1,16 +1,16 @@
+import java.awt.Rectangle;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.LineNumberReader;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 
 public class WriteFile {
 
-	public static final String theFilename = "/hello.txt";
+	public static final String theFilename = "/hello.dat";
 	private static final int BlockSize = 64 * 1024 * 1024;
 
 	public static void main (String [] args) throws IOException {
@@ -32,8 +32,7 @@ public class WriteFile {
        FSDataOutputStream out = fs.create(filenamePath);
        for (int cy1 = 0; cy1 < 1024; cy1 += 256) {
     	   for (int cx1 = 0; cx1 < 1024; cx1 += 256) {
-    		   int cx2 = cx1 + 256;
-    		   int cy2 = cy1 + 256;
+    		   Rectangle cell = new Rectangle(cx1, cy1, cx1 + 256, cy1 + 256);
     		   long bytesSoFar = 0;
     		   
     		   LineNumberReader reader = new LineNumberReader(new FileReader("test.txt"));
@@ -44,12 +43,17 @@ public class WriteFile {
     			   int py1 = Integer.parseInt(parts[2]);
     			   int px2 = Integer.parseInt(parts[3]);
     			   int py2 = Integer.parseInt(parts[4]);
-    			   if (!(px1 > cx2 || px2 < cx1)) {
-    				   if (!(py1 > cy2 || py2 < cy1)) {
-    					   // This rectangle belongs to this cell and should be written
-    					   out.writeUTF(line);
-    					   bytesSoFar += line.getBytes("utf-8").length + 2;
+    			   Rectangle r = new Rectangle(px1, py1, px2, py2);
+    			   if (r.intersects(cell)) {
+    				   // This rectangle belongs to this cell and should be written
+    				   byte[] data = line.getBytes("ASCII");
+    				   // Write leading zeros to be sure block size is 32
+    				   for (int i = 0; i < (32 - data.length); i++) {
+    					   out.writeByte('0');
+    					   bytesSoFar++;
     				   }
+    				   out.write(data);
+    				   bytesSoFar += data.length;
     			   }
     		   }
     		   reader.close();
@@ -64,10 +68,10 @@ public class WriteFile {
        }
        out.close();
 
-       FSDataInputStream in = fs.open(filenamePath);
+       /*FSDataInputStream in = fs.open(filenamePath);
        String messageIn = in.readUTF();
        System.out.print(messageIn);
-       in.close();
+       in.close();*/
      } catch (IOException ioe) {
        System.err.println("IOException during operation: " + ioe.toString());
        System.exit(1);

@@ -23,10 +23,10 @@ import spatial.Rectangle;
  * @author aseldawy
  *
  */
-public class SpatialInputFormat extends FileInputFormat<Rectangle, Collection<Rectangle>> {
+public class SpatialInputFormat extends FileInputFormat<Rectangle, CollectionWritable<Rectangle>> {
 
 	@Override
-	public RecordReader<Rectangle, Collection<Rectangle>> getRecordReader(InputSplit split,
+	public RecordReader<Rectangle, CollectionWritable<Rectangle>> getRecordReader(InputSplit split,
 			JobConf job, Reporter reporter) throws IOException {
 	    reporter.setStatus(split.toString());
 	    return new SpatialRecordReader(job, (FileSplit) split);

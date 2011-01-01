@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.util.Collection;
 
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.JobClient;
@@ -15,38 +14,38 @@ import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TextOutputFormat;
 
-import spatial.Pair;
+import spatial.PairOfRectangles;
 import spatial.Rectangle;
 import spatial.SpatialAlgorithms;
 
-public class SpatialJoinMapRed {
+public class SpatialJoinMapOnly {
 
-    public static class Map extends MapReduceBase implements Mapper<Rectangle, Collection<Rectangle>, Rectangle, Pair<Rectangle, Rectangle>> {
+    public static class Map extends MapReduceBase implements Mapper<Rectangle, CollectionWritable<Rectangle>, Rectangle, PairOfRectangles> {
 
     	@Override
     	public void map(
     			Rectangle cell,
-    			Collection<Rectangle> rectangles,
-    			OutputCollector<Rectangle, Pair<Rectangle, Rectangle>> output,
+    			CollectionWritable<Rectangle> rectangles,
+    			OutputCollector<Rectangle, PairOfRectangles> output,
     			Reporter reporter) throws IOException {
     		// Do a spatial join locally on rectangles
-			Collection<Pair<Rectangle, Rectangle>> matches = SpatialAlgorithms
+			Collection<PairOfRectangles> matches = SpatialAlgorithms
 					.spatialJoin(rectangles);
 			// Send output to the reducer
-			for (Pair<Rectangle, Rectangle> match : matches) {
+			for (PairOfRectangles match : matches) {
 				output.collect(cell, match);
 			}
     	}
     }
 
     public static void main(String[] args) throws Exception {
-      JobConf conf = new JobConf(SpatialJoinMapRed.class);
+      JobConf conf = new JobConf(SpatialJoinMapOnly.class);
       conf.setJobName("spatialjoin");
-      // Set record length to 64 bytes
+      // Set record length to 32 bytes
       conf.set(SpatialRecordReader.RECORD_LENGTH, "32");
 
-      conf.setOutputKeyClass(IntWritable.class);
-      conf.setOutputValueClass(IntWritable.class);
+      conf.setOutputKeyClass(Rectangle.class);
+      conf.setOutputValueClass(PairOfRectangles.class);
 
       conf.setMapperClass(Map.class);
 
