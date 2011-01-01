@@ -1,19 +1,22 @@
 package spatial;
 
 /**
- * An immutable class that holds coordinates of a rectangle.
+ * A class that holds coordinates of a rectangle.
  * @author aseldawy
  *
  */
 public class Rectangle {
-	public final int id;
-	public final float x1;
-	public final float x2;
-	public final float y1;
-	public final float y2;
+	public int id;
+	public float x1;
+	public float x2;
+	public float y1;
+	public float y2;
 
 	public Rectangle(int id, float x1, float y1, float x2, float y2) {
-		super();
+		this.set(id, x1, y1, x2, y2);
+	}
+
+	public void set(int id, float x1, float y1, float x2, float y2) {
 		this.id = id;
 		this.x1 = x1;
 		this.y1 = y1;
@@ -37,5 +40,6 @@ public class Rectangle {
 			System.err.println("error 2");
 		if (r1.intersects(r4))
 			System.err.println("error 3");
+		System.out.println("Rectangle success");
 	}
 }
