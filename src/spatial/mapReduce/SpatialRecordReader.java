@@ -2,6 +2,7 @@ package spatial.mapReduce;
 import java.io.IOException;
 import java.io.InputStream;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -12,9 +13,9 @@ import org.apache.hadoop.io.compress.CompressionCodecFactory;
 import org.apache.hadoop.io.compress.Decompressor;
 import org.apache.hadoop.io.compress.SplitCompressionInputStream;
 import org.apache.hadoop.io.compress.SplittableCompressionCodec;
-import org.apache.hadoop.mapred.FileSplit;
-import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
+import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.mapred.lib.CombineFileSplit;
 
 import spatial.Rectangle;
 
@@ -37,12 +38,12 @@ public class SpatialRecordReader implements RecordReader<Rectangle, CollectionWr
 	private CompressionCodec codec;
 	private Decompressor decompressor;
 
-	public SpatialRecordReader(JobConf job, FileSplit split) throws IOException {
+	public SpatialRecordReader(CombineFileSplit split, Configuration job, Reporter reporter, Integer idx) throws IOException {
 	    this.recordSize = job.getInt(SpatialRecordReader.RECORD_LENGTH, Integer.MAX_VALUE);
 
-	    start = split.getStart();
-	    end = start + split.getLength();
-	    final Path file = split.getPath();
+	    start = split.getOffset(idx);
+	    end = start + split.getLength(idx);
+	    final Path file = split.getPath(idx);
 	    compressionCodecs = new CompressionCodecFactory(job);
 	    codec = compressionCodecs.getCodec(file);
 
