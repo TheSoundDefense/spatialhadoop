@@ -30,7 +30,7 @@ public class ArrayListWritable<E extends Writable> extends ArrayList<E>
 		super(initialCapacity);
 	}
 
-	public ArrayListWritable(Collection c) {
+	public ArrayListWritable(Collection<E> c) {
 		super(c);
 	}
 

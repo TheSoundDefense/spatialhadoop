@@ -1,6 +1,5 @@
 package spatial.mapReduce;
 import java.io.IOException;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -12,7 +11,6 @@ import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
-import org.apache.hadoop.mapred.lib.CombineFileRecordReader;
 import org.apache.hadoop.mapred.lib.CombineFileSplit;
 
 import spatial.Rectangle;
@@ -29,10 +27,10 @@ import spatial.Rectangle;
  * @author aseldawy
  *
  */
-public class SpatialInputFormat extends FileInputFormat<Rectangle, CollectionWritable<Rectangle>> {
+public class SpatialInputFormat extends FileInputFormat<Rectangle, CollectionWritable<CollectionWritable<Rectangle>>> {
 
 	@Override
-	public RecordReader<Rectangle, CollectionWritable<Rectangle>> getRecordReader(InputSplit split,
+	public RecordReader<Rectangle, CollectionWritable<CollectionWritable<Rectangle>>> getRecordReader(InputSplit split,
 			JobConf job, Reporter reporter) throws IOException {
 	    reporter.setStatus(split.toString());
 		@SuppressWarnings("unchecked")
@@ -40,7 +38,7 @@ public class SpatialInputFormat extends FileInputFormat<Rectangle, CollectionWri
 			(Class<RecordReader<Rectangle, CollectionWritable<Rectangle>>>) SpatialRecordReader.class
 				.asSubclass(RecordReader.class);
 	    //return new SpatialRecordReader(job, (FileSplit) split);
-		return new CombineFileRecordReader<Rectangle, CollectionWritable<Rectangle>>(
+		return new MergeFileRecordReader<Rectangle, CollectionWritable<Rectangle>>(
 				job, (CombineFileSplit) split, reporter, klass);
 	}
 	

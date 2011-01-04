@@ -20,21 +20,25 @@ import spatial.SpatialAlgorithms;
 
 public class SpatialJoinMapOnly {
 
-    public static class Map extends MapReduceBase implements Mapper<Rectangle, CollectionWritable<Rectangle>, Rectangle, PairOfRectangles> {
+	public static class Map extends MapReduceBase
+			implements
+			Mapper<Rectangle, CollectionWritable<CollectionWritable<Rectangle>>, Rectangle, PairOfRectangles> {
 
     	@Override
     	public void map(
     			Rectangle cell,
-    			CollectionWritable<Rectangle> rectangles,
+    			CollectionWritable<CollectionWritable<Rectangle>> rectanglesLists,
     			OutputCollector<Rectangle, PairOfRectangles> output,
     			Reporter reporter) throws IOException {
     		// Do a spatial join locally on rectangles
-			Collection<PairOfRectangles> matches = SpatialAlgorithms
-					.spatialJoin(rectangles);
-			// Send output to the reducer
-			for (PairOfRectangles match : matches) {
-				output.collect(cell, match);
-			}
+    		for (Collection<Rectangle> rectangles : rectanglesLists) {
+    			Collection<PairOfRectangles> matches = SpatialAlgorithms
+    				.spatialJoin(rectangles);
+    			// Send output to the reducer
+    			for (PairOfRectangles match : matches) {
+    				output.collect(cell, match);
+    			}
+    		}
     	}
     }
 
