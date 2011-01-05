@@ -37,7 +37,7 @@ public class MergeFileRecordReader<K extends Writable, V extends Writable> imple
 	public boolean next(K key, CollectionWritable<V> value) throws IOException {
 		boolean success = true;
 		value.clear();
-		for (int i = 0; i < split.getNumPaths(); i++) {
+		for (int i = 0; success && i < split.getNumPaths(); i++) {
 			V v = combineFileRecordReader.createValue();
 			// Result is success when all records are read successfully
 			success = success && combineFileRecordReader.next(key, v);

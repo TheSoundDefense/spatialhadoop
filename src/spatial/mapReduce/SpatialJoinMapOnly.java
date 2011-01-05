@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.util.Collection;
 
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
@@ -56,8 +55,10 @@ public class SpatialJoinMapOnly {
       conf.setInputFormat(SpatialInputFormat.class);
       conf.setOutputFormat(TextOutputFormat.class);
 
-      FileInputFormat.setInputPaths(conf, new Path(args[0]));
-      FileOutputFormat.setOutputPath(conf, new Path(args[1]));
+      for (int i = 0; i < args.length - 1; i++) {
+    	  SpatialInputFormat.addInputPath(conf, new Path(args[i]));
+      }
+      FileOutputFormat.setOutputPath(conf, new Path(args[args.length-1]));
 
       JobClient.runJob(conf);
     }

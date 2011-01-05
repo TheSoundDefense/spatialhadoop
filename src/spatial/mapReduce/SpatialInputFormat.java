@@ -1,14 +1,13 @@
 package spatial.mapReduce;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
 
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.mapred.FileInputFormat;
-import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.mapred.MultiFileInputFormat;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.lib.CombineFileSplit;
@@ -27,7 +26,7 @@ import spatial.Rectangle;
  * @author aseldawy
  *
  */
-public class SpatialInputFormat extends FileInputFormat<Rectangle, CollectionWritable<CollectionWritable<Rectangle>>> {
+public class SpatialInputFormat extends MultiFileInputFormat<Rectangle, CollectionWritable<CollectionWritable<Rectangle>>> {
 
 	@Override
 	public RecordReader<Rectangle, CollectionWritable<CollectionWritable<Rectangle>>> getRecordReader(InputSplit split,
@@ -41,52 +40,46 @@ public class SpatialInputFormat extends FileInputFormat<Rectangle, CollectionWri
 		return new MergeFileRecordReader<Rectangle, CollectionWritable<Rectangle>>(
 				job, (CombineFileSplit) split, reporter, klass);
 	}
-	
+
 	@Override
-	public InputSplit[] getSplits(JobConf job, int numSplits)
-			throws IOException {
-		InputSplit[] splits = super.getSplits(job, numSplits);
-		// Sort by start index of splits
-		Arrays.sort(splits, new Comparator<InputSplit>() {
-			@Override
-			public int compare(InputSplit o1, InputSplit o2) {
-				return (int)(((FileSplit)o1).getStart() - ((FileSplit)o2).getStart());
-			}
-		});
+	public InputSplit[] getSplits(JobConf job, int numSplits) 
+	throws IOException {
 
-		// Merge each run of splits from the same locations into one split
-		ArrayList<CombineFileSplit> mergedSplits = new ArrayList<CombineFileSplit>();
-		// i1, i2 are indexes for begin and end of current run
-		int i1 = 0;
-		int i2 = 1;
-		while (i2 <= splits.length) {
-			FileSplit fileSplit1 = (FileSplit) splits[i1];
-			FileSplit fileSplit2 = i2 < splits.length ? (FileSplit) splits[i2] : null;
-			if (i2 == splits.length ||
-					fileSplit1.getStart() != fileSplit2.getStart()) {
-				// There's a run from i1 to i2-1
-				Path[] files = new Path[i2-i1];
-				long[] start = new long[i2-i1];
-				long[] lengths = new long[i2-i1];
-				String[] locations = new String[i2-i1];
-				for (int i=0; i < i2-i1; i++) {
-					files[i] = ((FileSplit)splits[i+i1]).getPath();
-					start[i] = ((FileSplit)splits[i+i1]).getStart();
-					lengths[i] = ((FileSplit)splits[i+i1]).getLength();
-					// TODO merge arrays of locations into one big array
-					locations[i] = ((FileSplit)splits[i+i1]).getLocations()[0];
-				}
-				mergedSplits.add(new CombineFileSplit(job, files, start, lengths, locations));
-				i1 = i2;
+		Path[] paths = FileUtil.stat2Paths(listStatus(job));
+		
+		long blockSize = 0;
+		long totalSize = 0;
+		// Be sure that all files are of the same block size and total size
+		for (int i = 1; i < paths.length; i++) {
+			FileSystem fs1 = paths[i-1].getFileSystem(job);
+			FileStatus file1 = fs1.getFileStatus(paths[i-1]);
+			FileSystem fs2 = paths[i].getFileSystem(job);
+			FileStatus file2 = fs2.getFileStatus(paths[i]);
+			if (file1.getBlockSize() != file2.getBlockSize() ||
+					file1.getLen() != file2.getLen()) {
+				throw new RuntimeException("Files must be of equal size and equal block size");
 			}
-			i2++;
+			// Use block size as split size
+			blockSize = file1.getBlockSize();
+			totalSize = file1.getLen();
 		}
-		return mergedSplits.toArray(new CombineFileSplit[mergedSplits.size()]);
-	}
-
-	protected long computeSplitSize(long goalSize, long minSize,
-			long blockSize) {
-		return blockSize;
+		
+		numSplits = (int) Math.ceil((double)totalSize / blockSize);
+		CombineFileSplit[] splits = new CombineFileSplit[numSplits];
+		
+		for (int i = 0; i < numSplits; i++) {
+			long[] start = new long[paths.length];
+			long[] lengths = new long[paths.length];
+			String[] locations = new String[paths.length];
+			for (int p = 0; p < paths.length; p++) {
+				start[p] = i * blockSize;
+				lengths[p] = Math.min(blockSize, totalSize - start[p]); 
+				// Initialize locations like in org.apache.hadoop.mapreduce.lib.input.CombineFileSplit
+				locations[p] = "";
+			}
+			splits[i] = new CombineFileSplit(job, paths, start, lengths, locations);
+		}
+		return splits;
 	}
 
 }
