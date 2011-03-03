@@ -47,8 +47,8 @@ public class SpatialInputFormat extends MultiFileInputFormat<Rectangle, Collecti
 
 		Path[] paths = FileUtil.stat2Paths(listStatus(job));
 		
-		long blockSize = 0;
-		long totalSize = 0;
+		long blockSize = paths[0].getFileSystem(job).getFileStatus(paths[0]).getBlockSize();
+		long totalSize = paths[0].getFileSystem(job).getFileStatus(paths[0]).getLen();
 		// Be sure that all files are of the same block size and total size
 		for (int i = 1; i < paths.length; i++) {
 			FileSystem fs1 = paths[i-1].getFileSystem(job);
