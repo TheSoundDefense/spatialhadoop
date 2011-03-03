@@ -23,13 +23,25 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable {
 	public float x2;
 	public float y1;
 	public float y2;
+	public int type;
 
 	public Rectangle() {
 		this.set(0, 0.0f, 0.0f, 0.0f, 0.0f);
 	}
+	public float midX(){
+		return (x1+x2)/2;
+	}
+	public float midY(){
+		return (y1+y2)/2;
+	}
 	
 	public Rectangle(int id, float x1, float y1, float x2, float y2) {
-		this.set(id, x1, y1, x2, y2);
+	   float xl = Math.min(x1, x2);
+	   float xu = Math.max(x1, x2);
+	   float yl = Math.min(y1, y2);
+	   float yu = Math.max(y1, y2);
+	   
+		this.set(id, xl, yl, xu, yu);
 	}
 
 	public void set(int id, float x1, float y1, float x2, float y2) {
@@ -44,7 +56,11 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable {
 		return !(this.x2 < r2.x1 || r2.x2 < this.x1) &&
 				!(this.y2 < r2.y1 || r2.y2 < this.y1);
 	}
-	
+	float getXlower() {return x1;}
+	float getXupper() {return x2;}
+	float getYlower() {return y1;}
+	float getYupper() {return y2;}
+	int getId() {return id;}
 	public static void main(String[] args) {
 		Rectangle r1 = new Rectangle(1, 0,0, 100, 100);
 		Rectangle r2 = new Rectangle(1, 0,0, 50, 50);
@@ -80,7 +96,16 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable {
 	@Override
 	public int compareTo(Rectangle rect2) {
 		// Sort by id
-		return this.id - rect2.id;
+			Rectangle r = (Rectangle)rect2;
+			double difference = this.x1 - r.x1;
+			if (difference < 0) {
+				return -1;
+			} 
+			if (difference > 0) {
+				return 1;
+			}
+			return 0;
+	
 	}
 	
 	@Override

@@ -17,35 +17,35 @@ import spatial.PairOfRectangles;
 import spatial.Rectangle;
 import spatial.SpatialAlgorithms;
 
-public class SpatialJoinMapOnly {
+public class SpatialRange {
 
 	public static class Map extends MapReduceBase
 			implements
-			Mapper<Rectangle, CollectionWritable<CollectionWritable<Rectangle>>, Rectangle, PairOfRectangles> {
+			Mapper<Rectangle, CollectionWritable<Rectangle>, Rectangle, Rectangle> {
 
+		Rectangle range = new Rectangle(1,1,1,100,100);
     	@Override
     	public void map(
     			Rectangle cell,
-    			CollectionWritable<CollectionWritable<Rectangle>> rectanglesLists,
-    			OutputCollector<Rectangle, PairOfRectangles> output,
+    			CollectionWritable<Rectangle> rects,
+    			OutputCollector<Rectangle, Rectangle> output,
     			Reporter reporter) throws IOException {
     		
-    		Collection<PairOfRectangles> matches = SpatialAlgorithms.SpatialJoin_planeSweep(rectanglesLists);
-    			for (PairOfRectangles match : matches) {
+    		Collection<Rectangle> matches = SpatialAlgorithms.Range(range, rects, -1);
+    			for (Rectangle match : matches) {
     				output.collect(cell, match);
-    			}
-    		
+    			}    		
     	}
     }
 
     public static void main(String[] args) throws Exception {
-      JobConf conf = new JobConf(SpatialJoinMapOnly.class);
-      conf.setJobName("spatialjoin");
+      JobConf conf = new JobConf(SpatialRange.class);
+      conf.setJobName("spatialrange");
       // Set record length to 32 bytes
       conf.set(SpatialRecordReader.RECORD_LENGTH, "32");
 
       conf.setOutputKeyClass(Rectangle.class);
-      conf.setOutputValueClass(PairOfRectangles.class);
+      conf.setOutputValueClass(Rectangle.class);
 
       conf.setMapperClass(Map.class);
 

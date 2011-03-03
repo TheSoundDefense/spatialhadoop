@@ -17,12 +17,12 @@ import spatial.PairOfRectangles;
 import spatial.Rectangle;
 import spatial.SpatialAlgorithms;
 
-public class SpatialJoinMapOnly {
+public class NN {
 
 	public static class Map extends MapReduceBase
 			implements
 			Mapper<Rectangle, CollectionWritable<CollectionWritable<Rectangle>>, Rectangle, PairOfRectangles> {
-
+       static final int K = 10;
     	@Override
     	public void map(
     			Rectangle cell,
@@ -30,7 +30,7 @@ public class SpatialJoinMapOnly {
     			OutputCollector<Rectangle, PairOfRectangles> output,
     			Reporter reporter) throws IOException {
     		
-    		Collection<PairOfRectangles> matches = SpatialAlgorithms.SpatialJoin_planeSweep(rectanglesLists);
+    		Collection<PairOfRectangles> matches = SpatialAlgorithms.NN(rectanglesLists,K);
     			for (PairOfRectangles match : matches) {
     				output.collect(cell, match);
     			}
@@ -39,8 +39,8 @@ public class SpatialJoinMapOnly {
     }
 
     public static void main(String[] args) throws Exception {
-      JobConf conf = new JobConf(SpatialJoinMapOnly.class);
-      conf.setJobName("spatialjoin");
+      JobConf conf = new JobConf(NN.class);
+      conf.setJobName(Map.K+"-NN");
       // Set record length to 32 bytes
       conf.set(SpatialRecordReader.RECORD_LENGTH, "32");
 
