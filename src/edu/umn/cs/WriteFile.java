@@ -13,19 +13,19 @@ public class WriteFile {
 	/**Size of one block in bytes*/
 	private static final int BlockSize = 64 * 1024 * 1024;
 	/**Grid dimensions*/
-	private static final int GridX1 = 0;
-	private static final int GridY1 = 0;
-	private static final int GridX2 = 1024;
-	private static final int GridY2 = 1024;
+	private static final double GridX1 = 0;
+	private static final double GridY1 = 0;
+	private static final double GridX2 = 1024;
+	private static final double GridY2 = 1024;
 	/**Cell width*/
-	private static final int CellWidth = 512;
+	private static final double CellWidth = 512;
 	/**Cell height*/
-	private static final int CellHeight = 512;
+	private static final double CellHeight = 512;
 	
 	/**Number of grid cell columns*/
-	private static final int GridColumns = (GridX2 - GridX1) / CellWidth;
+	private static final int GridColumns = (int)Math.ceil((GridX2 - GridX1) / CellWidth);
 	/**Number of grid cell rows*/
-	private static final int GridRows = (GridY2 - GridY1) / CellHeight;
+	private static final int GridRows = (int)Math.ceil((GridY2 - GridY1) / CellHeight);
 
 	public static void main (String [] args) throws IOException {
 		String inputFilename = args[0];
@@ -58,8 +58,8 @@ public class WriteFile {
 		// Run the loop for every grid cell
 		for (int cy1 = 0; cy1 < GridX2; cy1 += CellWidth) {
 			for (int cx1 = 0; cx1 < GridY2; cx1 += CellHeight) {
-				int cx2 = cx1 + CellWidth;
-				int cy2 = cy1 + CellHeight;
+				double cx2 = cx1 + CellWidth;
+				double cy2 = cy1 + CellHeight;
 				long bytesSoFar = 0;
 
 				LineNumberReader reader = new LineNumberReader(new FileReader(inputFilename));
@@ -76,8 +76,8 @@ public class WriteFile {
 					if (!(rx1 > cx2 || rx2 < cx1)) {
 						if (!(ry1 > cy2 || ry2 < cy1)) {
 							// This rectangle belongs to this cell and should be written
-							int x_i = cx1 / CellWidth;
-							int y_i = cy1 / CellHeight;
+							int x_i = (int)Math.round(cx1 / CellWidth);
+							int y_i = (int)Math.round(cy1 / CellHeight);
 							histogram[x_i][y_i]++;
 							// Write ID, x1, y1, x2, y2
 							out.writeInt(id);

@@ -80,10 +80,11 @@ public class SpatialRange {
       conf.setOutputFormat(TextOutputFormat.class);
 
       // First argument is input file
-	  SpatialRangeInputFormat.addInputPath(conf, inputFile);
-
-	  // Last argument is output file
-      FileOutputFormat.setOutputPath(conf, new Path(args[1]));
+      for (int i = 0; i < args.length - 1; i++) {
+    	  SpatialJoinInputFormat.addInputPath(conf, new Path(args[i]));
+      }
+      // Last argument is output file
+      FileOutputFormat.setOutputPath(conf, new Path(args[args.length-1]));
 
       // Start MapReduce job
       JobClient.runJob(conf);

@@ -117,4 +117,9 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable {
 	public String toString() {
 		return "Rectangle #"+id+" ("+x1+","+y1+","+x2+","+y2+")";
 	}
+	public double distanceTo(Rectangle s) {
+		double dx = s.x1 - this.x1;
+		double dy = s.x2 - this.x2;
+		return dx*dx+dy*dy;
+	}
 }

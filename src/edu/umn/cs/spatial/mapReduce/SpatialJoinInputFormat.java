@@ -86,6 +86,7 @@ public class SpatialJoinInputFormat extends MultiFileInputFormat<Rectangle, Coll
 					long length = Math.min(fileStatus.getBlockSize(), fileStatus.getLen() - start);
 					starts[i].add(start);
 					lengths[i].add(length);
+					start += length;
 				}
 			} else if (parts[0].equals("r")) {
 				// Rectangular range

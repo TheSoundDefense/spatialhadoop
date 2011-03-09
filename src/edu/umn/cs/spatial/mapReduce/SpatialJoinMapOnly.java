@@ -52,11 +52,11 @@ public class SpatialJoinMapOnly {
       conf.setOutputFormat(TextOutputFormat.class);
 
       // First two arguments are input files
-	  SpatialJoinInputFormat.addInputPath(conf, new Path(args[0]));
-	  SpatialJoinInputFormat.addInputPath(conf, new Path(args[1]));
-
-	  // Last argument is output
-	  FileOutputFormat.setOutputPath(conf, new Path(args[2]));
+      for (int i = 0; i < args.length - 1; i++) {
+    	  SpatialJoinInputFormat.addInputPath(conf, new Path(args[i]));
+      }
+      // Last argument is output file
+      FileOutputFormat.setOutputPath(conf, new Path(args[args.length-1]));
 
       JobClient.runJob(conf);
     }
