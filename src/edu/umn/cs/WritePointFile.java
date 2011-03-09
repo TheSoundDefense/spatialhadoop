@@ -8,7 +8,7 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 
-public class WriteFile {
+public class WritePointFile {
 
 	/**Size of one block in bytes*/
 	private static final int BlockSize = 64 * 1024 * 1024;
@@ -68,25 +68,21 @@ public class WriteFile {
 					// Parse rectangle dimensions
 					String[] parts = line.split(",");
 					int id = Integer.parseInt(parts[0]);
-					float rx1 = Float.parseFloat(parts[1]);
-					float ry1 = Float.parseFloat(parts[2]);
-					float rx2 = Float.parseFloat(parts[3]);
-					float ry2 = Float.parseFloat(parts[4]);
+					float px = Float.parseFloat(parts[1]);
+					float py = Float.parseFloat(parts[2]);
 
-					if (!(rx1 > cx2 || rx2 < cx1)) {
-						if (!(ry1 > cy2 || ry2 < cy1)) {
+					if (!(px > cx2 || px < cx1)) {
+						if (!(py > cy2 || py < cy1)) {
 							// This rectangle belongs to this cell and should be written
 							int x_i = (int)Math.round(cx1 / CellWidth);
 							int y_i = (int)Math.round(cy1 / CellHeight);
 							histogram[x_i][y_i]++;
 							// Write ID, x1, y1, x2, y2
 							out.writeInt(id);
-							out.writeFloat(rx1);
-							out.writeFloat(ry1);
-							out.writeFloat(rx2);
-							out.writeFloat(ry2);
 							bytesSoFar += 4;
-							bytesSoFar += 4 * 4;
+							out.writeFloat(px);
+							out.writeFloat(py);
+							bytesSoFar += 2 * 4;
 						}
 					}
 				}

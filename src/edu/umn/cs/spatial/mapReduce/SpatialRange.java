@@ -68,7 +68,7 @@ public class SpatialRange {
       // Set the property to SpatialInputFormat
       String blocks2read = "r:"+x1+","+y1+","+x2+","+y2;
       System.out.println("blocks2read: "+blocks2read);
-      conf.set(SpatialRangeInputFormat.BLOCKS2READ+".0", blocks2read);
+      conf.set(SplitCalculator.BLOCKS2READ+".0", blocks2read);
       
       // Set configuration for this MapRedue job
       conf.setOutputKeyClass(Rectangle.class);

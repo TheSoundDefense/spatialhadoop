@@ -119,7 +119,7 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable {
 	}
 	public double distanceTo(Rectangle s) {
 		double dx = s.x1 - this.x1;
-		double dy = s.x2 - this.x2;
+		double dy = s.y1 - this.y1;
 		return dx*dx+dy*dy;
 	}
 }

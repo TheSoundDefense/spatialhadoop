@@ -15,6 +15,7 @@ import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.net.NetworkTopology;
 
+import edu.umn.edu.spatial.Point;
 import edu.umn.edu.spatial.Rectangle;
 
 
@@ -29,10 +30,27 @@ import edu.umn.edu.spatial.Rectangle;
  * @author aseldawy
  *
  */
-public class SpatialRangeInputFormat extends FileInputFormat<Rectangle, Rectangle> {
+public class KNNInputFormat extends FileInputFormat<Rectangle, Point> {
+
+	/**
+	 * Property name for records to read.
+	 * This property can be used to choose the blocks to read in one of four ways:
+	 * 0- All: All file blocks are read. Just set the value to the letter 'a'.
+	 * 1- Range: Define two grid cells as corners of a rectangle.
+	 *   All blocks for grid cells in this range are added.
+	 *   Set the value to 'r:top,left,right,bottom'.
+	 * 2- Select: Define a list of block numbers. Only these blocks are read.
+	 *   Set the value to 's:b1,b2,...,bn'
+	 * 3- Offset: Define a list of byte ranges [from, to].
+	 *   A split is created for each byte range.
+	 *   This is the most general one.
+	 *   Set the value to 'o:start-length,start-length,...,start-length'
+	 */
+	public static final String BLOCKS2READ =
+		"mapreduce.input.byterecordreader.record.blocks2read";
 
 	@Override
-	public RecordReader<Rectangle, Rectangle> getRecordReader(InputSplit split,
+	public RecordReader<Rectangle, Point> getRecordReader(InputSplit split,
 			JobConf job, Reporter reporter) throws IOException {
 	    reporter.setStatus(split.toString());
 		@SuppressWarnings("unchecked")
@@ -40,7 +58,7 @@ public class SpatialRangeInputFormat extends FileInputFormat<Rectangle, Rectangl
 			(Class<RecordReader<Rectangle, Rectangle>>) RectangleRecordReader.class
 				.asSubclass(RecordReader.class);
 
-		return new RectangleRecordReader((FileSplit)split, job, reporter);
+		return new PointRecordReader((FileSplit)split, job, reporter);
 	}
 
 	@Override
@@ -89,5 +107,52 @@ public class SpatialRangeInputFormat extends FileInputFormat<Rectangle, Rectangl
 	    LOG.debug("Total # of splits: " + splits.size());
 	    return splits.toArray(new FileSplit[splits.size()]);
 	}
+	/*	Path[] paths = FileUtil.stat2Paths(listStatus(job));
 
+		// Initialize arrays for splits to be created
+		Vector<Long>[] starts = new Vector[paths.length];
+		Vector<Long>[] lengths = new Vector[paths.length];
+
+		for (int i = 0; i < paths.length; i++) {
+			// Find block size and total size of this file
+			FileStatus fileStatus = paths[i].getFileSystem(job).getFileStatus(paths[i]);
+			
+			starts[i] = new Vector<Long>();
+			lengths[i] = new Vector<Long>();
+			
+
+			calculateSplits(
+		}
+
+
+		// Be sure that all files have the same number of blocks to read
+		for (int i = 1; i < paths.length; i++) {
+			if (starts[i].size() != starts[i-1].size())
+				throw new RuntimeException("Cannot split two files to different split sizes");
+		}
+
+		numSplits = starts[0].size() * paths.length;
+		FileSplit[] splits = new FileSplit[numSplits];
+		NetworkTopology clusterMap = new NetworkTopology();
+		
+		int splitNum = 0;
+		
+		for (int pathNum = 0; pathNum < paths.length; pathNum++) {
+			FileStatus file = listStatus(job)[pathNum];
+			Path path = paths[pathNum];
+			FileSystem fs = path.getFileSystem(job);
+			for (int i = 0; i < starts[0].size(); i++) {
+				long start = starts[pathNum].elementAt(i);
+				long length = lengths[pathNum].elementAt(i);
+				// Initialize locations like in org.apache.hadoop.mapreduce.lib.input.CombineFileSplit
+				BlockLocation[] blkLocations = fs.getFileBlockLocations(file, start, length);
+				String[] splitHosts = getSplitHosts(blkLocations,0,length,clusterMap);
+				splits[splitNum++] = makeSplit(path, 0, length, splitHosts);
+			}
+		}
+		
+		System.out.println("Created "+ numSplits + " input splits");
+		return splits;
+	}
+*/
 }

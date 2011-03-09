@@ -1,9 +1,24 @@
 package edu.umn.edu.spatial;
 
+import java.io.DataInputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.TreeSet;
+import java.util.Vector;
+
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.Seekable;
+import org.apache.hadoop.io.compress.CodecPool;
+import org.apache.hadoop.io.compress.CompressionCodec;
+import org.apache.hadoop.io.compress.CompressionCodecFactory;
+import org.apache.hadoop.io.compress.Decompressor;
+import org.apache.hadoop.io.compress.SplitCompressionInputStream;
+import org.apache.hadoop.io.compress.SplittableCompressionCodec;
+import org.apache.hadoop.mapred.JobConf;
 
 import edu.umn.cs.spatial.mapReduce.ArrayListWritable;
 import edu.umn.cs.spatial.mapReduce.CollectionWritable;
@@ -201,5 +216,74 @@ public class SpatialAlgorithms {
 			System.err.println("error2");
 		if (results.contains(new PairOfRectangles(r1, r4)))
 			System.err.println("error3");
+	}
+	
+	/**
+	 * Finds the cells that need to be examined to find k-nearest neighbors
+	 * to point p.
+	 * @param p
+	 * @param histogram
+	 * @param gridOrigin
+	 * @param cellDimensions
+	 * @param k
+	 * @return
+	 */
+	public static int[] KnnCells(Point p, int[][] histogram, double gridX1,
+			double gridY1, double gridX2, double gridY2,
+			double gridCellWidth, double gridCellHeight, int k) {
+		int columns = (int)Math.ceil((gridX2 - gridX1) / gridCellWidth); 
+		// TODO use the correct algorithm in paper
+		// XXX for simplicity, we'll just add random grid cells
+		int cell1x = (int)Math.floor((p.x - gridX1) / gridCellWidth);
+		int cell1y = (int)Math.floor((p.y - gridY1) / gridCellHeight);
+		int cell1 = cell1y * columns + cell1x;
+		int cell2, cell3;
+		cell2 = cell1x == 0 ? cell1 + 1 : cell1 - 1;
+		cell3 = cell1y == 0 ? cell1 + columns : cell1 - columns;
+
+		return new int[] {cell1, cell2, cell3};
+	}
+
+	public static int[][] readHistogram(JobConf job,String histogramFilename,
+			int columns, int rows) throws IOException {
+		final Path file = new Path(histogramFilename);
+	    CompressionCodecFactory compressionCodecs = new CompressionCodecFactory(job);
+	    CompressionCodec codec = compressionCodecs.getCodec(file);
+	    
+	    // open the file and seek to the start of the split
+	    final FileSystem fs = file.getFileSystem(job);
+	    FSDataInputStream fileIn = fs.open(file);
+
+	    DataInputStream in;
+	    
+		long start = 0;
+
+		if (codec != null) {
+			Decompressor decompressor = CodecPool.getDecompressor(codec);
+			if (codec instanceof SplittableCompressionCodec) {
+				final SplitCompressionInputStream cIn =
+					((SplittableCompressionCodec)codec).createInputStream(
+							fileIn, decompressor, 0, file.getFileSystem(job).getFileStatus(file).getLen(),
+							SplittableCompressionCodec.READ_MODE.BYBLOCK);
+				in = new DataInputStream(cIn);
+				start = cIn.getAdjustedStart();
+				long end = cIn.getAdjustedEnd();
+			} else {
+				in = new DataInputStream(codec.createInputStream(fileIn, decompressor));
+			}
+		} else {
+			fileIn.seek(start);
+			in = fileIn;
+		}
+
+		int[][] histogram = new int[rows][columns];
+		for (int i = 0; i < rows; i++) {
+			for (int j = 0; j < columns; j++) {
+				histogram[i][j] = in.readInt();
+			}
+		}
+		
+		in.close();
+	    return histogram;
 	}
 }
