@@ -1,10 +1,14 @@
 package edu.umn.cs.spatial.mapReduce;
 
 import java.io.IOException;
+
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Vector;
 
+import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.mapred.FileOutputFormat;
@@ -18,27 +22,26 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TextOutputFormat;
 
 import edu.umn.edu.spatial.Point;
-import edu.umn.edu.spatial.Rectangle;
 import edu.umn.edu.spatial.SpatialAlgorithms;
 
-
-public class KNN {
+public class AKNN {
 	static final int K = 10;
-	static Point p;
 
 	public static class Map extends MapReduceBase
 			implements
-			Mapper<Rectangle, Point, Point, DoubleWritable> {
+			Mapper<CollectionWritable<Point>, Point, Point, DoubleWritable> {
     	@Override
     	public void map(
-    			Rectangle gridCell,
+    			CollectionWritable<Point> queryPoints,
     			Point s,
     			OutputCollector<Point, DoubleWritable> output,
     			Reporter reporter) throws IOException {
     		
-    		double distance2 = p.distanceTo(s);
-    		// We use p as the intermediate key because we need only one reducer
-    		output.collect(p, new DoubleWritable(distance2));
+    		for (Point pt : queryPoints) {
+    			double distance2 = pt.distanceTo(s);
+    			// We use p as the intermediate key because we need only one reducer
+    			output.collect(pt, new DoubleWritable(distance2));
+    		}
     	}
     }
 	
@@ -66,9 +69,14 @@ public class KNN {
 	}
 
     public static void main(String[] args) throws Exception {
-      JobConf conf = new JobConf(KNN.class);
-      conf.setJobName("kNN");
-      p = new Point(1, 100, 100);
+      JobConf conf = new JobConf(AKNN.class);
+      conf.setJobName("AkNN");
+      
+      Point[] points = {
+    	  new Point(10, 10),
+    	  new Point(15, 15),
+    	  new Point(20, 15),
+      };
       
       // Get input file information (Grid information)
       Path inputFile = new Path(args[0]);
@@ -89,14 +97,65 @@ public class KNN {
       int rows = (int)Math.ceil((gridY2 - gridY1) / gridCellHeight);
       int[][] histogram = SpatialAlgorithms.readHistogram(conf, histogramFilename, columns, rows);
 
-      // Choose cells to read
-      int[] cells = SpatialAlgorithms.KnnCells(p, histogram, gridX1, gridY1,
-    		  gridX2, gridY2, gridCellWidth, gridCellHeight, K);
+      HashMap<Integer, Vector<Point>> cell2Points = new HashMap<Integer, Vector<Point>>();
+      for (Point p : points) {
+    	  // Choose cells to read
+    	  int[] cells = SpatialAlgorithms.KnnCells(p, histogram, gridX1, gridY1,
+    			  gridX2, gridY2, gridCellWidth, gridCellHeight, K);
+    	  for (int cell : cells) {
+    		  Vector<Point> cellPoints = cell2Points.get(cell);
+    		  if (cellPoints == null) {
+    			  cellPoints = new Vector<Point>();
+    			  cell2Points.put(cell, cellPoints);
+    		  }
+    		  cellPoints.add(p);
+    	  }
+      }
       
+      // Holds splits of the query points
+      String blocks2readR = "o:";
+      // Holds splits of the input points (grid)
+      String blocks2readS = "s:";
+      
+      Path tempFilepath = new Path("/aknn.r");
+      
+      // Get the HDFS file system
+      FileSystem fs = FileSystem.get(conf);
+      if (fs.exists(tempFilepath)) {
+    	  // remove the file first
+    	  fs.delete(tempFilepath, false);
+      }
+
+      // Open an output stream for the file
+      FSDataOutputStream out = fs.create(tempFilepath);
+
+      long start = 0;
+      
+      for (Integer cell : cell2Points.keySet()) {
+    	  long length = 0;
+    	  
+    	  // Write all associated points to a file
+    	  for (Point p : cell2Points.get(cell)) {
+    		  out.writeInt(p.id);
+    		  out.writeFloat(p.x);
+    		  out.writeFloat(p.y);
+    		  length += 4 + 4*2;
+    	  }
+    	  blocks2readR += start+"-"+length+",";
+    	  start += length;
+
+		  // Append this grid cell to splits
+		  blocks2readS += cell+",";
+      }
+      out.close();
+      // Remove trailing comma
+      blocks2readR = blocks2readR.substring(0, blocks2readR.length() - 1);
+      blocks2readS = blocks2readS.substring(0, blocks2readS.length() - 1);
       // Set the property to SpatialInputFormat
-      String blocks2read = "s:"+cells[0]+","+cells[1]+","+cells[2];
-      System.out.println("blocks2read: "+blocks2read);
-      conf.set(SplitCalculator.BLOCKS2READ+".0", blocks2read);
+      System.out.println("blocks2readR: "+blocks2readR);
+      System.out.println("blocks2readS: "+blocks2readS);
+      conf.set(SplitCalculator.BLOCKS2READ+".0", blocks2readR);
+      conf.set(SplitCalculator.BLOCKS2READ+".1", blocks2readS);
 
       conf.setOutputKeyClass(Point.class);
       conf.setOutputValueClass(DoubleWritable.class);
@@ -104,12 +163,13 @@ public class KNN {
       conf.setMapperClass(Map.class);
       conf.setReducerClass(Reduce.class);
 
-      conf.setInputFormat(KNNInputFormat.class);
+      conf.setInputFormat(AKNNInputFormat.class);
       conf.setOutputFormat(TextOutputFormat.class);
 
       // First file is input file
+      AKNNInputFormat.addInputPath(conf, tempFilepath);
       for (int i = 0; i < args.length - 1; i++) {
-    	  KNNInputFormat.addInputPath(conf, new Path(args[i]));
+    	  AKNNInputFormat.addInputPath(conf, new Path(args[i]));
       }
       
       // Second file is output file

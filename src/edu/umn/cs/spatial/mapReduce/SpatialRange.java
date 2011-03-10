@@ -81,7 +81,7 @@ public class SpatialRange {
 
       // First argument is input file
       for (int i = 0; i < args.length - 1; i++) {
-    	  SpatialJoinInputFormat.addInputPath(conf, new Path(args[i]));
+    	  SpatialRangeInputFormat.addInputPath(conf, new Path(args[i]));
       }
       // Last argument is output file
       FileOutputFormat.setOutputPath(conf, new Path(args[args.length-1]));
