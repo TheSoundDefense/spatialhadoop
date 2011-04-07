@@ -23,8 +23,8 @@ import edu.umn.edu.spatial.SpatialAlgorithms;
 
 
 public class KNN {
-	static final int K = 10;
-	static Point p;
+	private static final int K = 10;
+	private static Point p;
 
 	public static class Map extends MapReduceBase
 			implements

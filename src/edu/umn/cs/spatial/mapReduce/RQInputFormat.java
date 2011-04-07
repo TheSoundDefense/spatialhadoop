@@ -1,0 +1,42 @@
+package edu.umn.cs.spatial.mapReduce;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Vector;
+
+import org.apache.hadoop.fs.BlockLocation;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.mapred.FileInputFormat;
+import org.apache.hadoop.mapred.FileSplit;
+import org.apache.hadoop.mapred.InputSplit;
+import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.mapred.RecordReader;
+import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.net.NetworkTopology;
+
+import edu.umn.edu.spatial.Rectangle;
+
+
+
+/**
+ * Reads and parses a file that contains records of type Rectangle.
+ * Records are assumed to be fixed size and of the format
+ * <id>,<left>,<top>,<right>,<bottom>
+ * When a record of all zeros is encountered, it is assumed to be the end of file.
+ * This means, no more records are processed after a zero-record.
+ * Records are read one be one.
+ * @author aseldawy
+ *
+ */
+public class RQInputFormat extends FileInputFormat<IntWritable, Rectangle> {
+
+	@Override
+	public RecordReader<IntWritable, Rectangle> getRecordReader(InputSplit split,
+			JobConf job, Reporter reporter) throws IOException {
+	    reporter.setStatus(split.toString());
+
+		return new RQRectangleRecordReader((FileSplit)split, job, reporter);
+	}
+}
