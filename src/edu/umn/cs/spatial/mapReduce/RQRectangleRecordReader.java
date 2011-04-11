@@ -127,11 +127,12 @@ public class RQRectangleRecordReader implements RecordReader<IntWritable, Rectan
 
     	String[] parts = line.split(",");
     	key.set(Integer.parseInt(parts[0]));
+    	value.id = key.get();
     	value.x1 = Float.parseFloat(parts[1]);
     	value.y1 = Float.parseFloat(parts[2]);
     	value.x2 = Float.parseFloat(parts[3]);
     	value.y2 = Float.parseFloat(parts[4]);
-		// Return true if was able to read at least one rectangle
+      // Return true if was able to read at least one rectangle
 	    return true;
 	}
 

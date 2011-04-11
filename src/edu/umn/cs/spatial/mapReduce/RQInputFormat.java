@@ -1,20 +1,14 @@
 package edu.umn.cs.spatial.mapReduce;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Vector;
 
-import org.apache.hadoop.fs.BlockLocation;
-import org.apache.hadoop.fs.FileStatus;
-import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
-import org.apache.hadoop.net.NetworkTopology;
 
 import edu.umn.edu.spatial.Rectangle;
 
@@ -30,13 +24,44 @@ import edu.umn.edu.spatial.Rectangle;
  * @author aseldawy
  *
  */
-public class RQInputFormat extends FileInputFormat<IntWritable, Rectangle> {
+public class RQInputFormat extends FileInputFormat<Rectangle, Rectangle> {
 
 	@Override
-	public RecordReader<IntWritable, Rectangle> getRecordReader(InputSplit split,
+	public RecordReader<Rectangle, Rectangle> getRecordReader(InputSplit split,
 			JobConf job, Reporter reporter) throws IOException {
 	    reporter.setStatus(split.toString());
-
-		return new RQRectangleRecordReader((FileSplit)split, job, reporter);
+		return new RQCombineRecordReader((PairOfFileSplits)split, job, reporter);
+	}
+	
+	@Override
+	public InputSplit[] getSplits(JobConf job, int numSplits) throws IOException {
+	  // Generate splits for all input paths
+	  InputSplit[] splits = super.getSplits(job, numSplits);
+	  // Divide the splits into two lists; one for query splits and one for
+	  // input splits
+    Vector<FileSplit> querySplits = new Vector<FileSplit>();
+    Vector<FileSplit> inputSplits = new Vector<FileSplit>();
+    Path queryFilePath = listStatus(job)[0].getPath();
+    for (InputSplit split : splits) {
+      FileSplit fileSplit = (FileSplit) split;
+      
+      if (fileSplit.getPath().equals(queryFilePath)) {
+        querySplits.add((FileSplit)split);
+      } else {
+        inputSplits.add((FileSplit)split);
+      }
+    }
+    // Generate a combined file split for each pair of splits
+    // i.e. Cartesian product
+    Path[] paths = new Path[2];
+    long[] lengths = new long[2];
+    int i = 0;
+    InputSplit[] combinedSplits = new InputSplit[querySplits.size() * inputSplits.size()];
+    for (FileSplit querySplit : querySplits) {
+      for (FileSplit inputSplit : inputSplits) {
+        combinedSplits[i++] = new PairOfFileSplits(querySplit, inputSplit);
+      }
+    }
+	  return combinedSplits;
 	}
 }
