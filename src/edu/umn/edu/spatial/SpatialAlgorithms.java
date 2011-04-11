@@ -35,7 +35,7 @@ class RectangleNN implements Comparable<RectangleNN>   {
 		this.r =r ;
 		this.dist =dist;	   
 	}
-	@Override
+
 	public int compareTo(RectangleNN rect2) {
 		float difference = this.dist - rect2.dist;
 		if (difference < 0) {
@@ -62,7 +62,7 @@ class TOPK {
 		heap.add(new RectangleNN(r, dist));
 		if (this.heap.size() > k) {
 			// Remove largest element in set (to keep it of size k)
-			this.heap.pollLast();
+			this.heap.last();
 		}
 
 	}

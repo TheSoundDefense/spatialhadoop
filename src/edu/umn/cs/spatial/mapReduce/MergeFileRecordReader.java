@@ -33,7 +33,6 @@ public class MergeFileRecordReader<K extends Writable, V extends Writable> imple
 				job, (CombineFileSplit) split, reporter, rrClass);
 	}
 
-	@Override
 	public boolean next(K key, CollectionWritable<V> value) throws IOException {
 		boolean success = true;
 		value.clear();
@@ -46,27 +45,22 @@ public class MergeFileRecordReader<K extends Writable, V extends Writable> imple
 		return success;
 	}
 
-	@Override
 	public K createKey() {
 		return combineFileRecordReader.createKey();
 	}
 
-	@Override
 	public CollectionWritable<V> createValue() {
 		return new ArrayListWritable<V>();
 	}
 
-	@Override
 	public long getPos() throws IOException {
 		return combineFileRecordReader.getPos();
 	}
 
-	@Override
 	public void close() throws IOException {
 		combineFileRecordReader.close();
 	}
 
-	@Override
 	public float getProgress() throws IOException {
 		return combineFileRecordReader.getProgress();
 	}

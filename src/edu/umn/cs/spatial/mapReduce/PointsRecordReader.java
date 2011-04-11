@@ -77,7 +77,6 @@ public class PointsRecordReader implements RecordReader<Rectangle, CollectionWri
 		return (codec != null);
 	}
 
-	@Override
 	public boolean next(Rectangle key, CollectionWritable<Point> value) throws IOException {
 		// Clear all existing rectangle in value
 		value.clear();
@@ -103,23 +102,18 @@ public class PointsRecordReader implements RecordReader<Rectangle, CollectionWri
 	    return value.size() > 0;
 	}
 
-	@Override
 	public Rectangle createKey() {
 		return new Rectangle();
 	}
 
-
-	@Override
 	public CollectionWritable<Point> createValue() {
 		return new ArrayListWritable<Point>();
 	}
 
-	@Override
 	public long getPos() throws IOException {
 		return pos;
 	}
 
-	@Override
 	public void close() throws IOException {
 		try {
 			if (in != null) {
@@ -132,7 +126,6 @@ public class PointsRecordReader implements RecordReader<Rectangle, CollectionWri
 		}
 	}
 
-	@Override
 	public float getProgress() throws IOException {
 	    if (start == end) {
 	        return 0.0f;

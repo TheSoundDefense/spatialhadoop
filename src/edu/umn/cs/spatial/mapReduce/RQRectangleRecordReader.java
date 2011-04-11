@@ -85,7 +85,6 @@ public class RQRectangleRecordReader implements RecordReader<IntWritable, Rectan
 	 * It consumes the end of line also when reading the rectangle.
 	 * It stops after reading the first end of line (after) end.
 	 */
-	@Override
 	public boolean next(IntWritable key, Rectangle value) throws IOException {
 		if (getFilePosition() > end || in.available() == 0)
 			return false;
@@ -136,23 +135,18 @@ public class RQRectangleRecordReader implements RecordReader<IntWritable, Rectan
 	    return true;
 	}
 
-	@Override
 	public IntWritable createKey() {
 		return new IntWritable();
 	}
 
-
-	@Override
 	public Rectangle createValue() {
 		return new Rectangle();
 	}
 
-	@Override
 	public long getPos() throws IOException {
 		return pos;
 	}
 
-	@Override
 	public void close() throws IOException {
 		try {
 			if (in != null) {
@@ -165,7 +159,6 @@ public class RQRectangleRecordReader implements RecordReader<IntWritable, Rectan
 		}
 	}
 
-	@Override
 	public float getProgress() throws IOException {
 	    if (start == end) {
 	        return 0.0f;

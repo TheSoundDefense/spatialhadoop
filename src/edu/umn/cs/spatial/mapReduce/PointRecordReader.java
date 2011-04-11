@@ -77,7 +77,6 @@ public class PointRecordReader implements RecordReader<Rectangle, Point> {
 		return (codec != null);
 	}
 
-	@Override
 	public boolean next(Rectangle key, Point value) throws IOException {
 		if (getFilePosition() >= end)
 			return false;
@@ -100,23 +99,19 @@ public class PointRecordReader implements RecordReader<Rectangle, Point> {
 	    return true;
 	}
 
-	@Override
 	public Rectangle createKey() {
 		return new Rectangle();
 	}
 
 
-	@Override
 	public Point createValue() {
 		return new Point();
 	}
 
-	@Override
 	public long getPos() throws IOException {
 		return pos;
 	}
 
-	@Override
 	public void close() throws IOException {
 		try {
 			if (in != null) {
@@ -129,7 +124,6 @@ public class PointRecordReader implements RecordReader<Rectangle, Point> {
 		}
 	}
 
-	@Override
 	public float getProgress() throws IOException {
 	    if (start == end) {
 	        return 0.0f;

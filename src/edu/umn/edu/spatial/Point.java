@@ -45,21 +45,18 @@ public class Point implements WritableComparable<Point>, Serializable {
 	float getY() {return y;}
 	int getId() {return id;}
 
-	@Override
 	public void write(DataOutput out) throws IOException {
 		out.writeInt(id);
 		out.writeFloat(x);
 		out.writeFloat(y);
 	}
 
-	@Override
 	public void readFields(DataInput in) throws IOException {
 		this.id = in.readInt();
 		this.x = in.readFloat();
 		this.y = in.readFloat();
 	}
 
-	@Override
 	public int compareTo(Point rect2) {
 		// Sort by id
 		double difference = this.x - rect2.x;
@@ -73,13 +70,11 @@ public class Point implements WritableComparable<Point>, Serializable {
 
 	}
 	
-	@Override
 	public boolean equals(Object obj) {
 		Point r2 = (Point) obj;
 		return this.x == r2.x && this.y == r2.y;
 	}
 	
-	@Override
 	public String toString() {
 		return "Point #"+id+" ("+x+","+y+")";
 	}

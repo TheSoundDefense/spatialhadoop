@@ -35,7 +35,6 @@ public class RQMapReduce {
 	public static class Map extends MapReduceBase
 			implements
 			Mapper<IntWritable, Rectangle, IntWritable, Rectangle> {
-    	@Override
     	public void map(
     			IntWritable rectId,
     			Rectangle rect,

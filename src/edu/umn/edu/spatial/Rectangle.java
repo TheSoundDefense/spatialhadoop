@@ -75,7 +75,6 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable {
 		System.out.println("Rectangle success");
 	}
 
-	@Override
 	public void write(DataOutput out) throws IOException {
 		out.writeInt(id);
 		out.writeFloat(x1);
@@ -84,7 +83,6 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable {
 		out.writeFloat(y2);
 	}
 
-	@Override
 	public void readFields(DataInput in) throws IOException {
 		this.id = in.readInt();
 		this.x1 = in.readFloat();
@@ -93,7 +91,6 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable {
 		this.y2 = in.readFloat();
 	}
 
-	@Override
 	public int compareTo(Rectangle rect2) {
 		// Sort by id
 		double difference = this.x1 - rect2.x1;
@@ -107,13 +104,11 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable {
 
 	}
 	
-	@Override
 	public boolean equals(Object obj) {
 		Rectangle r2 = (Rectangle) obj;
 		return this.x1 == r2.x1 && this.x2 == r2.x2 && this.y1 == r2.y1 && this.y2 == r2.y2;
 	}
 	
-	@Override
 	public String toString() {
 		return "Rectangle #"+id+" ("+x1+","+y1+","+x2+","+y2+")";
 	}

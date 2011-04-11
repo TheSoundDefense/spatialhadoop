@@ -77,7 +77,6 @@ public class RectanglesRecordReader implements RecordReader<Rectangle, Collectio
 		return (codec != null);
 	}
 
-	@Override
 	public boolean next(Rectangle key, CollectionWritable<Rectangle> value) throws IOException {
 		// Clear all existing rectangle in value
 		value.clear();
@@ -105,23 +104,18 @@ public class RectanglesRecordReader implements RecordReader<Rectangle, Collectio
 	    return value.size() > 0;
 	}
 
-	@Override
 	public Rectangle createKey() {
 		return new Rectangle();
 	}
 
-
-	@Override
 	public CollectionWritable<Rectangle> createValue() {
 		return new ArrayListWritable<Rectangle>();
 	}
 
-	@Override
 	public long getPos() throws IOException {
 		return pos;
 	}
 
-	@Override
 	public void close() throws IOException {
 		try {
 			if (in != null) {
@@ -134,7 +128,6 @@ public class RectanglesRecordReader implements RecordReader<Rectangle, Collectio
 		}
 	}
 
-	@Override
 	public float getProgress() throws IOException {
 	    if (start == end) {
 	        return 0.0f;

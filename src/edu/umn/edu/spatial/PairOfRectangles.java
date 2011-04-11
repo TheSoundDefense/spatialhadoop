@@ -31,25 +31,21 @@ public class PairOfRectangles implements WritableComparable<PairOfRectangles>, S
 		this.r2 = r2;
 	}
 	
-	@Override
 	public boolean equals(Object obj) {
 		PairOfRectangles x = (PairOfRectangles) obj;
 		return this.r1.equals(x.r1) && this.r2.equals(x.r2);
 	}
 
-	@Override
 	public void write(DataOutput out) throws IOException {
 		r1.write(out);
 		r2.write(out);
 	}
 
-	@Override
 	public void readFields(DataInput in) throws IOException {
 		r1.readFields(in);
 		r2.readFields(in);
 	}
 
-	@Override
 	public int compareTo(PairOfRectangles o) {
 		int c = this.r1.compareTo(o.r1); 
 		return c == 0 ? this.r2.compareTo(o.r2) : c;

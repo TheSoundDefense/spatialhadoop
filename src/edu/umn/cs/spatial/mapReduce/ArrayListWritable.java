@@ -34,7 +34,6 @@ public class ArrayListWritable<E extends Writable> extends ArrayList<E>
 		super(c);
 	}
 
-	@Override
 	public void write(DataOutput out) throws IOException {
 		// Write size
 		out.writeInt(this.size());
@@ -46,7 +45,6 @@ public class ArrayListWritable<E extends Writable> extends ArrayList<E>
 		}
 	}
 
-	@Override
 	public void readFields(DataInput in) throws IOException {
 		// Clear all existing values
 		super.clear();

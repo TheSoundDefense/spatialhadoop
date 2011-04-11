@@ -77,7 +77,6 @@ public class ByteRecordReader implements RecordReader<LongWritable, BytesWritabl
 		return (codec != null);
 	}
 
-	@Override
 	public boolean next(LongWritable key, BytesWritable value) throws IOException {
 	    while (getFilePosition() < end) {
 	        key.set(pos);
@@ -96,23 +95,19 @@ public class ByteRecordReader implements RecordReader<LongWritable, BytesWritabl
 	    return false;
 	}
 
-	@Override
 	public LongWritable createKey() {
 		return new LongWritable();
 	}
 
 
-	@Override
 	public BytesWritable createValue() {
 		return new BytesWritable();
 	}
 
-	@Override
 	public long getPos() throws IOException {
 		return pos;
 	}
 
-	@Override
 	public void close() throws IOException {
 		try {
 			if (in != null) {
@@ -125,7 +120,6 @@ public class ByteRecordReader implements RecordReader<LongWritable, BytesWritabl
 		}
 	}
 
-	@Override
 	public float getProgress() throws IOException {
 	    if (start == end) {
 	        return 0.0f;
