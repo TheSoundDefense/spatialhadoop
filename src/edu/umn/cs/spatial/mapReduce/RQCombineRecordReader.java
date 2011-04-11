@@ -39,7 +39,6 @@ public class RQCombineRecordReader implements RecordReader<Rectangle, Rectangle>
     totalSize = twoSplits.fileSplit1.getLength() + twoSplits.fileSplit2.getLength();
   }
 
-  @Override
   public boolean next(Rectangle queryRectangle, Rectangle inputRectangle) throws IOException {
     // Read first query rectangle (key)
     if (firstTime) {
@@ -66,35 +65,29 @@ public class RQCombineRecordReader implements RecordReader<Rectangle, Rectangle>
     return true;
   }
 
-  @Override
   public Rectangle createKey() {
     dummyQueryRectangleId = queryRectangles.createKey();
     return queryRectangles.createValue();
   }
 
-  @Override
   public Rectangle createValue() {
     dummyInputRectangleId = inputRectangles.createKey();
     return inputRectangles.createValue();
   }
 
-  @Override
   public long getPos() throws IOException {
     long pos = (long) (queryRectangles.getProgress() * totalSize +
       inputRectangles.getProgress() * twoSplits.fileSplit2.getLength());
     return pos;
   }
 
-  @Override
   public void close() throws IOException {
     inputRectangles.close();
     queryRectangles.close();
   }
 
-  @Override
   public float getProgress() throws IOException {
     return getPos() / totalSize;
   }
   
-
 }
