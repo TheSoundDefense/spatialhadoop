@@ -24,8 +24,6 @@ import edu.umn.edu.spatial.Rectangle;
  *
  */
 public class RQMapReduce {
-	/** Query rectangle */
-	private static Rectangle queryRectangle;
 
 	public static class Map extends MapReduceBase
 			implements
@@ -54,7 +52,9 @@ public class RQMapReduce {
 	public static void main(String[] args) throws Exception {
       JobConf conf = new JobConf(RQMapReduce.class);
       conf.setJobName("BasicRangeQuery");
-      queryRectangle = new Rectangle();
+      
+      // Retrieve query rectangle and store it to an HDFS file
+      Rectangle queryRectangle = new Rectangle();
       String[] parts = args[0].split(",");
       
       queryRectangle.x1 = Float.parseFloat(parts[0]);
@@ -62,7 +62,6 @@ public class RQMapReduce {
       queryRectangle.x2 = Float.parseFloat(parts[2]);
       queryRectangle.y2 = Float.parseFloat(parts[3]);
       
-      // store this query rectangle to an HDFS file
       // Get the HDFS file system
       FileSystem fs = FileSystem.get(conf);
       Path queryFilepath = new Path("/range_query");
