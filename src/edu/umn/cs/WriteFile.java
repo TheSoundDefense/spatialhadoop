@@ -7,6 +7,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.spatial.GridInfo;
 
 public class WriteFile {
 
@@ -15,17 +16,17 @@ public class WriteFile {
 	/**Grid dimensions*/
 	private static final double GridX1 = 0;
 	private static final double GridY1 = 0;
-	private static final double GridX2 = 1024;
-	private static final double GridY2 = 1024;
+	private static final double GridWidth = 1024;
+	private static final double GridHeight = 1024;
 	/**Cell width*/
 	private static final double CellWidth = 512;
 	/**Cell height*/
 	private static final double CellHeight = 512;
 	
 	/**Number of grid cell columns*/
-	private static final int GridColumns = (int)Math.ceil((GridX2 - GridX1) / CellWidth);
+	private static final int GridColumns = (int)Math.ceil(GridWidth / CellWidth);
 	/**Number of grid cell rows*/
-	private static final int GridRows = (int)Math.ceil((GridY2 - GridY1) / CellHeight);
+	private static final int GridRows = (int)Math.ceil(GridHeight / CellHeight);
 
 	public static void main (String [] args) throws IOException {
 		String inputFilename = args[0];
@@ -53,11 +54,13 @@ public class WriteFile {
 		}
 
 		// Open an output stream for the file
-		FSDataOutputStream out = fs.create(outputFilepath, GridX1, GridY1, GridX2, GridY2, CellWidth, CellHeight);
+		GridInfo gridInfo = new GridInfo(GridX1, GridY1, GridWidth, GridHeight,
+		    CellWidth, CellHeight);
+		FSDataOutputStream out = fs.create(outputFilepath, gridInfo);
 
 		// Run the loop for every grid cell
-		for (int cy1 = 0; cy1 < GridX2; cy1 += CellWidth) {
-			for (int cx1 = 0; cx1 < GridY2; cx1 += CellHeight) {
+		for (int cy1 = 0; cy1 < GridWidth; cy1 += CellWidth) {
+			for (int cx1 = 0; cx1 < GridHeight; cx1 += CellHeight) {
 				double cx2 = cx1 + CellWidth;
 				double cy2 = cy1 + CellHeight;
 				long bytesSoFar = 0;
