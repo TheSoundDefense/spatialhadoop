@@ -62,6 +62,8 @@ public class RQMapReduce {
       queryRectangle.x2 = Float.parseFloat(parts[2]);
       queryRectangle.y2 = Float.parseFloat(parts[3]);
       
+      conf.set(SplitCalculator.QUERY_RANGE, args[0]);
+      
       // Get the HDFS file system
       FileSystem fs = FileSystem.get(conf);
       Path queryFilepath = new Path("/range_query");

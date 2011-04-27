@@ -2,6 +2,9 @@ package edu.umn.cs.spatial.mapReduce;
 import java.io.IOException;
 import java.util.Vector;
 
+import javax.annotation.processing.Filer;
+
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.FileSplit;
@@ -37,6 +40,7 @@ public class RQInputFormat extends FileInputFormat<Rectangle, Rectangle> {
 	public InputSplit[] getSplits(JobConf job, int numSplits) throws IOException {
 	  // Generate splits for all input paths
 	  InputSplit[] splits = super.getSplits(job, numSplits);
+	  Vector<FileRange> fileRanges = SplitCalculator.calculateRanges(job);
 	  // Divide the splits into two lists; one for query splits and one for
 	  // input splits
     Vector<FileSplit> querySplits = new Vector<FileSplit>();
@@ -48,13 +52,13 @@ public class RQInputFormat extends FileInputFormat<Rectangle, Rectangle> {
       if (fileSplit.getPath().equals(queryFilePath)) {
         querySplits.add((FileSplit)split);
       } else {
-        inputSplits.add((FileSplit)split);
+        // Check if this input split is in the search space
+        if (isInputSplitInSearchSpace((FileSplit) split, fileRanges))
+          inputSplits.add((FileSplit)split);
       }
     }
     // Generate a combined file split for each pair of splits
     // i.e. Cartesian product
-    Path[] paths = new Path[2];
-    long[] lengths = new long[2];
     int i = 0;
     InputSplit[] combinedSplits = new InputSplit[querySplits.size() * inputSplits.size()];
     for (FileSplit querySplit : querySplits) {
@@ -64,4 +68,23 @@ public class RQInputFormat extends FileInputFormat<Rectangle, Rectangle> {
     }
 	  return combinedSplits;
 	}
+
+	/**
+	 * Check if the given file split intersects with any range of the given list
+	 * of ranges.
+	 * @param split
+	 * @param fileRanges
+	 * @return <code>true</code> if <code>split</code> intersects with at least
+	 * one fileRange in the given list.
+	 */
+  private boolean isInputSplitInSearchSpace(FileSplit split, Vector<FileRange> fileRanges) {
+    for (FileRange fileRange : fileRanges) {
+      if (fileRange.file.equals(split.getPath()) &&
+          !((fileRange.start >= split.getStart() + split.getLength()) ||
+              split.getStart() >= fileRange.start + fileRange.length)) {
+        return true;
+      }
+    }
+    return false;
+  }
 }

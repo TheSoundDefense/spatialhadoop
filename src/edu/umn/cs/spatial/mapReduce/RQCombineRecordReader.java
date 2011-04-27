@@ -33,8 +33,8 @@ public class RQCombineRecordReader implements RecordReader<Rectangle, Rectangle>
     this.twoSplits = twoSplits;
     this.job = job;
     this.reporter = reporter;
-    queryRectangles = new RQRectangleRecordReader(twoSplits.fileSplit1, job, reporter);
-    inputRectangles = new RQRectangleRecordReader(twoSplits.fileSplit2, job, reporter);
+    queryRectangles = new RQRectangleRecordReader(job, twoSplits.fileSplit1);
+    inputRectangles = new RQRectangleRecordReader(job, twoSplits.fileSplit2);
     firstTime = true;
     totalSize = twoSplits.fileSplit1.getLength() + twoSplits.fileSplit2.getLength();
   }
@@ -59,7 +59,7 @@ public class RQCombineRecordReader implements RecordReader<Rectangle, Rectangle>
       // Close input file
       inputRectangles.close();
       // reopen from beginning
-      inputRectangles = new RQRectangleRecordReader(twoSplits.fileSplit2, job, reporter);
+      inputRectangles = new RQRectangleRecordReader(job, twoSplits.fileSplit2);
     }
     
     return true;

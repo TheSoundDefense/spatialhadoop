@@ -1,9 +1,18 @@
 package edu.umn.cs.spatial.mapReduce;
 
+import java.io.IOException;
 import java.util.Vector;
 
+import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.spatial.CellInfo;
+import org.apache.hadoop.spatial.GridInfo;
+import org.apache.hadoop.util.StringUtils;
+
+import edu.umn.edu.spatial.Rectangle;
 
 public class SplitCalculator {
 	/**
@@ -22,6 +31,9 @@ public class SplitCalculator {
 	 */
 	public static final String BLOCKS2READ =
 		"mapreduce.input.byterecordreader.record.blocks2read";
+	
+	public static final String QUERY_RANGE = 
+	  "spatial_hadoop.query_range";
 
 	public static void calculateSplits(JobConf job, FileStatus fileStatus,
 			Vector<Long> starts, Vector<Long> lengths, String blocks2readStr) {
@@ -45,8 +57,7 @@ public class SplitCalculator {
 			int y1 = Integer.parseInt(parts[1]);
 			int x2 = Integer.parseInt(parts[2]);
 			int y2 = Integer.parseInt(parts[3]);
-			int columns = (int) ((fileStatus.getGridX2() - fileStatus
-					.getGridX1()) / fileStatus.getGridCellWidth());
+			int columns = (int) (fileStatus.getGridInfo().gridWidth / fileStatus.getGridInfo().cellWidth);
 			for (int x = x1; x <= x2; x++) {
 				for (int y = y1; y <= y2; y++) {
 					long start = (columns * y + x) * fileStatus.getBlockSize();
@@ -79,6 +90,75 @@ public class SplitCalculator {
 			}
 		}
 
+	}
+	
+	/**
+	 * Calculate ranges in each input file that need to be processed.
+	 * 
+	 * For range query:
+	 * We include all blocks with grid boundaries intersecting with the query range.
+	 * If the file is non-spatial, all the file is added directly.
+	 * @param conf
+	 * @return
+	 * @throws IOException 
+	 */
+	public static Vector<FileRange> calculateRanges(JobConf conf) throws IOException {
+	  // Find query range. We assume there is only one query range for the job
+	  String queryRangeString = conf.get(QUERY_RANGE);
+	  if (queryRangeString == null) {
+	    throw new RuntimeException("Query range not set for the job");
+	  }
+	  String[] splits = queryRangeString.split(",");
+    double x1 = Double.parseDouble(splits[0]);
+    double y1 = Double.parseDouble(splits[1]);
+    double x2 = Double.parseDouble(splits[2]);
+    double y2 = Double.parseDouble(splits[3]);
+    Rectangle queryRange = new Rectangle(0, (float)x1, (float)y1, (float)x2, (float)y2);
+    System.out.println("Query rectangle is "+queryRange);
+	  
+	  Vector<FileRange> ranges = new Vector<FileRange>();
+	  // Retrieve a list of all input files
+	  String dirs = conf.get(org.apache.hadoop.mapreduce.lib.input.
+	      FileInputFormat.INPUT_DIR, "");
+	  String [] list = StringUtils.split(dirs);
+	  Path[] inputPaths = new Path[list.length];
+	  for (int i = 0; i < list.length; i++) {
+	    inputPaths[i] = new Path(StringUtils.unEscapeString(list[i]));
+	  }
+	  
+	  // Retrieve list of blocks in each input path
+	  for (Path path : inputPaths) {
+	    FileSystem fs = path.getFileSystem(conf);
+	    Long fileLength = fs.getFileStatus(path).getLen();
+	    // Retrieve grid info for this file
+	    GridInfo gridInfo = fs.getFileStatus(path).getGridInfo();
+	    if (gridInfo == null) {
+	      System.out.println("File "+path+" will be all processed");
+	      // Add all the file without checking
+	      ranges.add(new FileRange(path, 0, fileLength));
+	    } else {
+	      System.out.println("File "+path+" will be checked");
+	      // Check each block
+	      BlockLocation[] blockLocations = fs.getFileBlockLocations(path, 0, fileLength);
+	      for (BlockLocation blockLocation : blockLocations) {
+	        CellInfo cellInfo = blockLocation.getCellInfo();
+	        System.out.println("Checking the block at "+cellInfo);
+          // 2- Check if block holds a grid cell in query range
+          Rectangle blockRange = new Rectangle(0, (float)cellInfo.x, (float)cellInfo.y,
+              (float)gridInfo.cellWidth, (float) gridInfo.cellHeight);
+          if (blockRange.intersects(queryRange)) {
+            System.out.println("It seems to be good");
+            // Add this block
+            ranges.add(new FileRange(path, blockLocation.getOffset(), blockLocation.getLength()));
+          } else {
+            System.out.println("It seems to be no good");
+          }
+	      }
+	    }
+	    // TODO merge consecutive ranges in the same file
+	  }
+
+	  return ranges;
 	}
 
 }
