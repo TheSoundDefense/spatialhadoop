@@ -2,11 +2,13 @@ package edu.umn.cs;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.LineNumberReader;
+import java.io.PrintStream;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hdfs.DFSOutputStream;
 import org.apache.hadoop.spatial.GridInfo;
 
 public class WriteFile {
@@ -38,7 +40,7 @@ public class WriteFile {
 
 		// Set default server configuration
 		Configuration conf = new Configuration();
-		conf.set("fs.default.name", "hdfs://localhost:9000");
+		//conf.set("fs.default.name", "hdfs://localhost:9000");
 		//conf.set("dfs.data.dir", "/home/khalefa/hadoop-khalefa/dfs/data");
 		//conf.set("dfs.name.dir", "/home/khalefa/hadoop-khalefa/dfs/name");
 		
@@ -57,6 +59,8 @@ public class WriteFile {
 		GridInfo gridInfo = new GridInfo(GridX1, GridY1, GridWidth, GridHeight,
 		    CellWidth, CellHeight);
 		FSDataOutputStream out = fs.create(outputFilepath, gridInfo);
+		PrintStream ps = new PrintStream(out);
+		DFSOutputStream dfsos = (DFSOutputStream) out.getWrappedStream();
 
 		// Run the loop for every grid cell
 		for (int cy1 = 0; cy1 < GridWidth; cy1 += CellWidth) {
@@ -64,10 +68,11 @@ public class WriteFile {
 				double cx2 = cx1 + CellWidth;
 				double cy2 = cy1 + CellHeight;
 				long bytesSoFar = 0;
-
+				dfsos.setNextBlockCell(cx1, cy1);
+				
 				LineNumberReader reader = new LineNumberReader(new FileReader(inputFilename));
 				while (reader.ready()) {
-					String line = reader.readLine();
+					String line = reader.readLine().trim();
 					// Parse rectangle dimensions
 					String[] parts = line.split(",");
 					int id = Integer.parseInt(parts[0]);
@@ -82,31 +87,27 @@ public class WriteFile {
 							int x_i = (int)Math.round(cx1 / CellWidth);
 							int y_i = (int)Math.round(cy1 / CellHeight);
 							histogram[x_i][y_i]++;
-							// Write ID, x1, y1, x2, y2
-							out.writeInt(id);
-							out.writeFloat(rx1);
-							out.writeFloat(ry1);
-							out.writeFloat(rx2);
-							out.writeFloat(ry2);
-							bytesSoFar += 4;
-							bytesSoFar += 4 * 4;
+							// Write to HDFS
+							ps.println(line);
+							bytesSoFar += line.length() + 1;
 						}
 					}
 				}
 				reader.close();
 
-				// Complete this block with zeros
+				// Complete this block with empty lines
 				// We use % because we might have written multiple blocks
 				// for this grid cell
 				long remainingBytes = BlockSize - bytesSoFar % BlockSize;
 				while (remainingBytes-- > 0) {
-					out.writeByte(0);
+					ps.println();
 				}
 			}
 
 		}
-		out.close();
+		ps.close();
 
+		/*
 		// Write a file for the histogram
 		Path histFilepath = new Path(histogramFilename);
 		if (fs.exists(histFilepath)) {
@@ -123,6 +124,6 @@ public class WriteFile {
 			}
 			System.out.print("\n");
 		}
-		os.close();
+		os.close();*/
 	}
 }
