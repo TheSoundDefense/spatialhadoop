@@ -39,7 +39,7 @@ public class SplitCalculator {
 			Vector<Long> starts, Vector<Long> lengths, String blocks2readStr) {
 		// Get limited records to read (if required)
 		String[] parts = blocks2readStr.split(":", 2);
-		System.out.println("parts[0]: " + parts[0]);
+
 		if (parts[0].equals("a")) {
 			// Add all file blocks
 			long start = 0;
@@ -114,7 +114,6 @@ public class SplitCalculator {
     double x2 = Double.parseDouble(splits[2]);
     double y2 = Double.parseDouble(splits[3]);
     Rectangle queryRange = new Rectangle(0, (float)x1, (float)y1, (float)x2, (float)y2);
-    System.out.println("Query rectangle is "+queryRange);
 	  
 	  Vector<FileRange> ranges = new Vector<FileRange>();
 	  // Retrieve a list of all input files
@@ -133,25 +132,19 @@ public class SplitCalculator {
 	    // Retrieve grid info for this file
 	    GridInfo gridInfo = fs.getFileStatus(path).getGridInfo();
 	    if (gridInfo == null) {
-	      System.out.println("File "+path+" will be all processed");
 	      // Add all the file without checking
 	      ranges.add(new FileRange(path, 0, fileLength));
 	    } else {
-	      System.out.println("File "+path+" will be checked");
 	      // Check each block
 	      BlockLocation[] blockLocations = fs.getFileBlockLocations(path, 0, fileLength);
 	      for (BlockLocation blockLocation : blockLocations) {
 	        CellInfo cellInfo = blockLocation.getCellInfo();
-	        System.out.println("Checking the block at "+cellInfo);
           // 2- Check if block holds a grid cell in query range
           Rectangle blockRange = new Rectangle(0, (float)cellInfo.x, (float)cellInfo.y,
-              (float)gridInfo.cellWidth, (float) gridInfo.cellHeight);
+              (float)cellInfo.x+(float)gridInfo.cellWidth, (float) cellInfo.y+(float)gridInfo.cellHeight);
           if (blockRange.intersects(queryRange)) {
-            System.out.println("It seems to be good");
             // Add this block
             ranges.add(new FileRange(path, blockLocation.getOffset(), blockLocation.getLength()));
-          } else {
-            System.out.println("It seems to be no good");
           }
 	      }
 	    }
