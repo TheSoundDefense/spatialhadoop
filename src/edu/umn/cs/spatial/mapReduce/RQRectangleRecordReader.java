@@ -38,11 +38,11 @@ public class RQRectangleRecordReader implements RecordReader<IntWritable, Rectan
 	 */
 	public boolean next(IntWritable key, Rectangle value) throws IOException {
 	  if (!lineRecordReader.next(subKey, subValue) || subValue.getLength() < 4) {
-	    // Stop on wrapped reader EOF or a veryshort line which indicates EOF too
+	    // Stop on wrapped reader EOF or a very short line which indicates EOF too
 	    return false;
 	  }
 	  // Convert to a regular string to be able to use split
-	  String line = new String(subValue.getBytes());
+	  String line = new String(subValue.getBytes(), 0, subValue.getLength());
 	  String[] parts = line.split(",");
 	  key.set(Integer.parseInt(parts[0]));
 	  value.id = key.get();
