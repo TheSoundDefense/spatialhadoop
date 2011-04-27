@@ -15,8 +15,8 @@ File.open(out_filename, "w") do |f|
   while current_size < total_size do
     x1 = rand(xmax-xmin)+xmin
     y1 = rand(ymax-ymin)+ymin
-    w = rand(max_width)
-    h = rand(max_height)
+    w = rand([max_width, xmax-x1].min)
+    h = rand([max_height, ymax-y1].min)
     str = [i, x1, y1, x1+w, y1+h].join(",")
     i += 1
     current_size += str.length + 1
