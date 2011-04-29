@@ -117,4 +117,9 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable {
 		double dy = s.y1 - this.y1;
 		return dx*dx+dy*dy;
 	}
+
+  public boolean contains(Point queryPoint) {
+    return queryPoint.x >= this.x1 && queryPoint.x <= this.x2 &&
+        queryPoint.y >= this.y1 && queryPoint.y <= this.y2;
+  }
 }

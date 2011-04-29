@@ -12,30 +12,40 @@ import org.apache.hadoop.io.WritableComparable;
  * @author aseldawy
  *
  */
-public class Point implements WritableComparable<Point>, Serializable {
+public class Point implements WritableComparable<Point>, Serializable, Cloneable {
 	/**
 	 * Auto generated
 	 */
 	private static final long serialVersionUID = 7801822896513739736L;
 	
 	public int id;
-	public int type;
 	public float x;
 	public float y;
+  public int type;
 
 	public Point() {
-		this.set(0, 0.0f, 0.0f);
-	}
-	
-	public Point(int id, float x, float y) {
-		this.set(id, x, y);
+		this(0.0f, 0.0f);
 	}
 	
 	public Point(float x, float y) {
-		this(0, x, y);
+	  this(0, x, y);
+	}
+	
+	public Point(int id, float x, float y) {
+		this(id, x, y, 0);
+	}
+	
+	/**
+	 * @param id
+	 * @param x
+	 * @param y
+	 * @param type
+	 */
+	public Point(int id, float x, float y, int type) {
+	  set(id, x, y, type);
 	}
 
-	public void set(int id, float x, float y) {
+	public void set(int id, float x, float y, int type) {
 		this.id = id;
 		this.x = x;
 		this.y = y;
@@ -72,7 +82,7 @@ public class Point implements WritableComparable<Point>, Serializable {
 	
 	public boolean equals(Object obj) {
 		Point r2 = (Point) obj;
-		return this.x == r2.x && this.y == r2.y;
+		return this.id == r2.id;
 	}
 	
 	public String toString() {
@@ -82,6 +92,11 @@ public class Point implements WritableComparable<Point>, Serializable {
 	public double distanceTo(Point s) {
 		double dx = s.x - this.x;
 		double dy = s.y - this.y;
-		return dx*dx+dy*dy;
+		return Math.sqrt(dx*dx+dy*dy);
+	}
+	
+	@Override
+	public Object clone() {
+	  return new Point(this.id, this.x, this.y, this.type);
 	}
 }
