@@ -4,9 +4,13 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.util.Iterator;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
@@ -16,10 +20,14 @@ import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TextOutputFormat;
+import org.apache.hadoop.spatial.GridInfo;
+import org.apache.hadoop.util.LineReader;
 
+import edu.umn.cs.WritePointFile;
 import edu.umn.edu.spatial.Point;
 import edu.umn.edu.spatial.PointWithDistance;
 import edu.umn.edu.spatial.PointWithK;
+import edu.umn.edu.spatial.Rectangle;
 
 
 /**
@@ -28,6 +36,7 @@ import edu.umn.edu.spatial.PointWithK;
  *
  */
 public class KNNMapReduce {
+  public static final Log LOG = LogFactory.getLog(KNNMapReduce.class);
 
   public static class Map extends MapReduceBase
   implements
@@ -130,13 +139,65 @@ public class KNNMapReduce {
       conf.setInputFormat(KNNInputFormat.class);
       conf.setOutputFormat(TextOutputFormat.class);
 
-      // All files except firat and last ones are input files
+      // All files except first and last ones are input files
+      Path[] inputPaths = new Path[args.length - 2];
       for (int i = 1; i < args.length - 1; i++)
-        RQInputFormat.addInputPath(conf, new Path(args[i]));
+        RQInputFormat.addInputPath(conf, inputPaths[i-1] = new Path(args[i]));
       
       // Last argument is the output file
-      FileOutputFormat.setOutputPath(conf, new Path(args[args.length - 1]));
+      Path outputPath = new Path(args[args.length - 1]);
+      FileOutputFormat.setOutputPath(conf, outputPath);
 
       JobClient.runJob(conf);
+      
+      // Check that results are correct
+      FileStatus[] resultFiles = fs.listStatus(outputPath);
+      // Maximum distance of neighbors
+      double farthestNeighbor = 0.0;
+      for (FileStatus resultFile : resultFiles) {
+        if (resultFile.getLen() > 0) {
+          LineReader in = new LineReader(fs.open(resultFile.getPath()));
+          Text line = new Text();
+          while (in.readLine(line) > 0) {
+            int i = 0;
+            // Skip all characters till the -
+            while (line.charAt(i++) != '-');
+            // Parse the rest of the line to get the distance
+            double distance = Double.parseDouble(new String(line.getBytes(), i, line.getLength() - i));
+            if (distance > farthestNeighbor)
+              farthestNeighbor = distance;
+          }
+          in.close();
+        }
+      }
+      
+      LOG.info("Farthest neighbor: "+farthestNeighbor);
+      
+      boolean allGood = true;
+      // Ensure that maximum distance cannot go outside current cell
+      for (int i = 0; i < inputPaths.length; i++) {
+        // Find cell that contains query point; the one that was actually processed
+        FileStatus fileStatus = fs.getFileStatus(inputPaths[i]);
+        GridInfo gridInfo = fileStatus.getGridInfo();
+        int column = (int) ((queryPoint.x - gridInfo.xOrigin) / gridInfo.cellWidth);
+        int row = (int) ((queryPoint.y - gridInfo.yOrigin) / gridInfo.cellHeight);
+        Rectangle cellBoundaries = new Rectangle(
+            0,
+            (float)(column * gridInfo.cellWidth + gridInfo.xOrigin),
+            (float)(row * gridInfo.cellHeight + gridInfo.yOrigin),
+            (float)((column + 1)* gridInfo.cellWidth + gridInfo.xOrigin),
+            (float)((row + 1) * gridInfo.cellHeight + gridInfo.yOrigin)
+            );
+        LOG.info("The cell that was processed: "+cellBoundaries);
+        double minDistance = cellBoundaries.minDistance(queryPoint);
+        LOG.info("Min distance within processed cell: "+minDistance);
+        if (minDistance < farthestNeighbor) {
+          // TODO ensure that there is another grid cell at that distance
+          // This indicates that there might be a nearer neighbor in
+          // an adjacent cell
+          allGood = false;
+          LOG.warn("Result is incorrect! farthestNeighbor: "+farthestNeighbor+", maxDistance: "+minDistance);
+        }
+      }
     }
 }

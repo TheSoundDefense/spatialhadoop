@@ -122,4 +122,18 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable {
     return queryPoint.x >= this.x1 && queryPoint.x <= this.x2 &&
         queryPoint.y >= this.y1 && queryPoint.y <= this.y2;
   }
+  
+  public double maxDistance(Point point) {
+    double dx = Math.max(point.x - this.x1, this.x2 - point.x);
+    double dy = Math.max(point.y - this.y1, this.y2 - point.y);
+
+    return Math.sqrt(dx*dx+dy*dy);
+  }
+
+  public double minDistance(Point point) {
+    double dx = Math.min(point.x - this.x1, this.x2 - point.x);
+    double dy = Math.min(point.y - this.y1, this.y2 - point.y);
+
+    return Math.min(dx, dy);
+  }
 }
