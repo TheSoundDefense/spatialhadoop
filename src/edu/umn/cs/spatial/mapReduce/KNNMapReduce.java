@@ -179,6 +179,8 @@ public class KNNMapReduce {
         // Find cell that contains query point; the one that was actually processed
         FileStatus fileStatus = fs.getFileStatus(inputPaths[i]);
         GridInfo gridInfo = fileStatus.getGridInfo();
+        if (gridInfo == null)
+          continue;
         int column = (int) ((queryPoint.x - gridInfo.xOrigin) / gridInfo.cellWidth);
         int row = (int) ((queryPoint.y - gridInfo.yOrigin) / gridInfo.cellHeight);
         Rectangle cellBoundaries = new Rectangle(
