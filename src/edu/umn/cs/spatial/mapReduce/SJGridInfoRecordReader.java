@@ -1,0 +1,74 @@
+package edu.umn.cs.spatial.mapReduce;
+import java.io.IOException;
+
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapred.FileSplit;
+import org.apache.hadoop.mapred.LineRecordReader;
+import org.apache.hadoop.mapred.RecordReader;
+import org.apache.hadoop.spatial.GridInfo;
+
+
+/**
+ * Parses a spatial file and returns a list of <id, rectangle> tuples.
+ * Used with range query (spatial selection)
+ * @author aseldawy
+ *
+ */
+public class SJGridInfoRecordReader implements RecordReader<LongWritable, GridInfo> {
+  
+  private RecordReader<LongWritable, Text> lineRecordReader;
+  private Text subValue;
+
+  public SJGridInfoRecordReader(Configuration job, 
+      FileSplit split) throws IOException {
+    lineRecordReader = new LineRecordReader(job, split);
+  }
+
+  /**
+	 * Reads a line from the underlying line reader and emits its value.
+	 */
+	public boolean next(LongWritable key, GridInfo value) throws IOException {
+	  if (!lineRecordReader.next(key, subValue) || subValue.getLength() < 4) {
+	    // Stop on wrapped reader EOF or a very short line which indicates EOF too
+	    return false;
+	  }
+	  // Convert to a regular string to be able to use split
+	  String line = new String(subValue.getBytes(), 0, subValue.getLength());
+	  String[] parts = line.split(",");
+	  key.set(Integer.parseInt(parts[0]));
+    value.xOrigin = Double.parseDouble(parts[0]);
+    value.yOrigin = Double.parseDouble(parts[1]);
+    value.gridWidth = Double.parseDouble(parts[2]);
+    value.gridHeight = Double.parseDouble(parts[3]);
+    value.cellWidth = Double.parseDouble(parts[4]);
+    value.cellHeight = Double.parseDouble(parts[5]);
+
+	  return true;
+	}
+
+  public long getPos() throws IOException {
+    return lineRecordReader.getPos();
+  }
+
+  public void close() throws IOException {
+    lineRecordReader.close();
+  }
+
+  public float getProgress() throws IOException {
+    return lineRecordReader.getProgress();
+  }
+
+  @Override
+  public LongWritable createKey() {
+    return lineRecordReader.createKey();
+  }
+
+  @Override
+  public GridInfo createValue() {
+    subValue = lineRecordReader.createValue();
+    return new GridInfo();
+  }
+
+}
