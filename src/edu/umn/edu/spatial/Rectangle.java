@@ -12,7 +12,7 @@ import org.apache.hadoop.io.WritableComparable;
  * @author aseldawy
  *
  */
-public class Rectangle implements WritableComparable<Rectangle>, Serializable {
+public class Rectangle implements WritableComparable<Rectangle>, Serializable, Cloneable {
 	/**
 	 * Auto generated
 	 */
@@ -91,22 +91,34 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable {
 		this.y2 = in.readFloat();
 	}
 
+	/**
+	 * Comparison is done by lexicographic ordering of attributes
+	 * < x1, y2, x2, y2>
+	 */
 	public int compareTo(Rectangle rect2) {
 		// Sort by id
 		double difference = this.x1 - rect2.x1;
-		if (difference < 0) {
-			return -1;
-		} 
-		if (difference > 0) {
-			return 1;
-		}
+		if (difference == 0.0) difference = this.y1 - rect2.y1;
+	  if (difference == 0.0) difference = this.x2 - rect2.x2;
+	  if (difference == 0.0) difference = this.y2 - rect2.y2;
+	  if (difference < 0)
+	    return -1;
+	  if (difference > 0)
+	    return 1;
 		return 0;
 
 	}
 	
 	public boolean equals(Object obj) {
 		Rectangle r2 = (Rectangle) obj;
-		return this.x1 == r2.x1 && this.x2 == r2.x2 && this.y1 == r2.y1 && this.y2 == r2.y2;
+		boolean result = this.x1 == r2.x1 && this.x2 == r2.x2 && this.y1 == r2.y1 && this.y2 == r2.y2;
+		System.out.println("Comparing "+r2 +" to "+obj+" and result is "+result);
+		return result;
+	}
+	
+	@Override
+	public int hashCode() {
+	  return new Float(x1+y1+x2+y2).hashCode();
 	}
 	
 	public String toString() {
@@ -135,5 +147,10 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable {
     double dy = Math.min(point.y - this.y1, this.y2 - point.y);
 
     return Math.min(dx, dy);
+  }
+  
+  @Override
+  public Object clone() {
+    return new Rectangle(this.id, this.x1, this.y1, this.x2, this.y2);
   }
 }

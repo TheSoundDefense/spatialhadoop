@@ -1,6 +1,9 @@
 package edu.umn.cs.spatial.mapReduce;
 
 import java.io.IOException;
+import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
 
 import org.apache.commons.logging.Log;
@@ -17,10 +20,11 @@ import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TextOutputFormat;
-import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
 
+import edu.umn.edu.spatial.PairOfRectangles;
 import edu.umn.edu.spatial.Rectangle;
+import edu.umn.edu.spatial.SpatialAlgorithms;
 
 
 /**
@@ -38,24 +42,48 @@ public class SJMapReduce {
    */
   public static class Map extends MapReduceBase
   implements
-  Mapper<GridInfo, Rectangle, CellInfo, Rectangle> {
+  Mapper<GridInfo, Rectangle, Rectangle, Rectangle> {
     public void map(
         GridInfo gridInfo,
         Rectangle rectangle,
-        OutputCollector<CellInfo, Rectangle> output,
+        OutputCollector<Rectangle, Rectangle> output,
         Reporter reporter) throws IOException {
-      // TODO output the input rectangle to each grid cell it intersects with
+      // output the input rectangle to each grid cell it intersects with
+      int cellCol1 = (int) ((rectangle.x1 - gridInfo.xOrigin) / gridInfo.cellWidth);
+      int cellRow1 = (int) ((rectangle.y1 - gridInfo.yOrigin) / gridInfo.cellHeight);
+      int cellCol2 = (int) ((rectangle.x2 - gridInfo.xOrigin) / gridInfo.cellWidth);
+      int cellRow2 = (int) ((rectangle.y2 - gridInfo.yOrigin) / gridInfo.cellHeight);
+      
+      for (int cellCol = cellCol1; cellCol <= cellCol2; cellCol++) {
+        for (int cellRow = cellRow1; cellRow <= cellRow2; cellRow++) {
+          float cellX = (float) (cellCol * gridInfo.cellWidth + gridInfo.xOrigin);
+          float cellY = (float) (cellRow * gridInfo.cellHeight + gridInfo.yOrigin);
+          Rectangle cellRectangle = new Rectangle(0, (float)cellX, cellY, cellX + (float)gridInfo.cellWidth, cellY + (float)gridInfo.cellHeight);
+          output.collect(cellRectangle, rectangle);
+        }
+      }
     }
   }
 	
   public static class Reduce extends MapReduceBase implements
-      Reducer<CellInfo, Rectangle, Rectangle, Rectangle> {
+      Reducer<Rectangle, Rectangle, Rectangle, Rectangle> {
     @Override
-    public void reduce(CellInfo key, Iterator<Rectangle> values,
+    public void reduce(Rectangle key, Iterator<Rectangle> values,
         OutputCollector<Rectangle, Rectangle> output, Reporter reporter)
         throws IOException {
-      // TODO do a spatial join over rectangles in the values set
+      Collection<Rectangle> rectangles = new ArrayList<Rectangle>();
+      // do a spatial join over rectangles in the values set
       // and output each joined pair to the output
+      while (values.hasNext()) {
+        Rectangle rect = (Rectangle) values.next().clone();
+        rectangles.add(rect);
+      }
+      
+      Collection<PairOfRectangles> joinResults = SpatialAlgorithms.spatialJoin(rectangles);
+      System.out.println("result of join "+joinResults.size());
+      for (PairOfRectangles joinResult : joinResults) {
+        output.collect(joinResult.r1, joinResult.r2);
+      }
     }
 
   }
@@ -91,8 +119,9 @@ public class SJMapReduce {
       // Write grid info to a temporary file
       Path gridInfoFilepath = new Path("/sj_grid_info");
       FSDataOutputStream out = fs.create(gridInfoFilepath, true);
-      gridInfo.write(out);
-      out.close();
+      PrintStream ps = new PrintStream(out);
+      ps.println(args[0]);
+      ps.close();
 
       // add this query file as the first input path to the job
       SJInputFormat.addInputPath(conf, gridInfoFilepath);

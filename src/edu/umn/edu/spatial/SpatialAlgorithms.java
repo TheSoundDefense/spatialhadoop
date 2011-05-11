@@ -127,14 +127,16 @@ public class SpatialAlgorithms {
 	public static Collection<PairOfRectangles> spatialJoin(
 			Collection<Rectangle> rectangles) {
 		if (rectangles.size() > 0)
-			System.out.println("Doing spatial joing for " + rectangles.size()
+			System.out.println("Doing spatial join for " + rectangles.size()
 					+ " rectangles");
 		Collection<PairOfRectangles> matches = new ArrayList<PairOfRectangles>();
 
 		// TODO use a sweep line algorithm instead of this quadratic algorithm
 		for (Rectangle r1 : rectangles) {
 			for (Rectangle r2 : rectangles) {
+			  System.out.println("Comparing "+r1+" to "+ r2);
 				if (r1 != r2 && r1.intersects(r2)) {
+	        System.out.println("Matched");
 					matches.add(new PairOfRectangles(r1, r2));
 				}
 			}
