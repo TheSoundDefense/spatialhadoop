@@ -81,6 +81,7 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable, C
 		out.writeFloat(y1);
 		out.writeFloat(x2);
 		out.writeFloat(y2);
+		out.writeInt(this.type);
 	}
 
 	public void readFields(DataInput in) throws IOException {
@@ -89,6 +90,7 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable, C
 		this.y1 = in.readFloat();
 		this.x2 = in.readFloat();
 		this.y2 = in.readFloat();
+		this.type = in.readInt();
 	}
 
 	/**
@@ -150,6 +152,8 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable, C
   
   @Override
   public Object clone() {
-    return new Rectangle(this.id, this.x1, this.y1, this.x2, this.y2);
+    Rectangle rect2 = new Rectangle(this.id, this.x1, this.y1, this.x2, this.y2);
+    rect2.type = this.type;
+    return rect2;
   }
 }
