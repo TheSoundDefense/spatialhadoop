@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Hashtable;
 import java.util.Iterator;
 
 import org.apache.commons.logging.Log;
@@ -22,9 +23,7 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.GridInfo;
 
-import edu.umn.edu.spatial.PairOfRectangles;
 import edu.umn.edu.spatial.Rectangle;
-import edu.umn.edu.spatial.SpatialAlgorithms;
 
 
 /**
@@ -43,11 +42,26 @@ public class SJMapReduce {
   public static class Map extends MapReduceBase
   implements
   Mapper<GridInfo, Rectangle, Rectangle, Rectangle> {
+    private static Hashtable<Integer, Rectangle> cellRectangles = new Hashtable<Integer, Rectangle>();
+    
+    private static Rectangle getCellRectangle(GridInfo gridInfo, int cellCol, int cellRow) {
+      int cellNumber = cellRow * 10000 + cellCol;
+      Rectangle cellRectangle = cellRectangles.get(cellNumber);
+      if (cellRectangle == null) {
+        float cellX = (float) (cellCol * gridInfo.cellWidth + gridInfo.xOrigin);
+        float cellY = (float) (cellRow * gridInfo.cellHeight + gridInfo.yOrigin);
+        cellRectangle = new Rectangle(0, (float)cellX, cellY, cellX + (float)gridInfo.cellWidth, cellY + (float)gridInfo.cellHeight);
+        cellRectangles.put(cellNumber, cellRectangle);
+      }
+      return cellRectangle;
+    }
+
     public void map(
         GridInfo gridInfo,
         Rectangle rectangle,
         OutputCollector<Rectangle, Rectangle> output,
         Reporter reporter) throws IOException {
+      
       // output the input rectangle to each grid cell it intersects with
       int cellCol1 = (int) ((rectangle.x1 - gridInfo.xOrigin) / gridInfo.cellWidth);
       int cellRow1 = (int) ((rectangle.y1 - gridInfo.yOrigin) / gridInfo.cellHeight);
@@ -56,9 +70,7 @@ public class SJMapReduce {
       
       for (int cellCol = cellCol1; cellCol <= cellCol2; cellCol++) {
         for (int cellRow = cellRow1; cellRow <= cellRow2; cellRow++) {
-          float cellX = (float) (cellCol * gridInfo.cellWidth + gridInfo.xOrigin);
-          float cellY = (float) (cellRow * gridInfo.cellHeight + gridInfo.yOrigin);
-          Rectangle cellRectangle = new Rectangle(0, (float)cellX, cellY, cellX + (float)gridInfo.cellWidth, cellY + (float)gridInfo.cellHeight);
+          Rectangle cellRectangle = getCellRectangle(gridInfo, cellCol, cellRow);
           output.collect(cellRectangle, rectangle);
         }
       }
@@ -71,18 +83,24 @@ public class SJMapReduce {
     public void reduce(Rectangle key, Iterator<Rectangle> values,
         OutputCollector<Rectangle, Rectangle> output, Reporter reporter)
         throws IOException {
-      Collection<Rectangle> rectangles = new ArrayList<Rectangle>();
+      Collection<Rectangle> ra = new ArrayList<Rectangle>();
+      Collection<Rectangle> rb = new ArrayList<Rectangle>();
       // do a spatial join over rectangles in the values set
       // and output each joined pair to the output
       while (values.hasNext()) {
         Rectangle rect = (Rectangle) values.next().clone();
-        rectangles.add(rect);
+        if (rect.type == 1)
+          ra.add(rect);
+        else
+          rb.add(rect);
       }
-      
-      Collection<PairOfRectangles> joinResults = SpatialAlgorithms.spatialJoin(rectangles);
-      System.out.println("result of join "+joinResults.size());
-      for (PairOfRectangles joinResult : joinResults) {
-        output.collect(joinResult.r1, joinResult.r2);
+      System.out.println("Joinging "+ra.size()+" with "+rb.size());
+      for (Rectangle r1 : ra) {
+        for (Rectangle r2 : rb) {
+          if (r1.intersects(r2)) {
+            output.collect(r1, r2);
+          }
+        }
       }
     }
 

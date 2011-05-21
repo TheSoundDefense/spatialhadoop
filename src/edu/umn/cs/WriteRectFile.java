@@ -13,7 +13,7 @@ import org.apache.hadoop.hdfs.DFSOutputStream;
 import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.spatial.GridInfo;
 
-public class WriteFile {
+public class WriteRectFile {
 
   private static final int BufferLength = 1024 * 1024;
   private static long BlockSize = 64 * 1024 * 1024;
@@ -73,7 +73,7 @@ public class WriteFile {
 		
 		fs = FileSystem.get(conf);
 
-		gridInfo = new GridInfo(0, 0, 1024, 1024, 512, 512);
+		gridInfo = new GridInfo(0, 0, 1024, 1024, 256, 256);
     int gridColumns = (int) Math.ceil(gridInfo.gridWidth / gridInfo.cellWidth); 
     int gridRows = (int) Math.ceil(gridInfo.gridHeight / gridInfo.cellHeight);
     

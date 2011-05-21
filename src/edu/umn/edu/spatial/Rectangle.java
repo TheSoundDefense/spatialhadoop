@@ -112,7 +112,6 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable, C
 	public boolean equals(Object obj) {
 		Rectangle r2 = (Rectangle) obj;
 		boolean result = this.x1 == r2.x1 && this.x2 == r2.x2 && this.y1 == r2.y1 && this.y2 == r2.y2;
-		System.out.println("Comparing "+r2 +" to "+obj+" and result is "+result);
 		return result;
 	}
 	
