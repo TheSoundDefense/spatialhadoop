@@ -56,11 +56,12 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable, C
 		return !(this.x2 < r2.x1 || r2.x2 < this.x1) &&
 				!(this.y2 < r2.y1 || r2.y2 < this.y1);
 	}
-	float getXlower() {return x1;}
-	float getXupper() {return x2;}
-	float getYlower() {return y1;}
-	float getYupper() {return y2;}
-	int getId() {return id;}
+	public float getXlower() {return x1;}
+	public float getXupper() {return x2;}
+	public float getYlower() {return y1;}
+	public float getYupper() {return y2;}
+	public int getId() {return id;}
+	
 	public static void main(String[] args) {
 		Rectangle r1 = new Rectangle(1, 0,0, 100, 100);
 		Rectangle r2 = new Rectangle(1, 0,0, 50, 50);

@@ -3,9 +3,10 @@ package edu.umn.cs.spatial.mapReduce;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Collections;
 import java.util.Hashtable;
 import java.util.Iterator;
+import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -23,6 +24,7 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.GridInfo;
 
+import edu.umn.edu.spatial.PairOfRectangles;
 import edu.umn.edu.spatial.Rectangle;
 
 
@@ -83,25 +85,61 @@ public class SJMapReduce {
 		public void reduce(Rectangle key, Iterator<Rectangle> values,
 				OutputCollector<Rectangle, Rectangle> output, Reporter reporter)
 		throws IOException {
-			Collection<Rectangle> ra = new ArrayList<Rectangle>();
-			Collection<Rectangle> rb = new ArrayList<Rectangle>();
+		  List<Rectangle> rects[] = new List[10];
 			// do a spatial join over rectangles in the values set
 			// and output each joined pair to the output
 			while (values.hasNext()) {
 				Rectangle rect = (Rectangle) values.next().clone();
-				if (rect.type == 1)
-					ra.add(rect);
-				else
-					rb.add(rect);
+				if (rects[rect.type] == null)
+				  rects[rect.type] = new ArrayList<Rectangle>();
+				rects[rect.type].add(rect);
 			}
+			
+			List<Rectangle> R = null, S = null;
+			for (List<Rectangle> rectanglesList : rects) {
+			  if (rectanglesList != null) {
+			    if (R == null)
+			      R = rectanglesList;
+			    else
+			      S = rectanglesList;
+			  }
+			}
+			
+			System.out.println("Joinging " + R.size() + " with "+S.size());
+			
+      Collections.sort(R);
+      Collections.sort(S);
 
-			for (Rectangle r1 : ra) {
-				for (Rectangle r2 : rb) {
-					if (r1.intersects(r2)) {
-						output.collect(r1, r2);
-					}
-				}
-			}
+      while (R.size() != 0 && S.size() != 0) {
+        Rectangle r = null;
+        if (R.get(0).compareTo(S.get(0)) < 0) {
+          r = R.get(0);
+          int i = 0;
+          Rectangle s;
+          while ((i < S.size())
+              && (S.get(i).getXlower() <= r.getXupper())) {
+            s = S.get(i);
+            if (r.intersects(s)) {
+              output.collect(r, s);
+            }
+            i++;
+          }
+          R.remove(0);
+        } else {
+          r = S.get(0);
+          int i = 0;
+          Rectangle s;
+          while ((i < R.size())
+              && (R.get(i).getXlower() <= r.getXupper())) {
+            s = R.get(i);
+            if (r.intersects(s)) {
+              output.collect(r, s);
+            }
+            i++;
+          }
+          S.remove(0);
+        }
+      }
 		}
 
 	}

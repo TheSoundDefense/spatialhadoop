@@ -62,6 +62,15 @@ public class WriteRectFile {
 	  return ps;
 	}
 
+	/**
+	 * Write a rectangles file to HDFS.
+	 * Usage: <grid info> <source file> <destination file>
+	 * grid info: xOrigin,yOrigin,gridWidth,gridHeight,cellWidth,cellHeight
+	 * source file: Local file
+	 * destination file: HDFS file
+	 * @param args
+	 * @throws IOException
+	 */
 	public static void main (String [] args) throws IOException {
 		inputFilename = args[0];
 		outputFilename = args[1];
@@ -72,9 +81,20 @@ public class WriteRectFile {
 		conf = new Configuration();
 		
 		fs = FileSystem.get(conf);
+		BlockSize = fs.getDefaultBlockSize();
 
-		gridInfo = new GridInfo(0, 0, 1024, 1024, 256, 256);
-    int gridColumns = (int) Math.ceil(gridInfo.gridWidth / gridInfo.cellWidth); 
+    // Retrieve query rectangle and store it to an HDFS file
+    gridInfo = new GridInfo();
+    String[] parts = args[0].split(",");
+
+    gridInfo.xOrigin = Double.parseDouble(parts[0]);
+    gridInfo.yOrigin = Double.parseDouble(parts[1]);
+    gridInfo.gridWidth = Double.parseDouble(parts[2]);
+    gridInfo.gridHeight = Double.parseDouble(parts[3]);
+    gridInfo.cellWidth = Double.parseDouble(parts[4]);
+    gridInfo.cellHeight = Double.parseDouble(parts[5]);
+		
+		int gridColumns = (int) Math.ceil(gridInfo.gridWidth / gridInfo.cellWidth); 
     int gridRows = (int) Math.ceil(gridInfo.gridHeight / gridInfo.cellHeight);
     
     // Prepare an array to hold all output streams
@@ -85,9 +105,10 @@ public class WriteRectFile {
     LineNumberReader reader = new LineNumberReader(new FileReader(inputFilename));
 
     while (reader.ready()) {
+      // TODO we can make it faster by not doing a trim or split to avoid creating unnecessary objects
       String line = reader.readLine().trim();
       // Parse rectangle dimensions
-      String[] parts = line.split(",");
+      parts = line.split(",");
       //int id = Integer.parseInt(parts[0]);
       float rx1 = Float.parseFloat(parts[1]);
       float ry1 = Float.parseFloat(parts[2]);

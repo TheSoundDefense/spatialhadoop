@@ -1,7 +1,7 @@
 xmin = 0
-xmax = 1024
+xmax = 102400
 ymin = 0
-ymax = 1024
+ymax = 102400
 max_width = 10
 max_height = 10
 
