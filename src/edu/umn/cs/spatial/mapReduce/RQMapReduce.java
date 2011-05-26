@@ -57,10 +57,10 @@ public class RQMapReduce {
       Rectangle queryRectangle = new Rectangle();
       String[] parts = args[0].split(",");
       
-      queryRectangle.x1 = Float.parseFloat(parts[0]);
-      queryRectangle.y1 = Float.parseFloat(parts[1]);
-      queryRectangle.x2 = Float.parseFloat(parts[2]);
-      queryRectangle.y2 = Float.parseFloat(parts[3]);
+      queryRectangle.x1 = Integer.parseInt(parts[0]);
+      queryRectangle.y1 = Integer.parseInt(parts[1]);
+      queryRectangle.x2 = Integer.parseInt(parts[2]);
+      queryRectangle.y2 = Integer.parseInt(parts[3]);
       
       conf.set(SplitCalculator.QUERY_RANGE, args[0]);
       

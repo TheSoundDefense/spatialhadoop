@@ -109,8 +109,8 @@ public class KNNMapReduce {
       PointWithK queryPoint = new PointWithK();
       String[] parts = args[0].split(",");
       
-      queryPoint.x = Float.parseFloat(parts[0]);
-      queryPoint.y = Float.parseFloat(parts[1]);
+      queryPoint.x = Integer.parseInt(parts[0]);
+      queryPoint.y = Integer.parseInt(parts[1]);
       queryPoint.k = Integer.parseInt(parts[2]);
       
       conf.set(SplitCalculator.QUERY_POINT, args[0]);
@@ -185,10 +185,10 @@ public class KNNMapReduce {
         int row = (int) ((queryPoint.y - gridInfo.yOrigin) / gridInfo.cellHeight);
         Rectangle cellBoundaries = new Rectangle(
             0,
-            (float)(column * gridInfo.cellWidth + gridInfo.xOrigin),
-            (float)(row * gridInfo.cellHeight + gridInfo.yOrigin),
-            (float)((column + 1)* gridInfo.cellWidth + gridInfo.xOrigin),
-            (float)((row + 1) * gridInfo.cellHeight + gridInfo.yOrigin)
+            (int)(column * gridInfo.cellWidth + gridInfo.xOrigin),
+            (int)(row * gridInfo.cellHeight + gridInfo.yOrigin),
+            (int)((column + 1)* gridInfo.cellWidth + gridInfo.xOrigin),
+            (int)((row + 1) * gridInfo.cellHeight + gridInfo.yOrigin)
             );
         LOG.info("The cell that was processed: "+cellBoundaries);
         double minDistance = cellBoundaries.minDistance(queryPoint);

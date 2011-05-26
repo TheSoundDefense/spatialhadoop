@@ -45,8 +45,8 @@ public class KNNPointRecordReader implements RecordReader<IntWritable, Point> {
 	  String[] parts = line.split(",");
 	  key.set(Integer.parseInt(parts[0]));
 	  value.id = key.get();
-	  value.x = Float.parseFloat(parts[1]);
-	  value.y = Float.parseFloat(parts[2]);
+	  value.x = Integer.parseInt(parts[1]);
+	  value.y = Integer.parseInt(parts[2]);
 	  value.type = Integer.parseInt(parts[3]);
 
 	  return true;

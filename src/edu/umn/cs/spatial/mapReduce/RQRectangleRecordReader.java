@@ -46,10 +46,10 @@ public class RQRectangleRecordReader implements RecordReader<IntWritable, Rectan
 	  String[] parts = line.split(",");
 	  key.set(Integer.parseInt(parts[0]));
 	  value.id = key.get();
-	  value.x1 = Float.parseFloat(parts[1]);
-	  value.y1 = Float.parseFloat(parts[2]);
-	  value.x2 = Float.parseFloat(parts[3]);
-	  value.y2 = Float.parseFloat(parts[4]);
+	  value.x1 = Integer.parseInt(parts[1]);
+	  value.y1 = Integer.parseInt(parts[2]);
+	  value.x2 = Integer.parseInt(parts[3]);
+	  value.y2 = Integer.parseInt(parts[4]);
 	  value.type = Integer.parseInt(parts[5]);
 
 	  return true;

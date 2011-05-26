@@ -19,19 +19,19 @@ public class Point implements WritableComparable<Point>, Serializable, Cloneable
 	private static final long serialVersionUID = 7801822896513739736L;
 	
 	public int id;
-	public float x;
-	public float y;
-  public int type;
+	public int x;
+	public int y;
+	public int type;
 
 	public Point() {
-		this(0.0f, 0.0f);
+		this(0, 0);
 	}
 	
-	public Point(float x, float y) {
+	public Point(int x, int y) {
 	  this(0, x, y);
 	}
 	
-	public Point(int id, float x, float y) {
+	public Point(int id, int x, int y) {
 		this(id, x, y, 0);
 	}
 	
@@ -41,48 +41,45 @@ public class Point implements WritableComparable<Point>, Serializable, Cloneable
 	 * @param y
 	 * @param type
 	 */
-	public Point(int id, float x, float y, int type) {
+	public Point(int id, int x, int y, int type) {
 	  set(id, x, y, type);
 	}
 
-	public void set(int id, float x, float y, int type) {
+	public void set(int id, int x, int y, int type) {
 		this.id = id;
 		this.x = x;
 		this.y = y;
 	}
 
-	float getX() {return x;}
-	float getY() {return y;}
+	int getX() {return x;}
+	int getY() {return y;}
 	int getId() {return id;}
 
 	public void write(DataOutput out) throws IOException {
 		out.writeInt(id);
-		out.writeFloat(x);
-		out.writeFloat(y);
+		out.writeInt(x);
+		out.writeInt(y);
 	}
 
 	public void readFields(DataInput in) throws IOException {
 		this.id = in.readInt();
-		this.x = in.readFloat();
-		this.y = in.readFloat();
+		this.x = in.readInt();
+		this.y = in.readInt();
 	}
 
-	public int compareTo(Point rect2) {
+	public int compareTo(Point pt2) {
 		// Sort by id
-		double difference = this.x - rect2.x;
-		if (difference < 0) {
-			return -1;
-		} 
-		if (difference > 0) {
-			return 1;
+		int difference = this.x - pt2.x;
+		if (difference == 0) {
+			difference = this.y - pt2.y;
 		}
-		return 0;
+		return difference;
 
 	}
 	
 	public boolean equals(Object obj) {
 		Point r2 = (Point) obj;
-		return this.id == r2.id;
+		return this.x == r2.x && this.y == r2.y;
 	}
 	
 	public String toString() {
@@ -90,9 +87,9 @@ public class Point implements WritableComparable<Point>, Serializable, Cloneable
 	}
 
 	public double distanceTo(Point s) {
-		double dx = s.x - this.x;
-		double dy = s.y - this.y;
-		return Math.sqrt(dx*dx+dy*dy);
+		int dx = s.x - this.x;
+		int dy = s.y - this.y;
+		return dx*dx+dy*dy;
 	}
 	
 	@Override
