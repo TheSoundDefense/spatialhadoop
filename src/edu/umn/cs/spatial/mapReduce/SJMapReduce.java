@@ -11,6 +11,7 @@ import java.util.List;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.FileOutputFormat;
@@ -173,6 +174,17 @@ public class SJMapReduce {
 
 		// Get the HDFS file system
 		FileSystem fs = FileSystem.get(conf);
+		
+		// If files are grid files, use the gridinfo of the largest files
+		// instead of the one passed
+		long maxSize = 0;
+		for (int i = 1; i < args.length - 1; i++) {
+		  FileStatus fileStatus = fs.getFileStatus(new Path(args[i]));
+		  if (fileStatus.getLen() > maxSize && fileStatus.getGridInfo() != null) {
+		    gridInfo = fileStatus.getGridInfo();
+		    maxSize = fileStatus.getLen();
+		  }
+		}
 
 		// Write grid info to a temporary file
 		Path gridInfoFilepath = new Path("/sj_grid_info");

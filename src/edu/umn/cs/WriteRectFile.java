@@ -72,8 +72,8 @@ public class WriteRectFile {
 	 * @throws IOException
 	 */
 	public static void main (String [] args) throws IOException {
-		inputFilename = args[0];
-		outputFilename = args[1];
+		inputFilename = args[1];
+		outputFilename = args[2];
 
 		// Initialize histogram
 		// int [][]histogram = new int [GridColumns][GridRows];

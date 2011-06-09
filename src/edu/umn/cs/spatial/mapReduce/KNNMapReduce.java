@@ -23,7 +23,6 @@ import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.util.LineReader;
 
-import edu.umn.cs.WritePointFile;
 import edu.umn.edu.spatial.Point;
 import edu.umn.edu.spatial.PointWithDistance;
 import edu.umn.edu.spatial.PointWithK;
@@ -113,19 +112,17 @@ public class KNNMapReduce {
       queryPoint.y = Integer.parseInt(parts[1]);
       queryPoint.k = Integer.parseInt(parts[2]);
       
-      conf.set(SplitCalculator.QUERY_POINT, args[0]);
-      
       // Get the HDFS file system
       FileSystem fs = FileSystem.get(conf);
       Path queryFilepath = new Path("/knn_query");
-
+      
       // Open an output stream for the file
       FSDataOutputStream out = fs.create(queryFilepath, true);
       PrintStream ps = new PrintStream(out);
       ps.print(0+","+queryPoint.x +","+ queryPoint.y +","+
           queryPoint.k);
       ps.close();
-
+      
       // add this query file as the first input path to the job
       RQInputFormat.addInputPath(conf, queryFilepath);
       
@@ -144,62 +141,89 @@ public class KNNMapReduce {
       for (int i = 1; i < args.length - 1; i++)
         RQInputFormat.addInputPath(conf, inputPaths[i-1] = new Path(args[i]));
       
-      // Last argument is the output file
-      Path outputPath = new Path(args[args.length - 1]);
-      FileOutputFormat.setOutputPath(conf, outputPath);
+      boolean jobFinished = false;
 
-      JobClient.runJob(conf);
+      // Get grid info of the file to be processed
+      GridInfo gridInfo = fs.getFileStatus(inputPaths[0]).getGridInfo();
       
-      // Check that results are correct
-      FileStatus[] resultFiles = fs.listStatus(outputPath);
-      // Maximum distance of neighbors
-      double farthestNeighbor = 0.0;
-      for (FileStatus resultFile : resultFiles) {
-        if (resultFile.getLen() > 0) {
-          LineReader in = new LineReader(fs.open(resultFile.getPath()));
-          Text line = new Text();
-          while (in.readLine(line) > 0) {
-            int i = 0;
-            // Skip all characters till the -
-            while (line.charAt(i++) != '-');
-            // Parse the rest of the line to get the distance
-            double distance = Double.parseDouble(new String(line.getBytes(), i, line.getLength() - i));
-            if (distance > farthestNeighbor)
-              farthestNeighbor = distance;
+      // Calculate initial rectangle to be processed (the one that contains the query point)
+      int column = (int) ((queryPoint.x - gridInfo.xOrigin) / gridInfo.cellWidth);
+      int row = (int) ((queryPoint.y - gridInfo.yOrigin) / gridInfo.cellHeight);
+      Rectangle rectProcessed = new Rectangle(
+          0,
+          (int)(column * gridInfo.cellWidth + gridInfo.xOrigin),
+          (int)(row * gridInfo.cellHeight + gridInfo.yOrigin),
+          (int)((column + 1)* gridInfo.cellWidth + gridInfo.xOrigin),
+          (int)((row + 1) * gridInfo.cellHeight + gridInfo.yOrigin)
+          );
+
+      LOG.info("Going to process this rectangle next round: "+rectProcessed);
+      conf.set(SplitCalculator.QUERY_RANGE, rectProcessed.x1 + ","+rectProcessed.y1+","+
+          rectProcessed.x2 +","+rectProcessed.y2);
+      
+      int round = 0;
+      
+      while (!jobFinished) {
+        // Last argument is the base name output file
+        Path outputPath = new Path(args[args.length - 1]+"_"+round);
+        FileOutputFormat.setOutputPath(conf, outputPath);
+
+        JobClient.runJob(conf);
+        
+        // Check that results are correct
+        FileStatus[] resultFiles = fs.listStatus(outputPath);
+        // Maximum distance of neighbors
+        double farthestNeighbor = 0.0;
+        for (FileStatus resultFile : resultFiles) {
+          if (resultFile.getLen() > 0) {
+            LineReader in = new LineReader(fs.open(resultFile.getPath()));
+            Text line = new Text();
+            while (in.readLine(line) > 0) {
+              int i = 0;
+              // Skip all characters till the -
+              while (line.charAt(i++) != '-');
+              // Parse the rest of the line to get the distance
+              double distance = Double.parseDouble(new String(line.getBytes(), i, line.getLength() - i));
+              if (distance > farthestNeighbor)
+                farthestNeighbor = distance;
+            }
+            in.close();
           }
-          in.close();
         }
-      }
-      
-      LOG.info("Farthest neighbor: "+farthestNeighbor);
-      
-      boolean allGood = true;
-      // Ensure that maximum distance cannot go outside current cell
-      for (int i = 0; i < inputPaths.length; i++) {
-        // Find cell that contains query point; the one that was actually processed
-        FileStatus fileStatus = fs.getFileStatus(inputPaths[i]);
-        GridInfo gridInfo = fileStatus.getGridInfo();
-        if (gridInfo == null)
-          continue;
-        int column = (int) ((queryPoint.x - gridInfo.xOrigin) / gridInfo.cellWidth);
-        int row = (int) ((queryPoint.y - gridInfo.yOrigin) / gridInfo.cellHeight);
-        Rectangle cellBoundaries = new Rectangle(
-            0,
-            (int)(column * gridInfo.cellWidth + gridInfo.xOrigin),
-            (int)(row * gridInfo.cellHeight + gridInfo.yOrigin),
-            (int)((column + 1)* gridInfo.cellWidth + gridInfo.xOrigin),
-            (int)((row + 1) * gridInfo.cellHeight + gridInfo.yOrigin)
-            );
-        LOG.info("The cell that was processed: "+cellBoundaries);
-        double minDistance = cellBoundaries.minDistance(queryPoint);
-        LOG.info("Min distance within processed cell: "+minDistance);
-        if (minDistance < farthestNeighbor) {
-          // TODO ensure that there is another grid cell at that distance
-          // This indicates that there might be a nearer neighbor in
-          // an adjacent cell
-          allGood = false;
-          LOG.warn("Result is incorrect! farthestNeighbor: "+farthestNeighbor+", maxDistance: "+minDistance);
+        
+        jobFinished = true;
+        
+        LOG.info("Farthest neighbor: "+farthestNeighbor);
+
+        // Ensure that maximum distance cannot go outside current cell
+        for (int i = 0; i < inputPaths.length; i++) {
+          // Find cell that contains query point; the one that was actually processed
+          if (gridInfo == null)
+            continue;
+          LOG.info("The cell that was processed: "+rectProcessed);
+          double minDistance = rectProcessed.minDistance(queryPoint);
+          LOG.info("Min distance within processed cell: "+minDistance);
+          if (minDistance < farthestNeighbor) {
+            // TODO ensure that there is another grid cell at that distance
+            // This indicates that there might be a nearer neighbor in
+            // an adjacent cell
+            LOG.warn("Result is incorrect! farthestNeighbor: "+farthestNeighbor+", maxDistance: "+minDistance);
+            
+            // Add all grid cells that need to be processed
+            for (double x = gridInfo.xOrigin; (x + gridInfo.cellWidth / 2) < gridInfo.xOrigin + gridInfo.gridWidth; x += gridInfo.cellWidth) {
+              for (double y = gridInfo.yOrigin; (y + gridInfo.cellHeight / 2) < gridInfo.yOrigin + gridInfo.gridHeight; y += gridInfo.cellHeight) {
+                Rectangle rect = new Rectangle(0, (int)x, (int)y, (int)x + (int)gridInfo.cellWidth, (int)x + (int)gridInfo.cellHeight);
+                if (rect.minDistance(queryPoint) < farthestNeighbor && !rectProcessed.union(rect).equals(rectProcessed)) {
+                  // Add this rectangle to the next processed items
+                  rectProcessed = rectProcessed.union(rect);
+                  jobFinished = false;
+                }
+              }
+            }
+          }
         }
+        ++round;
+        
       }
     }
 }

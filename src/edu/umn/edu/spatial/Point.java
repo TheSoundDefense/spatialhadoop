@@ -89,7 +89,7 @@ public class Point implements WritableComparable<Point>, Serializable, Cloneable
 	public double distanceTo(Point s) {
 		int dx = s.x - this.x;
 		int dy = s.y - this.y;
-		return dx*dx+dy*dy;
+		return Math.sqrt(dx*dx+dy*dy);
 	}
 	
 	@Override
