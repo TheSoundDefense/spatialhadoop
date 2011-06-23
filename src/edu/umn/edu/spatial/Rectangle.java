@@ -54,8 +54,8 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable, C
   }
 
   public boolean intersects(Rectangle r2) {
-    return !(this.x2 < r2.x1 || r2.x2 < this.x1) &&
-    !(this.y2 < r2.y1 || r2.y2 < this.y1);
+    return this.x1 < r2.x2 && r2.x1 < this.x2 &&
+      this.y1 < r2.y2 && r2.y1 < this.y2;
   }
   public int getXlower() {return x1;}
   public int getXupper() {return x2;}

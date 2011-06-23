@@ -25,6 +25,7 @@ import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.GridInfo;
 
 import edu.umn.edu.spatial.Rectangle;
+import edu.umn.edu.spatial.SpatialAlgorithms;
 
 
 /**
@@ -103,13 +104,11 @@ public class SJMapReduce {
 						S = rectanglesList;
 				}
 			}
-
-			LOG.info("Joining " + R.size() + " with "+S.size());
-
-			Collections.sort(R);
-			Collections.sort(S);
 			
-			LOG.info("Sorted");
+			SpatialAlgorithms.SpatialJoin_planeSweep(R, S, output);
+
+			/*Collections.sort(R);
+			Collections.sort(S);
 			
 			int i = 0, j = 0;
 
@@ -140,8 +139,7 @@ public class SJMapReduce {
 	        }
 	        j++;
 	      }
-	    }
-			LOG.info("All output found");
+	    }*/
 		}
 
 	}

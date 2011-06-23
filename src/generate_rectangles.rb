@@ -1,3 +1,4 @@
+# USAGE: generate_rectangles <output path> <file size> <type>
 xmin = 0
 xmax = 102400
 ymin = 0
