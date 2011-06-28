@@ -159,9 +159,9 @@ public class KNNMapReduce {
           LineReader in = new LineReader(fs.open(resultFile.getPath()));
           Text line = new Text();
           while (in.readLine(line) > 0) {
-            int i = 0;
+            int i = 1;
             // Skip all characters till the -
-            while (line.charAt(i++) != '-');
+            while (i+1 < line.getLength() && (line.charAt(i-1) != ' ' || line.charAt(i) != '-' || line.charAt(i+1) != ' ')) i++;
             // Parse the rest of the line to get the distance
             double distance = Double.parseDouble(new String(line.getBytes(), i, line.getLength() - i));
             if (distance > farthestNeighbor)
