@@ -112,8 +112,10 @@ public class SJROInputFormat extends FileInputFormat<CollectionWritable<Rectangl
     int i = 0;
     InputSplit[] combinedSplits = new InputSplit[pairs.size()];
     for (PairOfRectangles por : pairs) {
-      FileSplit fileSplit1 = splitLists[0].get(por.r1.id);
-      FileSplit fileSplit2 = splitLists[1].get(por.r2.id);
+      // Each rectangle here represents a file split.
+      // Rectangle.id represents the index of the split in the array
+      FileSplit fileSplit1 = splitLists[0].get((int)por.r1.id);
+      FileSplit fileSplit2 = splitLists[1].get((int)por.r2.id);
       combinedSplits[i++] = new PairOfFileSplits(fileSplit1, fileSplit2);
     }
 	  return combinedSplits;

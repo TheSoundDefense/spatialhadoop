@@ -3,7 +3,6 @@ package edu.umn.cs.spatial.mapReduce;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.List;
@@ -162,12 +161,12 @@ public class SJMapReduce {
 		GridInfo gridInfo = new GridInfo();
 		String[] parts = args[0].split(",");
 
-		gridInfo.xOrigin = Double.parseDouble(parts[0]);
-		gridInfo.yOrigin = Double.parseDouble(parts[1]);
-		gridInfo.gridWidth = Double.parseDouble(parts[2]);
-		gridInfo.gridHeight = Double.parseDouble(parts[3]);
-		gridInfo.cellWidth = Double.parseDouble(parts[4]);
-		gridInfo.cellHeight = Double.parseDouble(parts[5]);
+		gridInfo.xOrigin = Integer.parseInt(parts[0]);
+		gridInfo.yOrigin = Integer.parseInt(parts[1]);
+		gridInfo.gridWidth = Integer.parseInt(parts[2]);
+		gridInfo.gridHeight = Integer.parseInt(parts[3]);
+		gridInfo.cellWidth = Integer.parseInt(parts[4]);
+		gridInfo.cellHeight = Integer.parseInt(parts[5]);
 
 		// Get the HDFS file system
 		FileSystem fs = FileSystem.get(conf);

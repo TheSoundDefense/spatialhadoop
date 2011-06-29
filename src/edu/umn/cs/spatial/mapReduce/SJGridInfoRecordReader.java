@@ -38,12 +38,12 @@ public class SJGridInfoRecordReader implements RecordReader<LongWritable, GridIn
 	  String line = new String(subValue.getBytes(), 0, subValue.getLength());
 	  String[] parts = line.split(",");
 	  key.set(Integer.parseInt(parts[0]));
-    value.xOrigin = Double.parseDouble(parts[0]);
-    value.yOrigin = Double.parseDouble(parts[1]);
-    value.gridWidth = Double.parseDouble(parts[2]);
-    value.gridHeight = Double.parseDouble(parts[3]);
-    value.cellWidth = Double.parseDouble(parts[4]);
-    value.cellHeight = Double.parseDouble(parts[5]);
+    value.xOrigin = Integer.parseInt(parts[0]);
+    value.yOrigin = Integer.parseInt(parts[1]);
+    value.gridWidth = Integer.parseInt(parts[2]);
+    value.gridHeight = Integer.parseInt(parts[3]);
+    value.cellWidth = Integer.parseInt(parts[4]);
+    value.cellHeight = Integer.parseInt(parts[5]);
 
 	  return true;
 	}
