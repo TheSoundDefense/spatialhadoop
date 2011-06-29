@@ -163,7 +163,7 @@ public class KNNMapReduce {
             // Skip all characters till the -
             while (i+1 < line.getLength() && (line.charAt(i-1) != ' ' || line.charAt(i) != '-' || line.charAt(i+1) != ' ')) i++;
             // Parse the rest of the line to get the distance
-            double distance = Double.parseDouble(new String(line.getBytes(), i, line.getLength() - i));
+            double distance = Double.parseDouble(new String(line.getBytes(), i+1, line.getLength() - i - 1));
             if (distance > farthestNeighbor)
               farthestNeighbor = distance;
           }
