@@ -3,7 +3,7 @@ package edu.umn.cs.spatial.mapReduce;
 import java.io.IOException;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 
@@ -18,8 +18,8 @@ import edu.umn.edu.spatial.Rectangle;
  *
  */
 public class SJROCombineRecordReader implements RecordReader<CollectionWritable<Rectangle>, CollectionWritable<Rectangle>>{
-  private IntWritable dummy1;
-  private IntWritable dummy2;
+  private LongWritable dummy1;
+  private LongWritable dummy2;
   private RQRectangleRecordReader input1;
   private RQRectangleRecordReader input2;
   /**A temporary variable to read from file 1*/

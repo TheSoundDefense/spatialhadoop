@@ -18,7 +18,7 @@ import edu.umn.edu.spatial.Rectangle;
  * @author aseldawy
  *
  */
-public class RQRectangleRecordReader implements RecordReader<IntWritable, Rectangle> {
+public class RQRectangleRecordReader implements RecordReader<LongWritable, Rectangle> {
   
   private RecordReader<LongWritable, Text> lineRecordReader;
   private LongWritable subKey;
@@ -36,7 +36,7 @@ public class RQRectangleRecordReader implements RecordReader<IntWritable, Rectan
 	 * It consumes the end of line also when reading the rectangle.
 	 * It stops after reading the first end of line (after) end.
 	 */
-	public boolean next(IntWritable key, Rectangle value) throws IOException {
+	public boolean next(LongWritable key, Rectangle value) throws IOException {
 	  if (!lineRecordReader.next(subKey, subValue) || subValue.getLength() < 4) {
 	    // Stop on wrapped reader EOF or a very short line which indicates EOF too
 	    return false;
@@ -44,7 +44,7 @@ public class RQRectangleRecordReader implements RecordReader<IntWritable, Rectan
 	  // Convert to a regular string to be able to use split
 	  String line = new String(subValue.getBytes(), 0, subValue.getLength());
 	  String[] parts = line.split(",");
-	  key.set(Integer.parseInt(parts[0]));
+	  key.set(Long.parseLong(parts[0]));
 	  value.id = key.get();
 	  value.x1 = Integer.parseInt(parts[1]);
 	  value.y1 = Integer.parseInt(parts[2]);
@@ -68,9 +68,9 @@ public class RQRectangleRecordReader implements RecordReader<IntWritable, Rectan
   }
 
   @Override
-  public IntWritable createKey() {
+  public LongWritable createKey() {
     subKey = lineRecordReader.createKey();
-    return new IntWritable();
+    return new LongWritable();
   }
 
   @Override
