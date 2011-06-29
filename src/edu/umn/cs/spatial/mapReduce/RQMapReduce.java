@@ -75,7 +75,7 @@ public class RQMapReduce {
       FSDataOutputStream out = fs.create(queryFilepath);
       PrintStream ps = new PrintStream(out);
       ps.print(0+","+queryRectangle.x1 +","+ queryRectangle.y1 +","+
-          queryRectangle.x2+","+queryRectangle.y2);
+          queryRectangle.x2+","+queryRectangle.y2+","+0);
       ps.close();
 
       // add this query file as the first input path to the job
