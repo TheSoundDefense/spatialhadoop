@@ -18,7 +18,7 @@ public class Point implements WritableComparable<Point>, Serializable, Cloneable
 	 */
 	private static final long serialVersionUID = 7801822896513739736L;
 	
-	public int id;
+	public long id;
 	public int x;
 	public int y;
 	public int type;
@@ -31,7 +31,7 @@ public class Point implements WritableComparable<Point>, Serializable, Cloneable
 	  this(0, x, y);
 	}
 	
-	public Point(int id, int x, int y) {
+	public Point(long id, int x, int y) {
 		this(id, x, y, 0);
 	}
 	
@@ -41,11 +41,11 @@ public class Point implements WritableComparable<Point>, Serializable, Cloneable
 	 * @param y
 	 * @param type
 	 */
-	public Point(int id, int x, int y, int type) {
+	public Point(long id, int x, int y, int type) {
 	  set(id, x, y, type);
 	}
 
-	public void set(int id, int x, int y, int type) {
+	public void set(long id, int x, int y, int type) {
 		this.id = id;
 		this.x = x;
 		this.y = y;
@@ -53,16 +53,16 @@ public class Point implements WritableComparable<Point>, Serializable, Cloneable
 
 	int getX() {return x;}
 	int getY() {return y;}
-	int getId() {return id;}
+	long getId() {return id;}
 
 	public void write(DataOutput out) throws IOException {
-		out.writeInt(id);
+		out.writeLong(id);
 		out.writeInt(x);
 		out.writeInt(y);
 	}
 
 	public void readFields(DataInput in) throws IOException {
-		this.id = in.readInt();
+		this.id = in.readLong();
 		this.x = in.readInt();
 		this.y = in.readInt();
 	}
@@ -87,8 +87,8 @@ public class Point implements WritableComparable<Point>, Serializable, Cloneable
 	}
 
 	public double distanceTo(Point s) {
-		int dx = s.x - this.x;
-		int dy = s.y - this.y;
+		double dx = s.x - this.x;
+		double dy = s.y - this.y;
 		return dx*dx+dy*dy;
 	}
 	
