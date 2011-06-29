@@ -47,7 +47,7 @@ public class WriteRectFile {
 	 * @return
 	 * @throws IOException
 	 */
-	public static PrintStream getOrCreateCellFile(double x, double y) throws IOException {
+	public static PrintStream getOrCreateCellFile(int x, int y) throws IOException {
     int column = (int)((x - gridInfo.xOrigin) / gridInfo.cellWidth);
     int row = (int)((y - gridInfo.yOrigin) / gridInfo.cellHeight);
 	  PrintStream ps = cellStreams[column][row];
@@ -110,14 +110,14 @@ public class WriteRectFile {
       // Parse rectangle dimensions
       parts = line.split(",");
       //int id = Integer.parseInt(parts[0]);
-      float rx1 = Float.parseFloat(parts[1]);
-      float ry1 = Float.parseFloat(parts[2]);
-      float rx2 = Float.parseFloat(parts[3]);
-      float ry2 = Float.parseFloat(parts[4]);
+      int rx1 = Integer.parseInt(parts[1]);
+      int ry1 = Integer.parseInt(parts[2]);
+      int rx2 = Integer.parseInt(parts[3]);
+      int ry2 = Integer.parseInt(parts[4]);
 
       // Write to all possible grid cells
-      for (double x = rx1; x < rx2; x += gridInfo.cellWidth) {
-        for (double y = ry1; y < ry2; y += gridInfo.cellHeight) {
+      for (int x = rx1; x < rx2; x += gridInfo.cellWidth) {
+        for (int y = ry1; y < ry2; y += gridInfo.cellHeight) {
           PrintStream ps = getOrCreateCellFile(x, y);
           ps.println(line);
           // increase number of bytes written to this print stream

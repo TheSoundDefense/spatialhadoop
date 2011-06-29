@@ -103,6 +103,11 @@ public class SJMapReduce {
 						S = rectanglesList;
 				}
 			}
+			// In case they're empty
+      if (R == null)
+        R = new ArrayList<Rectangle>();
+      if (S == null)
+        S = new ArrayList<Rectangle>();
 			
 			SpatialAlgorithms.SpatialJoin_planeSweep(R, S, output);
 
