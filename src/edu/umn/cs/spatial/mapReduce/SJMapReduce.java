@@ -110,40 +110,6 @@ public class SJMapReduce {
         S = new ArrayList<Rectangle>();
 			
 			SpatialAlgorithms.SpatialJoin_planeSweep(R, S, output);
-
-			/*Collections.sort(R);
-			Collections.sort(S);
-			
-			int i = 0, j = 0;
-
-	    while (i < R.size() && j < S.size()) {
-	      Rectangle r, s;
-	      if (R.get(i).compareTo(S.get(j)) < 0) {
-	        r = R.get(i);
-	        int jj = j;
-
-	        while ((jj < S.size())
-	            && ((s = S.get(jj)).getXlower() <= r.getXupper())) {
-	          if (r.intersects(s)) {
-	            output.collect(r, s);
-	          }
-	          jj++;
-	        }
-	        i++;
-	      } else {
-	        s = S.get(j);
-	        int ii = i;
-
-	        while ((ii < R.size())
-	            && ((r = R.get(ii)).getXlower() <= s.getXupper())) {
-	          if (r.intersects(s)) {
-	            output.collect(r, s);
-	          }
-	          ii++;
-	        }
-	        j++;
-	      }
-	    }*/
 		}
 
 	}

@@ -47,10 +47,10 @@ public class SJROCombineRecordReader implements RecordReader<CollectionWritable<
     S.clear();
     
     while (input1.next(dummy1, r)) {
-      R.add(r);
+      R.add((Rectangle) r.clone());
     }
     while (input2.next(dummy2, s)) {
-      S.add(s);
+      S.add((Rectangle) s.clone());
     }
 
     return !R.isEmpty() && !S.isEmpty();

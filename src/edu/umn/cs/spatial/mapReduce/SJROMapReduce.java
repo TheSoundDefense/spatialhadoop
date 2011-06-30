@@ -15,6 +15,7 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TextOutputFormat;
 
 import edu.umn.edu.spatial.Rectangle;
+import edu.umn.edu.spatial.SpatialAlgorithms;
 
 
 /**
@@ -41,7 +42,11 @@ public class SJROMapReduce {
 				CollectionWritable<Rectangle> r2,
 				OutputCollector<Rectangle, Rectangle> output,
 				Reporter reporter) throws IOException {
-		  // TODO do a spatial join using plane sweep
+		  // Cast arguments to ArrayList to be able to use PlaneSweep Algorithm
+		  ArrayListWritable<Rectangle> R = (ArrayListWritable<Rectangle>) r1;
+		  ArrayListWritable<Rectangle> S = (ArrayListWritable<Rectangle>) r2;
+		  System.out.println("Joining "+R.size()+" with "+S.size());
+		  SpatialAlgorithms.SpatialJoin_planeSweep(R, S, output);
 		}
 	}
 
