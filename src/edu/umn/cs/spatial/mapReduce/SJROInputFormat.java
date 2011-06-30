@@ -50,13 +50,20 @@ public class SJROInputFormat extends FileInputFormat<CollectionWritable<Rectangl
 	  // Generate splits for all input paths
 	  InputSplit[] splits = super.getSplits(job, numSplits);
 	  
+	  System.out.println("Total input splits: "+splits.length);
+	  for (int i = 0; i < splits.length; i++) {
+	    System.out.println(i+": " +splits[i]);
+	  }
+	  System.out.println("--------------------------");
+	  
 	  // Form two lists, one for splits from each file
 	  Vector<FileSplit>[] splitLists = new Vector[inputFiles.length];
 	  
-	  // Holds a rectangle or more for each file split
+	  // Holds a rectangle or more for each file split. Most probably one rectangle for each split
 	  Vector<Rectangle>[] rectangles = new Vector[inputFiles.length];
-	  
+
 	  for (int i = 0; i < inputFiles.length; i++) {
+	    System.out.println("-------- Checking: "+inputFiles[i].getPath());
 	    // Initialize an empty list to hold all splits for this file
 	    splitLists[i] = new Vector<FileSplit>();
 	    rectangles[i] = new Vector<Rectangle>();
@@ -68,13 +75,18 @@ public class SJROInputFormat extends FileInputFormat<CollectionWritable<Rectangl
       BlockLocation[] blockLocations = inputFiles[i].getPath()
           .getFileSystem(job)
           .getFileBlockLocations(inputFiles[i], 0, inputFiles[i].getLen());
+      System.out.println("File has "+blockLocations.length+" blocks");
+      for (int j = 0; j < blockLocations.length; j++) {
+        System.out.println(j+": "+blockLocations[j].getCellInfo()+" ["+blockLocations[j].getOffset()+","+blockLocations[j].getLength()+"]");
+      }
+      System.out.println("--------------------------");
 
 	    // Filter all splits to this file
 	    for (InputSplit split : splits) {
 	      FileSplit fileSplit = (FileSplit) split;
 	      if (fileSplit.getPath().equals(inputFiles[i].getPath())) {
 	        // This split is for current file
-	        // Append it to the list
+	        // Append it to the list of splits for this file
 	        int splitIndex = splitLists[i].size();
 	        splitLists[i].add(fileSplit);
 	        
@@ -87,6 +99,7 @@ public class SJROInputFormat extends FileInputFormat<CollectionWritable<Rectangl
 	                (int)blockLocation.getCellInfo().y,
 	                (int)(blockLocation.getCellInfo().x+gridInfo.cellWidth),
 	                (int)(blockLocation.getCellInfo().y+gridInfo.cellHeight));
+	            System.out.println("Matched block: "+blockLocation+" with split "+fileSplit+" with rectangle "+rect);
 	            rectangles[i].add(rect);
 	          }
 	        }

@@ -37,6 +37,7 @@ public class RectOutputFormat extends FileOutputFormat<Object, Rectangle> {
     
     // Get grid info
     String grid = job.get(OUTPUT_GRID, "0,0,0,0,0,0");
+    System.out.println("Writing accordding to the grid: "+grid);
     String[] parts = grid.split(",");
     GridInfo gridInfo = new GridInfo();
     gridInfo.xOrigin = Integer.parseInt(parts[0]);

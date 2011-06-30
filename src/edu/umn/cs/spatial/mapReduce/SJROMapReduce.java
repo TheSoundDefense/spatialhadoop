@@ -50,6 +50,27 @@ public class SJROMapReduce {
 		}
 	}
 
+	public static void SJRO(JobConf conf, Path[] inputFiles, Path outputPath) throws IOException {
+    conf.setJobName("Spatial Join Reduce Only");
+
+    conf.setOutputKeyClass(Rectangle.class);
+    conf.setOutputValueClass(Rectangle.class);
+
+    conf.setMapperClass(Map.class);
+
+    conf.setInputFormat(SJROInputFormat.class);
+    conf.setOutputFormat(TextOutputFormat.class);
+
+    // All files except first and last ones are input files
+    for (int i = 0; i < inputFiles.length; i++)
+      RQInputFormat.addInputPath(conf, inputFiles[i]);
+
+    // Last argument is the output file
+    FileOutputFormat.setOutputPath(conf, outputPath);
+
+    JobClient.runJob(conf);
+	}
+	
 	/**
 	 * Entry point to the file.
 	 * Params <input filename 1> <input filename 2> <output filename>
@@ -60,24 +81,13 @@ public class SJROMapReduce {
 	 */
 	public static void main(String[] args) throws Exception {
 		JobConf conf = new JobConf(SJROMapReduce.class);
-		conf.setJobName("Spatial Join Reduce Only");
 
-		conf.setOutputKeyClass(Rectangle.class);
-		conf.setOutputValueClass(Rectangle.class);
-
-		conf.setMapperClass(Map.class);
-
-		conf.setInputFormat(SJROInputFormat.class);
-		conf.setOutputFormat(TextOutputFormat.class);
-
-		// All files except first and last ones are input files
-		for (int i = 0; i < args.length - 1; i++)
-			RQInputFormat.addInputPath(conf, new Path(args[i]));
-
-		// Last argument is the output file
-		Path outputPath = new Path(args[args.length - 1]);
-		FileOutputFormat.setOutputPath(conf, outputPath);
-
-		JobClient.runJob(conf);
-	}
+		Path[] inputFiles = new Path[args.length - 1];
+    for (int i = 0; i < args.length - 1; i++)
+      inputFiles[i] = new Path(args[i]);
+    
+    Path outputPath = new Path(args[args.length - 1]);
+    
+    SJRO(conf, inputFiles, outputPath);
+}
 }
