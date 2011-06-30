@@ -1,13 +1,12 @@
 package edu.umn.cs.spatial.mapReduce;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.Vector;
 
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileStatus;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.InputSplit;
@@ -110,13 +109,20 @@ public class SJROInputFormat extends FileInputFormat<CollectionWritable<Rectangl
 
     // Generate a combined file split for each pair of splits
     int i = 0;
+    Set<String> takenPairs = new HashSet<String>();
     InputSplit[] combinedSplits = new InputSplit[pairs.size()];
     for (PairOfRectangles por : pairs) {
-      // Each rectangle here represents a file split.
-      // Rectangle.id represents the index of the split in the array
-      FileSplit fileSplit1 = splitLists[0].get((int)por.r1.id);
-      FileSplit fileSplit2 = splitLists[1].get((int)por.r2.id);
-      combinedSplits[i++] = new PairOfFileSplits(fileSplit1, fileSplit2);
+      // Check that this pair was not taken before
+      String thisPair = (int)por.r1.id+","+(int)por.r2.id;
+      if (!takenPairs.contains(thisPair)) {
+        takenPairs.add(thisPair);
+        // Each rectangle here represents a file split.
+        // Rectangle.id represents the index of the split in the array
+        FileSplit fileSplit1 = splitLists[0].get((int)por.r1.id);
+        FileSplit fileSplit2 = splitLists[1].get((int)por.r2.id);
+
+        combinedSplits[i++] = new PairOfFileSplits(fileSplit1, fileSplit2);
+      }
     }
 	  return combinedSplits;
 	}
