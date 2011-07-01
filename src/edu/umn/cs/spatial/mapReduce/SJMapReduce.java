@@ -3,7 +3,6 @@ package edu.umn.cs.spatial.mapReduce;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.List;
@@ -26,6 +25,7 @@ import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.GridInfo;
 
 import edu.umn.edu.spatial.Rectangle;
+import edu.umn.edu.spatial.SpatialAlgorithms;
 
 
 /**
@@ -104,45 +104,13 @@ public class SJMapReduce {
 						S = rectanglesList;
 				}
 			}
-
-			LOG.info("Joining " + R.size() + " with "+S.size());
-
-			Collections.sort(R);
-			Collections.sort(S);
+			// In case they're empty
+      if (R == null)
+        R = new ArrayList<Rectangle>();
+      if (S == null)
+        S = new ArrayList<Rectangle>();
 			
-			LOG.info("Sorted");
-			
-			int i = 0, j = 0;
-
-	    while (i < R.size() && j < S.size()) {
-	      Rectangle r, s;
-	      if (R.get(i).compareTo(S.get(j)) < 0) {
-	        r = R.get(i);
-	        int jj = j;
-
-	        while ((jj < S.size())
-	            && ((s = S.get(jj)).getXlower() <= r.getXupper())) {
-	          if (r.intersects(s)) {
-	            output.collect(r, s);
-	          }
-	          jj++;
-	        }
-	        i++;
-	      } else {
-	        s = S.get(j);
-	        int ii = i;
-
-	        while ((ii < R.size())
-	            && ((r = R.get(ii)).getXlower() <= s.getXupper())) {
-	          if (r.intersects(s)) {
-	            output.collect(r, s);
-	          }
-	          ii++;
-	        }
-	        j++;
-	      }
-	    }
-			LOG.info("All output found");
+			SpatialAlgorithms.SpatialJoin_planeSweep(R, S, output);
 		}
 
 	}
@@ -165,12 +133,12 @@ public class SJMapReduce {
 		GridInfo gridInfo = new GridInfo();
 		String[] parts = args[0].split(",");
 
-		gridInfo.xOrigin = Double.parseDouble(parts[0]);
-		gridInfo.yOrigin = Double.parseDouble(parts[1]);
-		gridInfo.gridWidth = Double.parseDouble(parts[2]);
-		gridInfo.gridHeight = Double.parseDouble(parts[3]);
-		gridInfo.cellWidth = Double.parseDouble(parts[4]);
-		gridInfo.cellHeight = Double.parseDouble(parts[5]);
+		gridInfo.xOrigin = Integer.parseInt(parts[0]);
+		gridInfo.yOrigin = Integer.parseInt(parts[1]);
+		gridInfo.gridWidth = Integer.parseInt(parts[2]);
+		gridInfo.gridHeight = Integer.parseInt(parts[3]);
+		gridInfo.cellWidth = Integer.parseInt(parts[4]);
+		gridInfo.cellHeight = Integer.parseInt(parts[5]);
 
 		// Get the HDFS file system
 		FileSystem fs = FileSystem.get(conf);

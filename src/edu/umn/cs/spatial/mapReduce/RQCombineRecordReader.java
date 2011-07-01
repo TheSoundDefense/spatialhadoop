@@ -3,7 +3,7 @@ package edu.umn.cs.spatial.mapReduce;
 import java.io.IOException;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 
@@ -21,8 +21,8 @@ public class RQCombineRecordReader implements RecordReader<Rectangle, Rectangle>
   private RQRectangleRecordReader queryRectangles;
   private RQRectangleRecordReader inputRectangles;
   private boolean firstTime;
-  private IntWritable dummyQueryRectangleId;
-  private IntWritable dummyInputRectangleId;
+  private LongWritable dummyQueryRectangleId;
+  private LongWritable dummyInputRectangleId;
   private final Configuration job;
   private final Reporter reporter;
   private final PairOfFileSplits twoSplits;

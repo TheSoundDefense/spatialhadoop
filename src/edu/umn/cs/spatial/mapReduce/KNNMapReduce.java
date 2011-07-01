@@ -160,7 +160,7 @@ public class KNNMapReduce {
       LOG.info("Going to process this rectangle next round: "+rectProcessed);
       conf.set(SplitCalculator.QUERY_RANGE, rectProcessed.x1 + ","+rectProcessed.y1+","+
           rectProcessed.x2 +","+rectProcessed.y2);
-      
+
       int round = 0;
       
       while (!jobFinished) {

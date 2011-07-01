@@ -19,7 +19,7 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable, C
    */
   private static final long serialVersionUID = 7801822896513739736L;
 
-  public int id;
+  public long id;
   public int x1;
   public int x2;
   public int y1;
@@ -36,7 +36,7 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable, C
     return (y1+y2)/2;
   }
 
-  public Rectangle(int id, int x1, int y1, int x2, int y2) {
+  public Rectangle(long id, int x1, int y1, int x2, int y2) {
     int xl = Math.min(x1, x2);
     int xu = Math.max(x1, x2);
     int yl = Math.min(y1, y2);
@@ -45,7 +45,7 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable, C
     this.set(id, xl, yl, xu, yu);
   }
 
-  public void set(int id, int x1, int y1, int x2, int y2) {
+  public void set(long id, int x1, int y1, int x2, int y2) {
     this.id = id;
     this.x1 = x1;
     this.y1 = y1;
@@ -54,17 +54,17 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable, C
   }
 
   public boolean intersects(Rectangle r2) {
-    return !(this.x2 < r2.x1 || r2.x2 < this.x1) &&
-    !(this.y2 < r2.y1 || r2.y2 < this.y1);
+    return this.x1 < r2.x2 && r2.x1 < this.x2 &&
+      this.y1 < r2.y2 && r2.y1 < this.y2;
   }
   public int getXlower() {return x1;}
   public int getXupper() {return x2;}
   public int getYlower() {return y1;}
   public int getYupper() {return y2;}
-  public int getId() {return id;}
+  public long getId() {return id;}
 
   public void write(DataOutput out) throws IOException {
-    out.writeInt(id);
+    out.writeLong(id);
     out.writeInt(x1);
     out.writeInt(y1);
     out.writeInt(x2);
@@ -73,7 +73,7 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable, C
   }
 
   public void readFields(DataInput in) throws IOException {
-    this.id = in.readInt();
+    this.id = in.readLong();
     this.x1 = in.readInt();
     this.y1 = in.readInt();
     this.x2 = in.readInt();
@@ -115,8 +115,8 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable, C
     return "Rectangle #"+id+" ("+x1+","+y1+","+x2+","+y2+")";
   }
   public double distanceTo(Rectangle s) {
-    int dx = s.x1 - this.x1;
-    int dy = s.y1 - this.y1;
+    double dx = s.x1 - this.x1;
+    double dy = s.y1 - this.y1;
     return dx*dx+dy*dy;
   }
 
@@ -126,15 +126,15 @@ public class Rectangle implements WritableComparable<Rectangle>, Serializable, C
   }
 
   public double maxDistance(Point point) {
-    int dx = Math.max(point.x - this.x1, this.x2 - point.x);
-    int dy = Math.max(point.y - this.y1, this.y2 - point.y);
+    double dx = Math.max(point.x - this.x1, this.x2 - point.x);
+    double dy = Math.max(point.y - this.y1, this.y2 - point.y);
 
     return Math.sqrt(dx*dx+dy*dy);
   }
 
   public double minDistance(Point point) {
-    int dx = Math.min(point.x - this.x1, this.x2 - point.x);
-    int dy = Math.min(point.y - this.y1, this.y2 - point.y);
+    double dx = Math.min(point.x - this.x1, this.x2 - point.x);
+    double dy = Math.min(point.y - this.y1, this.y2 - point.y);
 
     return Math.min(dx, dy);
   }

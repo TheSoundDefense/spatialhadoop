@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.TreeSet;
 
 import org.apache.hadoop.fs.FSDataInputStream;
@@ -17,6 +18,7 @@ import org.apache.hadoop.io.compress.Decompressor;
 import org.apache.hadoop.io.compress.SplitCompressionInputStream;
 import org.apache.hadoop.io.compress.SplittableCompressionCodec;
 import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.mapred.OutputCollector;
 
 import edu.umn.cs.spatial.mapReduce.ArrayListWritable;
 import edu.umn.cs.spatial.mapReduce.CollectionWritable;
@@ -70,58 +72,42 @@ class TOPK {
 
 public class SpatialAlgorithms {
 
-	public static Collection<PairOfRectangles> SpatialJoin_planeSweep(
-			CollectionWritable<CollectionWritable<Rectangle>> rectanglesLists) {
-		Collection<PairOfRectangles> result = new ArrayList<PairOfRectangles>();
-		ArrayList<Rectangle> R = new ArrayList<Rectangle>();
-		ArrayList<Rectangle> S = new ArrayList<Rectangle>();
-		int l = 0;
-		for (CollectionWritable<Rectangle> rectangles : rectanglesLists) {
-			if (l == 0) {
-				for (Rectangle r : rectangles) {
-					R.add(r);
-				}
-			} else {
-				for (Rectangle s : rectangles) {
-					S.add(s);
-				}
-			}
-			l++;
-		}
-		Collections.sort(R);
-		Collections.sort(S);
+  public static void SpatialJoin_planeSweep(List<Rectangle> R,
+      List<Rectangle> S, OutputCollector<Rectangle, Rectangle> output)
+      throws IOException {
+    Collections.sort(R);
+    Collections.sort(S);
 
-		while (R.size() != 0 && S.size() != 0) {
-			Rectangle r = null;
-			if (R.get(0).compareTo(S.get(0)) < 0) {
-				r = R.get(0);
-				int i = 0;
-				Rectangle s;
-				while ((i < S.size())
-						&& (S.get(i).getXlower() <= r.getXupper())) {
-					s = S.get(i);
-					if (r.intersects(s)) {
-						result.add(new PairOfRectangles(r, s));
-					}
-					i++;
-				}
-				R.remove(0);
-			} else {
-				r = S.get(0);
-				int i = 0;
-				Rectangle s;
-				while ((i < R.size())
-						&& (R.get(i).getXlower() <= r.getXupper())) {
-					s = R.get(i);
-					if (r.intersects(s)) {
-						result.add(new PairOfRectangles(s, r));
-					}
-					i++;
-				}
-				S.remove(0);
-			}
-		}
-		return result;
+		int i = 0, j = 0;
+
+    while (i < R.size() && j < S.size()) {
+      Rectangle r, s;
+      if (R.get(i).compareTo(S.get(j)) < 0) {
+        r = R.get(i);
+        int jj = j;
+
+        while ((jj < S.size())
+            && ((s = S.get(jj)).getXlower() <= r.getXupper())) {
+          if (r.intersects(s)) {
+            output.collect(r, s);
+          }
+          jj++;
+        }
+        i++;
+      } else {
+        s = S.get(j);
+        int ii = i;
+
+        while ((ii < R.size())
+            && ((r = R.get(ii)).getXlower() <= s.getXupper())) {
+          if (r.intersects(s)) {
+            output.collect(r, s);
+          }
+          ii++;
+        }
+        j++;
+      }
+    }
 	}
 
 	public static Collection<PairOfRectangles> spatialJoin(
@@ -186,31 +172,6 @@ public class SpatialAlgorithms {
 			}
 		}
 		return result;
-	}
-	public static void main(String[] args) {
-		CollectionWritable<Rectangle> R = new ArrayListWritable<Rectangle>();
-		CollectionWritable<Rectangle> S = new ArrayListWritable<Rectangle>();
-		Rectangle r1 = new Rectangle(1, 0, 0, 100, 100);
-		Rectangle r2 = new Rectangle(1, 0, 0, 50, 50);
-		Rectangle r3 = new Rectangle(1, -100, -100, -50, -50);
-		Rectangle r4 = new Rectangle(1, -100, 0, -50, 50);
-		R.add(r1);
-		S.add(r2);
-		S.add(r3);
-		S.add(r4);
-		
-		CollectionWritable<CollectionWritable<Rectangle>> rectangles = new ArrayListWritable<CollectionWritable<Rectangle>>();
-		rectangles.add(R);
-		rectangles.add(S);
-
-		Collection<PairOfRectangles> results = SpatialJoin_planeSweep(rectangles);
-		System.out.println("size of result: "+results.size());
-		if (!results.contains(new PairOfRectangles(r1, r2)))
-			System.err.println("error1");
-		if (results.contains(new PairOfRectangles(r1, r3)))
-			System.err.println("error2");
-		if (results.contains(new PairOfRectangles(r1, r4)))
-			System.err.println("error3");
 	}
 	
 	/**

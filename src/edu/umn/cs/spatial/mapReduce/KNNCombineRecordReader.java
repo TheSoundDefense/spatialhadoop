@@ -3,13 +3,12 @@ package edu.umn.cs.spatial.mapReduce;
 import java.io.IOException;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 
 import edu.umn.edu.spatial.Point;
 import edu.umn.edu.spatial.PointWithK;
-import edu.umn.edu.spatial.Rectangle;
 
 /**
  * Combines two record readers to read pair of files in the same time.
@@ -23,8 +22,8 @@ public class KNNCombineRecordReader implements RecordReader<PointWithK, Point>{
   private KNNPointRecordReader queryPoints;
   private KNNPointRecordReader inputPoints;
   private boolean firstTime;
-  private IntWritable dummyQueryPointId;
-  private IntWritable dummyInputPointId;
+  private LongWritable dummyQueryPointId;
+  private LongWritable dummyInputPointId;
   private final Configuration job;
   private final Reporter reporter;
   private final PairOfFileSplits twoSplits;

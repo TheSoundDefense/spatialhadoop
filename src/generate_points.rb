@@ -1,3 +1,7 @@
+# USAGE: generate_rectangles <output path> <file size> <type>
+if ARGV.empty?
+  puts "USAGE: generate_rectangles <output path> <file size> <type>"
+end
 xmin = 0
 xmax = 1024
 ymin = 0

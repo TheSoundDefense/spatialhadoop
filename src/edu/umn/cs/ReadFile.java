@@ -1,6 +1,7 @@
 package edu.umn.cs;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.spatial.GridInfo;
@@ -17,5 +18,9 @@ public class ReadFile {
     // Determine which blocks are needed
     GridInfo gridInfo = fileStatus.getGridInfo();
     System.out.println(gridInfo);
+    
+    for (BlockLocation blockLocation : inputFile.getFileSystem(conf).getFileBlockLocations(fileStatus, 0, fileStatus.getLen())) {
+      System.out.println(blockLocation.getCellInfo());
+    }
   }
 }

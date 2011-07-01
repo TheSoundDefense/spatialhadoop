@@ -24,7 +24,7 @@ public class SJCombineRecordReader implements RecordReader<GridInfo, Rectangle>{
   private RQRectangleRecordReader inputRectangles;
   private boolean firstTime;
   private LongWritable dummyGridInfoId;
-  private IntWritable dummyInputRectangleId;
+  private LongWritable dummyInputRectangleId;
   private final Configuration job;
   private final Reporter reporter;
   private final PairOfFileSplits twoSplits;

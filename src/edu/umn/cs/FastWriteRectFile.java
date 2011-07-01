@@ -1,8 +1,8 @@
 package edu.umn.cs;
-import java.io.FileReader;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.LineNumberReader;
-import java.io.PrintStream;
 import java.util.Vector;
 
 import org.apache.hadoop.conf.Configuration;
@@ -13,12 +13,12 @@ import org.apache.hadoop.hdfs.DFSOutputStream;
 import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.spatial.GridInfo;
 
-public class WriteRectFile {
+public class FastWriteRectFile {
 
   private static final int BufferLength = 1024 * 1024;
   private static long BlockSize = 64 * 1024 * 1024;
 	/**An output stream for each grid cell*/
-  private static PrintStream[][] cellStreams;
+  private static DataOutputStream[][] cellStreams;
   private static long[][] cellSizes;
   private static String outputFilename;
   private static String inputFilename;
@@ -47,14 +47,14 @@ public class WriteRectFile {
 	 * @return
 	 * @throws IOException
 	 */
-	public static PrintStream getOrCreateCellFile(int x, int y) throws IOException {
+	public static DataOutputStream getOrCreateCellFile(int x, int y) throws IOException {
     int column = (int)((x - gridInfo.xOrigin) / gridInfo.cellWidth);
     int row = (int)((y - gridInfo.yOrigin) / gridInfo.cellHeight);
-	  PrintStream ps = cellStreams[column][row];
+	  DataOutputStream ps = cellStreams[column][row];
 	  if (ps == null) {
 	    
 	    FSDataOutputStream os = fs.create(getCellFilePath(column, row), gridInfo);
-	    cellStreams[column][row] = ps = new PrintStream(os);
+	    cellStreams[column][row] = ps = os;
       int xCell = column * gridInfo.cellWidth + gridInfo.xOrigin;
       int yCell = row * gridInfo.cellHeight + gridInfo.yOrigin;
       System.out.println("Setting next block at "+xCell+","+ yCell);
@@ -100,32 +100,34 @@ public class WriteRectFile {
     System.out.println("Grid "+gridColumns+"x"+gridRows);
     
     // Prepare an array to hold all output streams
-    cellStreams = new PrintStream[gridColumns][gridRows];
+    cellStreams = new DataOutputStream[gridColumns][gridRows];
     cellSizes = new long[gridColumns][gridRows];
 
     // Open input file
-    LineNumberReader reader = new LineNumberReader(new FileReader(inputFilename));
+    DataInputStream reader = new DataInputStream(new FileInputStream(inputFilename));
 
-    while (reader.ready()) {
-      // TODO we can make it faster by not doing a trim or split to avoid creating unnecessary objects
-      String line = reader.readLine().trim();
-      // Parse rectangle dimensions
-      parts = line.split(",");
-      //int id = Integer.parseInt(parts[0]);
-      int rx1 = Integer.parseInt(parts[1]);
-      int ry1 = Integer.parseInt(parts[2]);
-      int rx2 = Integer.parseInt(parts[3]);
-      int ry2 = Integer.parseInt(parts[4]);
+    while (reader.available() > 0) {
+      long id = reader.readLong();
+      int rx1 = reader.readInt();
+      int ry1 = reader.readInt();
+      int rx2 = reader.readInt();
+      int ry2 = reader.readInt();
+      int type = reader.readInt();
 
       // Write to all possible grid cells
       for (int x = rx1; x < rx2; x += gridInfo.cellWidth) {
         for (int y = ry1; y < ry2; y += gridInfo.cellHeight) {
-          PrintStream ps = getOrCreateCellFile(x, y);
-          ps.println(line);
+          DataOutputStream ps = getOrCreateCellFile(x, y);
+          ps.writeLong(id);
+          ps.writeInt(rx1);
+          ps.writeInt(ry1);
+          ps.writeInt(rx2);
+          ps.writeInt(ry2);
+          ps.writeInt(type);
           // increase number of bytes written to this print stream
           int column = (int)((x - gridInfo.xOrigin) / gridInfo.cellWidth);
           int row = (int)((y - gridInfo.yOrigin) / gridInfo.cellHeight);
-          cellSizes[column][row] += line.length() + 1;
+          cellSizes[column][row] += 4*5 + 8;
         }
       }
     }

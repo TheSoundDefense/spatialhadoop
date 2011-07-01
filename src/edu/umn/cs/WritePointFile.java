@@ -58,8 +58,8 @@ public class WritePointFile {
 	    
 	    FSDataOutputStream os = fs.create(getCellFilePath(column, row), gridInfo);
 	    cellStreams[column][row] = ps = new PrintStream(os);
-      double xCell = column * gridInfo.cellWidth + gridInfo.xOrigin;
-      double yCell = row * gridInfo.cellHeight + gridInfo.yOrigin;
+      int xCell = column * gridInfo.cellWidth + gridInfo.xOrigin;
+      int yCell = row * gridInfo.cellHeight + gridInfo.yOrigin;
 	    ((DFSOutputStream)os.getWrappedStream()).setNextBlockCell(xCell, yCell);
 	  }
 	  return ps;
@@ -72,20 +72,21 @@ public class WritePointFile {
 		// Initialize histogram
 		// int [][]histogram = new int [GridColumns][GridRows];
 
-		conf = new Configuration();
-		
-		fs = FileSystem.get(conf);
+    conf = new Configuration();
+    
+    fs = FileSystem.get(conf);
+    BlockSize = fs.getDefaultBlockSize();
 
     // Retrieve query rectangle and store it to an HDFS file
     gridInfo = new GridInfo();
     String[] parts = args[0].split(",");
 
-    gridInfo.xOrigin = Double.parseDouble(parts[0]);
-    gridInfo.yOrigin = Double.parseDouble(parts[1]);
-    gridInfo.gridWidth = Double.parseDouble(parts[2]);
-    gridInfo.gridHeight = Double.parseDouble(parts[3]);
-    gridInfo.cellWidth = Double.parseDouble(parts[4]);
-    gridInfo.cellHeight = Double.parseDouble(parts[5]);
+    gridInfo.xOrigin = Integer.parseInt(parts[0]);
+    gridInfo.yOrigin = Integer.parseInt(parts[1]);
+    gridInfo.gridWidth = Integer.parseInt(parts[2]);
+    gridInfo.gridHeight = Integer.parseInt(parts[3]);
+    gridInfo.cellWidth = Integer.parseInt(parts[4]);
+    gridInfo.cellHeight = Integer.parseInt(parts[5]);
 
     int gridColumns = (int) Math.ceil(gridInfo.gridWidth / gridInfo.cellWidth); 
     int gridRows = (int) Math.ceil(gridInfo.gridHeight / gridInfo.cellHeight);
