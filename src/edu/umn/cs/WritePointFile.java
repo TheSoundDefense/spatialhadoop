@@ -81,12 +81,12 @@ public class WritePointFile {
     gridInfo = new GridInfo();
     String[] parts = args[0].split(",");
 
-    gridInfo.xOrigin = Integer.parseInt(parts[0]);
-    gridInfo.yOrigin = Integer.parseInt(parts[1]);
-    gridInfo.gridWidth = Integer.parseInt(parts[2]);
-    gridInfo.gridHeight = Integer.parseInt(parts[3]);
-    gridInfo.cellWidth = Integer.parseInt(parts[4]);
-    gridInfo.cellHeight = Integer.parseInt(parts[5]);
+    gridInfo.xOrigin = Long.parseLong(parts[0]);
+    gridInfo.yOrigin = Long.parseLong(parts[1]);
+    gridInfo.gridWidth = Long.parseLong(parts[2]);
+    gridInfo.gridHeight = Long.parseLong(parts[3]);
+    gridInfo.cellWidth = Long.parseLong(parts[4]);
+    gridInfo.cellHeight = Long.parseLong(parts[5]);
 
     int gridColumns = (int) Math.ceil((double)gridInfo.gridWidth / gridInfo.cellWidth); 
     int gridRows = (int) Math.ceil((double)gridInfo.gridHeight / gridInfo.cellHeight);
