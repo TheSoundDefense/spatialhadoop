@@ -37,8 +37,10 @@ public class SJRepartitionMapReduce {
     long largestFileSize = 0;
     for (Path inputFile : inputFiles) {
       FileStatus fileStatus = fileSystem.getFileStatus(inputFile);
-      if (gridInfo == null || fileStatus.getLen() > largestFileSize && fileStatus.getGridInfo() != null)
+      if (gridInfo == null || fileStatus.getLen() > largestFileSize && fileStatus.getGridInfo() != null) {
+        largestFileSize = fileStatus.getLen();
         gridInfo = fileStatus.getGridInfo();
+      }
     }
     System.out.println("Used the grid "+gridInfo);
 
