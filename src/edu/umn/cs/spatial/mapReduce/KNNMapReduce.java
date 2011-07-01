@@ -145,6 +145,11 @@ public class KNNMapReduce {
 
       // Get grid info of the file to be processed
       GridInfo gridInfo = fs.getFileStatus(inputPaths[0]).getGridInfo();
+
+      if (gridInfo == null) {
+        JobClient.runJob(conf);
+	return;
+      }
       
       // Calculate initial rectangle to be processed (the one that contains the query point)
       int column = (int) ((queryPoint.x - gridInfo.xOrigin) / gridInfo.cellWidth);
