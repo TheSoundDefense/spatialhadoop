@@ -118,8 +118,10 @@ public class RectOutputFormat extends FileOutputFormat<Object, Rectangle> {
         // Concatenate all files into the first file
         Path firstFile = pathsToConcat.remove(0);
         
-        Path[] paths = pathsToConcat.toArray(new Path[pathsToConcat.size()]);
-        ((DistributedFileSystem)fileSystem).concat(firstFile, paths);
+        if (!pathsToConcat.isEmpty()) {
+          Path[] paths = pathsToConcat.toArray(new Path[pathsToConcat.size()]);
+          ((DistributedFileSystem)fileSystem).concat(firstFile, paths);
+        }
       }
     }
     
