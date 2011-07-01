@@ -88,8 +88,9 @@ public class WritePointFile {
     gridInfo.cellWidth = Integer.parseInt(parts[4]);
     gridInfo.cellHeight = Integer.parseInt(parts[5]);
 
-    int gridColumns = (int) Math.ceil(gridInfo.gridWidth / gridInfo.cellWidth); 
-    int gridRows = (int) Math.ceil(gridInfo.gridHeight / gridInfo.cellHeight);
+    int gridColumns = (int) Math.ceil((double)gridInfo.gridWidth / gridInfo.cellWidth); 
+    int gridRows = (int) Math.ceil((double)gridInfo.gridHeight / gridInfo.cellHeight);
+    System.out.println("Grid "+gridColumns+"x"+gridRows);
     
     // Prepare an array to hold all output streams
     cellStreams = new PrintStream[gridColumns][gridRows];
