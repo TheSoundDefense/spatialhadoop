@@ -153,8 +153,8 @@ public class RectOutputFormat extends FileOutputFormat<Object, Rectangle> {
         
         FSDataOutputStream os = fileSystem.create(getCellFilePath(column, row), gridInfo);
         cellStreams[column][row] = ps = new PrintStream(os);
-        int xCell = column * gridInfo.cellWidth + gridInfo.xOrigin;
-        int yCell = row * gridInfo.cellHeight + gridInfo.yOrigin;
+        long xCell = column * gridInfo.cellWidth + gridInfo.xOrigin;
+        long yCell = row * gridInfo.cellHeight + gridInfo.yOrigin;
         System.out.println("Setting next block at "+xCell+","+ yCell);
         ((DFSOutputStream)os.getWrappedStream()).setNextBlockCell(xCell, yCell);
       }
