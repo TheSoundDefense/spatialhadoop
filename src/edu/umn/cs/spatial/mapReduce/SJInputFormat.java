@@ -1,8 +1,8 @@
 package edu.umn.cs.spatial.mapReduce;
 import java.io.IOException;
-import java.util.Vector;
 
-import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.InputSplit;
@@ -11,7 +11,7 @@ import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.GridInfo;
 
-import edu.umn.cs.spatial.Rectangle;
+import edu.umn.cs.spatial.TigerShapeWithIndex;
 
 /**
  * Reads and parses a file that contains records of type Rectangle.
@@ -23,43 +23,31 @@ import edu.umn.cs.spatial.Rectangle;
  * @author aseldawy
  *
  */
-public class SJInputFormat extends FileInputFormat<GridInfo, Rectangle> {
+public class SJInputFormat extends FileInputFormat<LongWritable, TigerShapeWithIndex> {
 
 	@Override
-	public RecordReader<GridInfo, Rectangle> getRecordReader(InputSplit split,
+	public RecordReader<LongWritable, TigerShapeWithIndex> getRecordReader(InputSplit split,
 			JobConf job, Reporter reporter) throws IOException {
 	    reporter.setStatus(split.toString());
-		return new SJCombineRecordReader((PairOfFileSplits)split, job, reporter);
+    FileStatus[] files = listStatus(job);
+    int i = 0;
+    while (i < files.length && !files[i].getPath().equals(((FileSplit)split).getPath()))
+      i++;
+		return new TigerRectangleWithIndexRecordReader(job, (FileSplit) split, i);
 	}
 	
 	@Override
 	public InputSplit[] getSplits(JobConf job, int numSplits) throws IOException {
-	  // Generate splits for all input paths
-	  InputSplit[] splits = super.getSplits(job, numSplits);
-
-	  // Divide the splits into two lists; one for query splits and one for
-	  // input splits
-    Vector<FileSplit> gridInfoSplits = new Vector<FileSplit>();
-    Vector<FileSplit> inputSplits = new Vector<FileSplit>();
-    Path gridInfoFilePath = listStatus(job)[0].getPath();
-    for (InputSplit split : splits) {
-      FileSplit fileSplit = (FileSplit) split;
-      
-      if (fileSplit.getPath().equals(gridInfoFilePath)) {
-        gridInfoSplits.add((FileSplit)split);
-      } else {
-        inputSplits.add((FileSplit)split);
-      }
-    }
-    // Generate a combined file split for each pair of splits
-    // i.e. Cartesian product
-    int i = 0;
-    InputSplit[] combinedSplits = new InputSplit[gridInfoSplits.size() * inputSplits.size()];
-    for (FileSplit querySplit : gridInfoSplits) {
-      for (FileSplit inputSplit : inputSplits) {
-        combinedSplits[i++] = new PairOfFileSplits(querySplit, inputSplit);
-      }
-    }
-	  return combinedSplits;
+	  // Set grid info in SJMapReduce
+	  String gridInfoStr = job.get(SJMapReduce.GRID_INFO);
+	  String[] parts = gridInfoStr.split(",");
+	  SJMapReduce.gridInfo = new GridInfo();
+	  SJMapReduce.gridInfo.xOrigin = Long.parseLong(parts[0]);
+	  SJMapReduce.gridInfo.yOrigin = Long.parseLong(parts[1]);
+	  SJMapReduce.gridInfo.gridWidth = Long.parseLong(parts[2]);
+	  SJMapReduce.gridInfo.gridHeight = Long.parseLong(parts[3]);
+	  SJMapReduce.gridInfo.cellWidth = Long.parseLong(parts[4]);
+	  SJMapReduce.gridInfo.cellHeight = Long.parseLong(parts[5]);
+	  return super.getSplits(job, numSplits);
 	}
 }

@@ -80,8 +80,11 @@ public class TigerShape implements Shape {
     id = in.readLong();
     String shapeClassName = in.readUTF();
     try {
-      Class<Shape> shapeClass = (Class<Shape>) Class.forName(shapeClassName);
-      shape = shapeClass.newInstance();
+      if (shape == null || !shape.getClass().getName().equals(shapeClassName)) {
+        // Create a shape of the new class
+        Class<Shape> shapeClass = (Class<Shape>) Class.forName(shapeClassName);
+        shape = shapeClass.newInstance();
+      }
       shape.readFields(in);
     } catch (ClassNotFoundException e) {
       shape = null;

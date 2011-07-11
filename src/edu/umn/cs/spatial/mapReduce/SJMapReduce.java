@@ -13,6 +13,7 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
@@ -22,10 +23,14 @@ import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TextOutputFormat;
+import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
+import org.apache.hadoop.spatial.Point;
+import org.apache.hadoop.spatial.Rectangle;
 
-import edu.umn.cs.spatial.Rectangle;
 import edu.umn.cs.spatial.SpatialAlgorithms;
+import edu.umn.cs.spatial.TigerShape;
+import edu.umn.cs.spatial.TigerShapeWithIndex;
 
 
 /**
@@ -35,6 +40,8 @@ import edu.umn.cs.spatial.SpatialAlgorithms;
  */
 public class SJMapReduce {
 	public static final Log LOG = LogFactory.getLog(SJMapReduce.class);
+	public static final String GRID_INFO = "edu.umn.cs.spatial.mapReduce.SJMapReduce.GridInfo";
+	public static GridInfo gridInfo;
 
 	/**
 	 * Maps each rectangle in the input data set to a grid cell
@@ -43,28 +50,30 @@ public class SJMapReduce {
 	 */
 	public static class Map extends MapReduceBase
 	implements
-	Mapper<GridInfo, Rectangle, Rectangle, Rectangle> {
-		private static Hashtable<Integer, Rectangle> cellRectangles = new Hashtable<Integer, Rectangle>();
+	Mapper<LongWritable, TigerShapeWithIndex, CellInfo, TigerShapeWithIndex> {
+	  
+		private static Hashtable<Integer, CellInfo> cellRectangles = new Hashtable<Integer, CellInfo>();
 
-		private static Rectangle getCellRectangle(GridInfo gridInfo, int cellCol, int cellRow) {
-			int cellNumber = cellRow * 10000 + cellCol;
-			Rectangle cellRectangle = cellRectangles.get(cellNumber);
-			if (cellRectangle == null) {
-				int cellX = (int) (cellCol * gridInfo.cellWidth + gridInfo.xOrigin);
-				int cellY = (int) (cellRow * gridInfo.cellHeight + gridInfo.yOrigin);
-				cellRectangle = new Rectangle(0, cellX, cellY, cellX + (int)gridInfo.cellWidth, cellY +(int)gridInfo.cellHeight);
-				cellRectangles.put(cellNumber, cellRectangle);
+		private static CellInfo getCellRectangle(GridInfo gridInfo, int cellCol, int cellRow) {
+			int cellNumber = (int)Point.mortonOrder(cellCol, cellRow);
+			CellInfo cellInfo = cellRectangles.get(cellNumber);
+			if (cellInfo == null) {
+				long cellX = cellCol * gridInfo.cellWidth + gridInfo.xOrigin;
+				long cellY = cellRow * gridInfo.cellHeight + gridInfo.yOrigin;
+				cellInfo = new CellInfo(cellX, cellY, gridInfo.cellWidth, gridInfo.cellHeight);
+				cellRectangles.put(cellNumber, cellInfo);
 			}
-			return cellRectangle;
+			return cellInfo;
 		}
 
 		public void map(
-				GridInfo gridInfo,
-				Rectangle rectangle,
-				OutputCollector<Rectangle, Rectangle> output,
+				LongWritable id,
+				TigerShapeWithIndex shape,
+				OutputCollector<CellInfo, TigerShapeWithIndex> output,
 				Reporter reporter) throws IOException {
 
 			// output the input rectangle to each grid cell it intersects with
+		  Rectangle rectangle = shape.getMBR();
 			int cellCol1 = (int) ((rectangle.getX1() - gridInfo.xOrigin) / gridInfo.cellWidth);
 			int cellRow1 = (int) ((rectangle.getY1() - gridInfo.yOrigin) / gridInfo.cellHeight);
 			int cellCol2 = (int) ((rectangle.getX2() - gridInfo.xOrigin) / gridInfo.cellWidth);
@@ -72,44 +81,45 @@ public class SJMapReduce {
 
 			for (int cellCol = cellCol1; cellCol <= cellCol2; cellCol++) {
 				for (int cellRow = cellRow1; cellRow <= cellRow2; cellRow++) {
-					Rectangle cellRectangle = getCellRectangle(gridInfo, cellCol, cellRow);
-					output.collect(cellRectangle, rectangle);
+					CellInfo cellInfo = getCellRectangle(gridInfo, cellCol, cellRow);
+					output.collect(cellInfo, shape);
 				}
 			}
 		}
 	}
 
 	public static class Reduce extends MapReduceBase implements
-	Reducer<Rectangle, Rectangle, Rectangle, Rectangle> {
+	Reducer<CellInfo, TigerShapeWithIndex, TigerShape, TigerShape> {
 		@Override
-		public void reduce(Rectangle key, Iterator<Rectangle> values,
-				OutputCollector<Rectangle, Rectangle> output, Reporter reporter)
+		public void reduce(CellInfo cellInfo, Iterator<TigerShapeWithIndex> values,
+				OutputCollector<TigerShape, TigerShape> output, Reporter reporter)
 		throws IOException {
-			List<Rectangle> rects[] = new List[10];
+			List<TigerShapeWithIndex> shapes[] = new List[2];
 			// do a spatial join over rectangles in the values set
 			// and output each joined pair to the output
 			while (values.hasNext()) {
-				Rectangle rect = (Rectangle) values.next().clone();
-				if (rects[rect.type] == null)
-					rects[rect.type] = new ArrayList<Rectangle>();
-				rects[rect.type].add(rect);
+				TigerShapeWithIndex shape = (TigerShapeWithIndex) values.next().clone();
+				if (shapes[shape.index] == null)
+					shapes[shape.index] = new ArrayList<TigerShapeWithIndex>();
+				shapes[shape.index].add(shape);
 			}
 
-			List<Rectangle> R = null, S = null;
-			for (List<Rectangle> rectanglesList : rects) {
-				if (rectanglesList != null) {
+			List<TigerShapeWithIndex> R = null, S = null;
+			for (List<TigerShapeWithIndex> shapesList : shapes) {
+				if (shapesList != null) {
 					if (R == null)
-						R = rectanglesList;
+						R = shapesList;
 					else
-						S = rectanglesList;
+						S = shapesList;
 				}
 			}
 			// In case they're empty
       if (R == null)
-        R = new ArrayList<Rectangle>();
+        R = new ArrayList<TigerShapeWithIndex>();
       if (S == null)
-        S = new ArrayList<Rectangle>();
+        S = new ArrayList<TigerShapeWithIndex>();
 			
+      System.out.println("Joining "+R.size()+" with "+S.size());
 			SpatialAlgorithms.SpatialJoin_planeSweep(R, S, output);
 		}
 
@@ -154,18 +164,12 @@ public class SJMapReduce {
 		  }
 		}
 
-		// Write grid info to a temporary file
-		Path gridInfoFilepath = new Path("/sj_grid_info");
-		FSDataOutputStream out = fs.create(gridInfoFilepath, true);
-		PrintStream ps = new PrintStream(out);
-		ps.println(args[0]);
-		ps.close();
+    // Retrieve query rectangle and store it in job info
+    conf.set(GRID_INFO, gridInfo.xOrigin+","+gridInfo.yOrigin+","+gridInfo.gridWidth+","+
+        gridInfo.gridHeight+","+gridInfo.cellWidth+","+gridInfo.cellHeight);
 
-		// add this query file as the first input path to the job
-		SJInputFormat.addInputPath(conf, gridInfoFilepath);
-
-		conf.setOutputKeyClass(Rectangle.class);
-		conf.setOutputValueClass(Rectangle.class);
+		conf.setOutputKeyClass(CellInfo.class);
+		conf.setOutputValueClass(TigerShapeWithIndex.class);
 
 		conf.setMapperClass(Map.class);
 		conf.setReducerClass(Reduce.class);
