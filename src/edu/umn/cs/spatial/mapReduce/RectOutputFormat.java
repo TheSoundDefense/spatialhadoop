@@ -16,7 +16,7 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.util.Progressable;
 
-import edu.umn.edu.spatial.Rectangle;
+import edu.umn.cs.spatial.Rectangle;
 
 public class RectOutputFormat extends FileOutputFormat<Object, Rectangle> {
   public static final String OUTPUT_GRID = "edu.umn.cs.spatial.mapReduce.RectOutputFormat.GridInfo";
@@ -70,10 +70,10 @@ public class RectOutputFormat extends FileOutputFormat<Object, Rectangle> {
     }
 
     public synchronized void write(Object cell, Rectangle rect) throws IOException {
-      String line = rect.id+","+rect.x1+","+rect.y1+","+rect.x2+","+rect.y2+","+rect.type;
+      String line = rect.id+","+rect.x+","+rect.y+","+rect.width+","+rect.height;
       // Write to all possible grid cells
-      for (int x = rect.x1; x < rect.x2; x += gridInfo.cellWidth) {
-        for (int y = rect.y1; y < rect.y2; y += gridInfo.cellHeight) {
+      for (long x = rect.getX1(); x < rect.getX2(); x += gridInfo.cellWidth) {
+        for (long y = rect.getY1(); y < rect.getY2(); y += gridInfo.cellHeight) {
           PrintStream ps = getOrCreateCellFile(x, y);
           ps.println(line);
           // increase number of bytes written to this print stream
@@ -145,12 +145,11 @@ public class RectOutputFormat extends FileOutputFormat<Object, Rectangle> {
      * @return
      * @throws IOException
      */
-    public PrintStream getOrCreateCellFile(int x, int y) throws IOException {
+    public PrintStream getOrCreateCellFile(long x, long y) throws IOException {
       int column = (int)((x - gridInfo.xOrigin) / gridInfo.cellWidth);
       int row = (int)((y - gridInfo.yOrigin) / gridInfo.cellHeight);
       PrintStream ps = cellStreams[column][row];
       if (ps == null) {
-        
         FSDataOutputStream os = fileSystem.create(getCellFilePath(column, row), gridInfo);
         cellStreams[column][row] = ps = new PrintStream(os);
         long xCell = column * gridInfo.cellWidth + gridInfo.xOrigin;

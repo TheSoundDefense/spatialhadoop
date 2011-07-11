@@ -112,14 +112,14 @@ public class WriteRectFile {
       // Parse rectangle dimensions
       parts = line.split(",");
       //int id = Integer.parseInt(parts[0]);
-      int rx1 = Integer.parseInt(parts[1]);
-      int ry1 = Integer.parseInt(parts[2]);
-      int rx2 = Integer.parseInt(parts[3]);
-      int ry2 = Integer.parseInt(parts[4]);
+      int rx = Integer.parseInt(parts[1]);
+      int ry = Integer.parseInt(parts[2]);
+      int rWidth = Integer.parseInt(parts[3]);
+      int rHeight = Integer.parseInt(parts[4]);
 
       // Write to all possible grid cells
-      for (int x = rx1; x < rx2; x += gridInfo.cellWidth) {
-        for (int y = ry1; y < ry2; y += gridInfo.cellHeight) {
+      for (int x = rx; x < rx + rWidth; x += gridInfo.cellWidth) {
+        for (int y = ry; y < ry + rHeight; y += gridInfo.cellHeight) {
           PrintStream ps = getOrCreateCellFile(x, y);
           ps.println(line);
           // increase number of bytes written to this print stream

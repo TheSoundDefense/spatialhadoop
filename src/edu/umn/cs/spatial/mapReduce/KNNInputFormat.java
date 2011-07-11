@@ -2,16 +2,16 @@ package edu.umn.cs.spatial.mapReduce;
 import java.io.IOException;
 import java.util.Vector;
 
-import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.spatial.Rectangle;
 
-import edu.umn.edu.spatial.Point;
-import edu.umn.edu.spatial.PointWithK;
+import edu.umn.cs.spatial.TigerShape;
 
 /**
  * Reads and parses a file that contains records of type Rectangle.
@@ -23,66 +23,38 @@ import edu.umn.edu.spatial.PointWithK;
  * @author aseldawy
  *
  */
-public class KNNInputFormat extends FileInputFormat<PointWithK, Point> {
+public class KNNInputFormat extends FileInputFormat<LongWritable, TigerShape> {
 
 	@Override
-	public RecordReader<PointWithK, Point> getRecordReader(InputSplit split,
+	public RecordReader<LongWritable, TigerShape> getRecordReader(InputSplit split,
 			JobConf job, Reporter reporter) throws IOException {
 	    reporter.setStatus(split.toString());
-		return new KNNCombineRecordReader((PairOfFileSplits)split, job, reporter);
+		return new TigerPointRecordReader(job, (FileSplit)split);
 	}
 	
 	@Override
 	public InputSplit[] getSplits(JobConf job, int numSplits) throws IOException {
-	  // Generate splits for all input paths
-	  InputSplit[] splits = super.getSplits(job, numSplits);
-	  Vector<FileRange> fileRanges = SplitCalculator.calculateRanges(job);
-	  // Divide the splits into two lists; one for query splits and one for
-	  // input splits
-    Vector<FileSplit> querySplits = new Vector<FileSplit>();
+    // TODO move this part to another code that gets processed once for each mapper
+    // Set QueryRange in the mapper class
+    String queryRangeStr = job.get(RQMapReduce.QUERY_SHAPE);
+    String[] parts = queryRangeStr.split(",");
+    RQMapReduce.queryShape = new Rectangle(Long.parseLong(parts[0]),
+        Long.parseLong(parts[1]), Long.parseLong(parts[2]),
+        Long.parseLong(parts[3]));    
+    
+    // Generate splits for all input paths
+    InputSplit[] splits = super.getSplits(job, numSplits);
+    Vector<FileRange> fileRanges = SplitCalculator.calculateRanges(job);
+    // Divide the splits into two lists; one for query splits and one for
+    // input splits
     Vector<FileSplit> inputSplits = new Vector<FileSplit>();
-    Path queryFilePath = listStatus(job)[0].getPath();
-    for (InputSplit split : splits) {
-      FileSplit fileSplit = (FileSplit) split;
-      
-      if (fileSplit.getPath().equals(queryFilePath)) {
-        querySplits.add((FileSplit)split);
-      } else {
-        // Check if this input split is in the search space
-        if (isInputSplitInSearchSpace((FileSplit) split, fileRanges))
-          inputSplits.add((FileSplit)split);
-      }
-    }
-    // Generate a combined file split for each pair of splits
-    // i.e. Cartesian product
-    int i = 0;
-    InputSplit[] combinedSplits = new InputSplit[querySplits.size() * inputSplits.size()];
-    for (FileSplit querySplit : querySplits) {
-      for (FileSplit inputSplit : inputSplits) {
-        combinedSplits[i++] = new PairOfFileSplits(querySplit, inputSplit);
-      }
-    }
-	  return combinedSplits;
-	}
 
-	/**
-	 * Check if the given file split intersects with any range of the given list
-	 * of ranges.
-	 * @param split
-	 * @param fileRanges
-	 * @return <code>true</code> if <code>split</code> intersects with at least
-	 * one fileRange in the given list.
-	 */
-  private boolean isInputSplitInSearchSpace(FileSplit split, Vector<FileRange> fileRanges) {
-    if (fileRanges == null)
-      return true;
-    for (FileRange fileRange : fileRanges) {
-      if (fileRange.file.equals(split.getPath()) &&
-          !((fileRange.start >= split.getStart() + split.getLength()) ||
-              split.getStart() >= fileRange.start + fileRange.length)) {
-        return true;
-      }
+    for (InputSplit split : splits) {
+      // Check if this input split is in the search space
+      if (SplitCalculator.isInputSplitInSearchSpace((FileSplit) split, fileRanges))
+        inputSplits.add((FileSplit)split);
     }
-    return false;
+    return inputSplits.toArray(new FileSplit[inputSplits.size()]);
   }
+	
 }

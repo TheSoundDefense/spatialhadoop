@@ -11,7 +11,7 @@ import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.GridInfo;
 
-import edu.umn.edu.spatial.Rectangle;
+import edu.umn.cs.spatial.Rectangle;
 
 /**
  * Reads and parses a file that contains records of type Rectangle.

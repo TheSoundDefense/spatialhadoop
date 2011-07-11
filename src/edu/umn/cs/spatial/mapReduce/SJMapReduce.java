@@ -24,8 +24,8 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.GridInfo;
 
-import edu.umn.edu.spatial.Rectangle;
-import edu.umn.edu.spatial.SpatialAlgorithms;
+import edu.umn.cs.spatial.Rectangle;
+import edu.umn.cs.spatial.SpatialAlgorithms;
 
 
 /**
@@ -65,10 +65,10 @@ public class SJMapReduce {
 				Reporter reporter) throws IOException {
 
 			// output the input rectangle to each grid cell it intersects with
-			int cellCol1 = (int) ((rectangle.x1 - gridInfo.xOrigin) / gridInfo.cellWidth);
-			int cellRow1 = (int) ((rectangle.y1 - gridInfo.yOrigin) / gridInfo.cellHeight);
-			int cellCol2 = (int) ((rectangle.x2 - gridInfo.xOrigin) / gridInfo.cellWidth);
-			int cellRow2 = (int) ((rectangle.y2 - gridInfo.yOrigin) / gridInfo.cellHeight);
+			int cellCol1 = (int) ((rectangle.getX1() - gridInfo.xOrigin) / gridInfo.cellWidth);
+			int cellRow1 = (int) ((rectangle.getY1() - gridInfo.yOrigin) / gridInfo.cellHeight);
+			int cellCol2 = (int) ((rectangle.getX2() - gridInfo.xOrigin) / gridInfo.cellWidth);
+			int cellRow2 = (int) ((rectangle.getY2() - gridInfo.yOrigin) / gridInfo.cellHeight);
 
 			for (int cellCol = cellCol1; cellCol <= cellCol2; cellCol++) {
 				for (int cellRow = cellRow1; cellRow <= cellRow2; cellRow++) {

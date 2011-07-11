@@ -14,8 +14,8 @@ import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TextOutputFormat;
 
-import edu.umn.edu.spatial.Rectangle;
-import edu.umn.edu.spatial.SpatialAlgorithms;
+import edu.umn.cs.spatial.Rectangle;
+import edu.umn.cs.spatial.SpatialAlgorithms;
 
 
 /**

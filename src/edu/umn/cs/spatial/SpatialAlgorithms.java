@@ -1,4 +1,4 @@
-package edu.umn.edu.spatial;
+package edu.umn.cs.spatial;
 
 import java.io.DataInputStream;
 import java.io.IOException;
@@ -19,8 +19,9 @@ import org.apache.hadoop.io.compress.SplitCompressionInputStream;
 import org.apache.hadoop.io.compress.SplittableCompressionCodec;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.OutputCollector;
+import org.apache.hadoop.spatial.Point;
+import org.apache.hadoop.spatial.Rectangle;
 
-import edu.umn.cs.spatial.mapReduce.ArrayListWritable;
 import edu.umn.cs.spatial.mapReduce.CollectionWritable;
 
 
@@ -87,8 +88,8 @@ public class SpatialAlgorithms {
         int jj = j;
 
         while ((jj < S.size())
-            && ((s = S.get(jj)).getXlower() <= r.getXupper())) {
-          if (r.intersects(s)) {
+            && ((s = S.get(jj)).getX1() <= r.getX2())) {
+          if (r.isIntersected(s)) {
             output.collect(r, s);
           }
           jj++;
@@ -99,8 +100,8 @@ public class SpatialAlgorithms {
         int ii = i;
 
         while ((ii < R.size())
-            && ((r = R.get(ii)).getXlower() <= s.getXupper())) {
-          if (r.intersects(s)) {
+            && ((r = R.get(ii)).getX1() <= s.getX2())) {
+          if (r.isIntersected(s)) {
             output.collect(r, s);
           }
           ii++;
@@ -117,7 +118,7 @@ public class SpatialAlgorithms {
 		// TODO use a sweep line algorithm instead of this quadratic algorithm
 		for (Rectangle r1 : rectangles) {
 			for (Rectangle r2 : rectangles) {
-				if (r1 != r2 && r1.intersects(r2)) {
+				if (r1 != r2 && r1.isIntersected(r2)) {
 					matches.add(new PairOfRectangles(r1, r2));
 				}
 			}
@@ -131,13 +132,13 @@ public class SpatialAlgorithms {
 		Collection<Rectangle> matches = new ArrayList<Rectangle>();
 		if (condition == -1) {
 			for (Rectangle r : rects) {
-				if (range.intersects(r))
+				if (range.isIntersected(r))
 					matches.add(r);
 			}
 		} else {
 			for (Rectangle r : rects) {
 				if (condition == r.type)
-					if (range.intersects(r))
+					if (range.isIntersected(r))
 						matches.add(r);
 			}
 		}
@@ -164,7 +165,7 @@ public class SpatialAlgorithms {
 		for (Rectangle r : R) {
 			TOPK topk = new TOPK(k);
 			for (Rectangle s : S) {
-				float dist = (r.midX() -s.midX())*  (r.midX() -s.midX()) +(r.midY() -s.midY())*(r.midY() -s.midY());
+				float dist = (r.getXMid() -s.getXMid())*  (r.getXMid() -s.getXMid()) +(r.getYMid() -s.getYMid())*(r.getYMid() -s.getYMid());
 				topk.add(s, dist);
 			}
 			for (RectangleNN snn : topk.heap){

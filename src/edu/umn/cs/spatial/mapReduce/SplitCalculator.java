@@ -6,13 +6,13 @@ import java.util.Vector;
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
+import org.apache.hadoop.spatial.Point;
+import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.util.StringUtils;
-
-import edu.umn.edu.spatial.Point;
-import edu.umn.edu.spatial.Rectangle;
 
 public class SplitCalculator {
 	/**
@@ -62,11 +62,11 @@ public class SplitCalculator {
 		String queryRangeString = conf.get(QUERY_RANGE);
 
 		String[] splits = queryRangeString.split(",");
-		int x1 = Integer.parseInt(splits[0]);
-		int y1 = Integer.parseInt(splits[1]);
-		int x2 = Integer.parseInt(splits[2]);
-		int y2 = Integer.parseInt(splits[3]);
-		Rectangle queryRange = new Rectangle(0, x1, y1, x2, y2);
+		int x = Integer.parseInt(splits[0]);
+		int y = Integer.parseInt(splits[1]);
+		int width = Integer.parseInt(splits[2]);
+		int height = Integer.parseInt(splits[3]);
+		Rectangle queryRange = new Rectangle(x, y, width, height);
 
 		Vector<FileRange> ranges = new Vector<FileRange>();
 		// Retrieve a list of all input files
@@ -93,9 +93,7 @@ public class SplitCalculator {
 				for (BlockLocation blockLocation : blockLocations) {
 					CellInfo cellInfo = blockLocation.getCellInfo();
 					// 2- Check if block holds a grid cell in query range
-					Rectangle blockRange = new Rectangle(0, (int)cellInfo.x, (int)cellInfo.y,
-							(int)cellInfo.x+(int)gridInfo.cellWidth, (int) cellInfo.y+(int)gridInfo.cellHeight);
-					if (blockRange.intersects(queryRange)) {
+					if (cellInfo.isIntersected(queryRange)) {
 						// Add this block
 						ranges.add(new FileRange(path, blockLocation.getOffset(), blockLocation.getLength()));
 					}
@@ -152,9 +150,7 @@ public class SplitCalculator {
 				for (BlockLocation blockLocation : blockLocations) {
 					CellInfo cellInfo = blockLocation.getCellInfo();
 					// 2- Check if block holds a grid cell in query range
-					Rectangle blockRange = new Rectangle(0, (int)cellInfo.x, (int)cellInfo.y,
-							(int)cellInfo.x+(int)gridInfo.cellWidth, (int) cellInfo.y+(int)gridInfo.cellHeight);
-					if (blockRange.contains(queryPoint)) {
+					if (cellInfo.contains(queryPoint)) {
 						// Add this block
 						ranges.add(new FileRange(path, blockLocation.getOffset(), blockLocation.getLength()));
 					}
@@ -166,4 +162,22 @@ public class SplitCalculator {
 		return ranges;
 	}
 
+	 /**
+   * Check if the given file split intersects with any range of the given list
+   * of ranges.
+   * @param split
+   * @param fileRanges
+   * @return <code>true</code> if <code>split</code> intersects with at least
+   * one fileRange in the given list.
+   */
+  public static boolean isInputSplitInSearchSpace(FileSplit split, Vector<FileRange> fileRanges) {
+    for (FileRange fileRange : fileRanges) {
+      if (fileRange.file.equals(split.getPath()) &&
+          !((fileRange.start >= split.getStart() + split.getLength()) ||
+              split.getStart() >= fileRange.start + fileRange.length)) {
+        return true;
+      }
+    }
+    return false;
+  }
 }

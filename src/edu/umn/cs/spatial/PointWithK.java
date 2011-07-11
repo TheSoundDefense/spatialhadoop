@@ -1,8 +1,10 @@
-package edu.umn.edu.spatial;
+package edu.umn.cs.spatial;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+
+import org.apache.hadoop.spatial.Point;
 
 /**
  * Stores a point with an integer K.
@@ -25,7 +27,7 @@ public class PointWithK extends Point {
   }
   
   public PointWithK(Point point, int k) {
-    super(point.id, point.x, point.y);
+    super(point.x, point.y);
     this.k = k;
   }
 

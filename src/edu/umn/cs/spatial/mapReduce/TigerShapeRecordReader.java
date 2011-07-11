@@ -2,30 +2,30 @@ package edu.umn.cs.spatial.mapReduce;
 import java.io.IOException;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.LineRecordReader;
 import org.apache.hadoop.mapred.RecordReader;
+import org.apache.hadoop.spatial.Shape;
 
-import edu.umn.edu.spatial.Rectangle;
+import edu.umn.cs.spatial.TigerShape;
 
 
 /**
- * Parses a spatial file and returns a list of <id, rectangle> tuples.
- * Used with range query (spatial selection)
+ * Parses text lines into Tiger shapes. Subclasses of this class should provide
+ * a method to parse one line into a shape.
  * @author aseldawy
  *
  */
-public class RQRectangleRecordReader implements RecordReader<LongWritable, Rectangle> {
+public abstract class TigerShapeRecordReader implements RecordReader<LongWritable, TigerShape> {
   
   private RecordReader<LongWritable, Text> lineRecordReader;
   private LongWritable subKey;
   private Text subValue;
 
-  public RQRectangleRecordReader(Configuration job, 
-      FileSplit split) throws IOException {
+  public TigerShapeRecordReader(Configuration job, FileSplit split)
+      throws IOException {
     lineRecordReader = new LineRecordReader(job, split);
   }
 
@@ -36,7 +36,7 @@ public class RQRectangleRecordReader implements RecordReader<LongWritable, Recta
 	 * It consumes the end of line also when reading the rectangle.
 	 * It stops after reading the first end of line (after) end.
 	 */
-	public boolean next(LongWritable key, Rectangle value) throws IOException {
+	public boolean next(LongWritable key, TigerShape value) throws IOException {
 	  if (!lineRecordReader.next(subKey, subValue) || subValue.getLength() < 4) {
 	    // Stop on wrapped reader EOF or a very short line which indicates EOF too
 	    return false;
@@ -46,14 +46,24 @@ public class RQRectangleRecordReader implements RecordReader<LongWritable, Recta
 	  String[] parts = line.split(",");
 	  key.set(Long.parseLong(parts[0]));
 	  value.id = key.get();
-	  value.x1 = Integer.parseInt(parts[1]);
-	  value.y1 = Integer.parseInt(parts[2]);
-	  value.x2 = Integer.parseInt(parts[3]);
-	  value.y2 = Integer.parseInt(parts[4]);
-	  value.type = Integer.parseInt(parts[5]);
+	  parseShape(value.shape, parts);
 
 	  return true;
 	}
+
+	/**
+	 * Creates a shape to be filled in with information later from each line.
+	 * @return
+	 */
+  protected abstract Shape createShape();
+  
+  /**
+   * Fills in shape details from the array parts.
+   * @param shape
+   * @param parts
+   * @return
+   */
+	protected abstract void parseShape(Shape shape, String[] parts);
 
   public long getPos() throws IOException {
     return lineRecordReader.getPos();
@@ -74,9 +84,11 @@ public class RQRectangleRecordReader implements RecordReader<LongWritable, Recta
   }
 
   @Override
-  public Rectangle createValue() {
+  public TigerShape createValue() {
     subValue = lineRecordReader.createValue();
-    return new Rectangle();
+    TigerShape tigerShape = new TigerShape();
+    tigerShape.shape = createShape();
+    return tigerShape;
   }
 
 }
