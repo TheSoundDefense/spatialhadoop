@@ -141,14 +141,7 @@ public class SJMapReduce {
 
 		// Retrieve query rectangle and store it to an HDFS file
 		GridInfo gridInfo = new GridInfo();
-		String[] parts = args[0].split(",");
-
-		gridInfo.xOrigin = Long.parseLong(parts[0]);
-		gridInfo.yOrigin = Long.parseLong(parts[1]);
-		gridInfo.gridWidth = Long.parseLong(parts[2]);
-		gridInfo.gridHeight = Long.parseLong(parts[3]);
-		gridInfo.cellWidth = Long.parseLong(parts[4]);
-		gridInfo.cellHeight = Long.parseLong(parts[5]);
+		gridInfo.readFromString(args[0]);
 
 		// Get the HDFS file system
 		FileSystem fs = FileSystem.get(conf);
@@ -165,8 +158,7 @@ public class SJMapReduce {
 		}
 
     // Retrieve query rectangle and store it in job info
-    conf.set(GRID_INFO, gridInfo.xOrigin+","+gridInfo.yOrigin+","+gridInfo.gridWidth+","+
-        gridInfo.gridHeight+","+gridInfo.cellWidth+","+gridInfo.cellHeight);
+    conf.set(GRID_INFO, gridInfo.writeToString());
 
 		conf.setOutputKeyClass(CellInfo.class);
 		conf.setOutputValueClass(TigerShapeWithIndex.class);
@@ -175,6 +167,7 @@ public class SJMapReduce {
 		conf.setReducerClass(Reduce.class);
 
 		conf.setInputFormat(SJInputFormat.class);
+		conf.set(TigerShapeRecordReader.TIGER_SHAPE_CLASS, TigerShapeWithIndex.class.getName());
 		conf.setOutputFormat(TextOutputFormat.class);
 
 		// All files except first and last ones are input files

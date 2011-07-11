@@ -11,7 +11,7 @@ import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.GridInfo;
 
-import edu.umn.cs.spatial.TigerShapeWithIndex;
+import edu.umn.cs.spatial.TigerShape;
 
 /**
  * Reads and parses a file that contains records of type Rectangle.
@@ -23,31 +23,25 @@ import edu.umn.cs.spatial.TigerShapeWithIndex;
  * @author aseldawy
  *
  */
-public class SJInputFormat extends FileInputFormat<LongWritable, TigerShapeWithIndex> {
+public class SJInputFormat extends FileInputFormat<LongWritable, TigerShape> {
 
 	@Override
-	public RecordReader<LongWritable, TigerShapeWithIndex> getRecordReader(InputSplit split,
+	public RecordReader<LongWritable, TigerShape> getRecordReader(InputSplit split,
 			JobConf job, Reporter reporter) throws IOException {
 	    reporter.setStatus(split.toString());
     FileStatus[] files = listStatus(job);
     int i = 0;
     while (i < files.length && !files[i].getPath().equals(((FileSplit)split).getPath()))
       i++;
-		return new TigerShapeWithIndexRecordReader(job, (FileSplit) split, i);
+		return new TigerShapeRecordReader(job, (FileSplit) split, i);
 	}
 	
 	@Override
 	public InputSplit[] getSplits(JobConf job, int numSplits) throws IOException {
 	  // Set grid info in SJMapReduce
 	  String gridInfoStr = job.get(SJMapReduce.GRID_INFO);
-	  String[] parts = gridInfoStr.split(",");
 	  SJMapReduce.gridInfo = new GridInfo();
-	  SJMapReduce.gridInfo.xOrigin = Long.parseLong(parts[0]);
-	  SJMapReduce.gridInfo.yOrigin = Long.parseLong(parts[1]);
-	  SJMapReduce.gridInfo.gridWidth = Long.parseLong(parts[2]);
-	  SJMapReduce.gridInfo.gridHeight = Long.parseLong(parts[3]);
-	  SJMapReduce.gridInfo.cellWidth = Long.parseLong(parts[4]);
-	  SJMapReduce.gridInfo.cellHeight = Long.parseLong(parts[5]);
+	  SJMapReduce.gridInfo.readFromString(gridInfoStr);
 	  return super.getSplits(job, numSplits);
 	}
 }

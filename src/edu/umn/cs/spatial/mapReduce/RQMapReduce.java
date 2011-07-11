@@ -12,6 +12,7 @@ import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TextOutputFormat;
+import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.Shape;
 
 import edu.umn.cs.spatial.TigerShape;
@@ -36,7 +37,6 @@ public class RQMapReduce {
     			TigerShape tigerShape,
     			OutputCollector<LongWritable, TigerShape> output,
     			Reporter reporter) throws IOException {
-
     		if (queryShape.isIntersected(tigerShape.shape)) {
     			output.collect(shapeId, tigerShape);
     		}
@@ -69,6 +69,7 @@ public class RQMapReduce {
       conf.setMapperClass(Map.class);
 
       conf.setInputFormat(RQInputFormat.class);
+      conf.set(TigerShapeRecordReader.SHAPE_CLASS, Rectangle.class.getName());
       conf.setOutputFormat(TextOutputFormat.class);
 
       // All files except last one are input files

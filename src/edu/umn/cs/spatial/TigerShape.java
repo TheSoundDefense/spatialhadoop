@@ -108,31 +108,18 @@ public class TigerShape implements Shape {
   
   @Override
   public String toString() {
-    return "TIGER #"+id+" "+shape.toString();
+    return "TIGER #"+id+" "+shape;
   }
 
   @Override
   public String writeToString() {
-    return id+","+shape.getClass().getName()+","+shape.toString();
+    return id+","+shape.writeToString();
   }
 
   @Override
   public void readFromString(String string) {
-    String[] parts = string.split(",", 3);
+    String[] parts = string.split(",", 2);
     this.id = Long.parseLong(parts[0]);
-    try {
-      if (!shape.getClass().getName().equals(parts[1])) {
-        // Create a shape of the new class
-        Class<Shape> shapeClass = (Class<Shape>) Class.forName(parts[1]);
-        shape = shapeClass.newInstance();
-      }
-      shape.readFromString(parts[2]);
-    } catch (ClassNotFoundException e) {
-      shape = null;
-    } catch (InstantiationException e) {
-      shape = null;
-    } catch (IllegalAccessException e) {
-      shape = null;
-    }
+    shape.readFromString(parts[1]);
   }
 }

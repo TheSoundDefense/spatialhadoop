@@ -26,7 +26,6 @@ import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.spatial.PointWithK;
-import edu.umn.cs.spatial.TigerShape;
 import edu.umn.cs.spatial.TigerShapeWithDistance;
 
 
@@ -43,15 +42,16 @@ public class KNNMapReduce {
 
   public static class Map extends MapReduceBase
   implements
-  Mapper<LongWritable, TigerShape, LongWritable, TigerShapeWithDistance> {
+  Mapper<LongWritable, TigerShapeWithDistance, LongWritable, TigerShapeWithDistance> {
     private static final LongWritable ONE = new LongWritable(1);
     
     public void map(
         LongWritable id,
-        TigerShape shape,
+        TigerShapeWithDistance shape,
         OutputCollector<LongWritable, TigerShapeWithDistance> output,
         Reporter reporter) throws IOException {
-      output.collect(ONE, new TigerShapeWithDistance((TigerShape) shape.clone(), shape.getAvgDistanceTo(queryPoint)));
+      shape.distance = shape.getAvgDistanceTo(queryPoint);
+      output.collect(ONE, shape);
     }
   }
 	
@@ -122,6 +122,8 @@ public class KNNMapReduce {
       conf.setCombinerClass(Reduce.class);
 
       conf.setInputFormat(KNNInputFormat.class);
+      conf.set(TigerShapeRecordReader.TIGER_SHAPE_CLASS, TigerShapeWithDistance.class.getName());
+      conf.set(TigerShapeRecordReader.SHAPE_CLASS, Point.class.getName());
       conf.setOutputFormat(TextOutputFormat.class);
 
       // All files except first and last one are input files
