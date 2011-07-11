@@ -7,9 +7,7 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.LineRecordReader;
 import org.apache.hadoop.mapred.RecordReader;
-import org.apache.hadoop.spatial.Shape;
 
-import edu.umn.cs.spatial.TigerShape;
 import edu.umn.cs.spatial.TigerShapeWithIndex;
 
 
@@ -19,10 +17,9 @@ import edu.umn.cs.spatial.TigerShapeWithIndex;
  * @author aseldawy
  *
  */
-public abstract class TigerShapeWithIndexRecordReader implements RecordReader<LongWritable, TigerShapeWithIndex> {
+public class TigerShapeWithIndexRecordReader implements RecordReader<LongWritable, TigerShapeWithIndex> {
   
   private RecordReader<LongWritable, Text> lineRecordReader;
-  private LongWritable subKey;
   private Text subValue;
   private int index;
 
@@ -40,33 +37,16 @@ public abstract class TigerShapeWithIndexRecordReader implements RecordReader<Lo
 	 * It stops after reading the first end of line (after) end.
 	 */
 	public boolean next(LongWritable key, TigerShapeWithIndex value) throws IOException {
-	  if (!lineRecordReader.next(subKey, subValue) || subValue.getLength() < 4) {
+	  if (!lineRecordReader.next(key, subValue) || subValue.getLength() < 4) {
 	    // Stop on wrapped reader EOF or a very short line which indicates EOF too
 	    return false;
 	  }
-	  // Convert to a regular string to be able to use split
-	  String line = new String(subValue.getBytes(), 0, subValue.getLength());
-	  String[] parts = line.split(",");
-	  key.set(Long.parseLong(parts[0]));
-	  value.id = key.get();
-	  parseShape(value.shape, parts);
+    // Convert to a regular string to be able to use split
+    String line = new String(subValue.getBytes(), 0, subValue.getLength());
+    value.readFromString(line);
 	  
 	  return true;
 	}
-
-	/**
-	 * Creates a shape to be filled in with information later from each line.
-	 * @return
-	 */
-  protected abstract Shape createShape();
-  
-  /**
-   * Fills in shape details from the array parts.
-   * @param shape
-   * @param parts
-   * @return
-   */
-	protected abstract void parseShape(Shape shape, String[] parts);
 
   public long getPos() throws IOException {
     return lineRecordReader.getPos();
@@ -82,15 +62,13 @@ public abstract class TigerShapeWithIndexRecordReader implements RecordReader<Lo
 
   @Override
   public LongWritable createKey() {
-    subKey = lineRecordReader.createKey();
-    return new LongWritable();
+    return lineRecordReader.createKey();
   }
 
   @Override
   public TigerShapeWithIndex createValue() {
     subValue = lineRecordReader.createValue();
     TigerShapeWithIndex tigerShape = new TigerShapeWithIndex();
-    tigerShape.shape = createShape();
     tigerShape.index = index;
     return tigerShape;
   }

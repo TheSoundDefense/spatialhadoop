@@ -29,7 +29,7 @@ public class KNNInputFormat extends FileInputFormat<LongWritable, TigerShape> {
 	public RecordReader<LongWritable, TigerShape> getRecordReader(InputSplit split,
 			JobConf job, Reporter reporter) throws IOException {
 	    reporter.setStatus(split.toString());
-		return new TigerPointRecordReader(job, (FileSplit)split);
+		return new TigerShapeRecordReader(job, (FileSplit)split);
 	}
 	
 	@Override

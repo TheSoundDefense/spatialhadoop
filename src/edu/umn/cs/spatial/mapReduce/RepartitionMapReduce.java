@@ -15,8 +15,7 @@ import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.GridInfo;
-
-import edu.umn.cs.spatial.Rectangle;
+import org.apache.hadoop.spatial.Rectangle;
 
 
 /**

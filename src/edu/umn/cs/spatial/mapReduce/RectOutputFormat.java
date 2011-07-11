@@ -9,6 +9,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.DFSOutputStream;
 import org.apache.hadoop.hdfs.DistributedFileSystem;
+import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordWriter;
@@ -16,15 +17,15 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.util.Progressable;
 
-import edu.umn.cs.spatial.Rectangle;
+import edu.umn.cs.spatial.TigerShape;
 
-public class RectOutputFormat extends FileOutputFormat<Object, Rectangle> {
+public class RectOutputFormat extends FileOutputFormat<LongWritable, TigerShape> {
   public static final String OUTPUT_GRID = "edu.umn.cs.spatial.mapReduce.RectOutputFormat.GridInfo";
   private static final int BufferLength = 1024 * 1024;
   private static long BlockSize = 64 * 1024 * 1024;
 
   @Override
-  public RecordWriter<Object, Rectangle> getRecordWriter(FileSystem ignored,
+  public RecordWriter<LongWritable, TigerShape> getRecordWriter(FileSystem ignored,
       JobConf job,
       String name,
       Progressable progress)
@@ -49,7 +50,7 @@ public class RectOutputFormat extends FileOutputFormat<Object, Rectangle> {
     return new RectRecordWriter(fileSystem, outFile, gridInfo);
   }
 
-  protected static class RectRecordWriter implements RecordWriter<Object, Rectangle> {
+  protected static class RectRecordWriter implements RecordWriter<LongWritable, TigerShape> {
     private final GridInfo gridInfo;
     /**An output stream for each grid cell*/
     private static PrintStream[][] cellStreams;
@@ -69,11 +70,11 @@ public class RectOutputFormat extends FileOutputFormat<Object, Rectangle> {
       cellSizes = new long[gridColumns][gridRows];
     }
 
-    public synchronized void write(Object cell, Rectangle rect) throws IOException {
-      String line = rect.id+","+rect.x+","+rect.y+","+rect.width+","+rect.height;
+    public synchronized void write(LongWritable id, TigerShape rect) throws IOException {
+      String line = rect.writeToString();
       // Write to all possible grid cells
-      for (long x = rect.getX1(); x < rect.getX2(); x += gridInfo.cellWidth) {
-        for (long y = rect.getY1(); y < rect.getY2(); y += gridInfo.cellHeight) {
+      for (long x = rect.getMBR().getX1(); x < rect.getMBR().getX2(); x += gridInfo.cellWidth) {
+        for (long y = rect.getMBR().getY1(); y < rect.getMBR().getY2(); y += gridInfo.cellHeight) {
           PrintStream ps = getOrCreateCellFile(x, y);
           ps.println(line);
           // increase number of bytes written to this print stream

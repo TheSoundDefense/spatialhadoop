@@ -7,6 +7,7 @@ import java.io.IOException;
 import org.apache.hadoop.spatial.Shape;
 
 public class TigerShapeWithIndex extends TigerShape {
+  // Note: index should not be written or read from string to be able to parse normal files
   public int index;
 
   public TigerShapeWithIndex() {
@@ -46,17 +47,5 @@ public class TigerShapeWithIndex extends TigerShape {
   @Override
   public Object clone() {
     return new TigerShapeWithIndex(this.shape, this.id, this.index);
-  }
-  
-  @Override
-  public String writeToString() {
-    return index+","+super.toString();
-  }
-  
-  @Override
-  public void readFromString(String string) {
-    String[] parts = string.split(",");
-    index = Integer.parseInt(parts[0]);
-    super.readFromString(parts[1]);
   }
 }

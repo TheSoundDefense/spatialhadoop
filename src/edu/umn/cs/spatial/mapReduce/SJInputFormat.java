@@ -33,7 +33,7 @@ public class SJInputFormat extends FileInputFormat<LongWritable, TigerShapeWithI
     int i = 0;
     while (i < files.length && !files[i].getPath().equals(((FileSplit)split).getPath()))
       i++;
-		return new TigerRectangleWithIndexRecordReader(job, (FileSplit) split, i);
+		return new TigerShapeWithIndexRecordReader(job, (FileSplit) split, i);
 	}
 	
 	@Override

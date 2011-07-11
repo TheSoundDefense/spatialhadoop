@@ -7,6 +7,8 @@ import java.io.IOException;
 import org.apache.hadoop.spatial.Shape;
 
 public class TigerShapeWithDistance extends TigerShape {
+  // Distance is used for internal processing and should not be serialized to string to
+  // be able to parse normal files
   public double distance;
 
   public TigerShapeWithDistance() {
@@ -57,15 +59,4 @@ public class TigerShapeWithDistance extends TigerShape {
     return super.toString() + " distance: "+distance;
   }
   
-  @Override
-  public String writeToString() {
-    return distance+","+super.toString();
-  }
-  
-  @Override
-  public void readFromString(String string) {
-    String[] parts = string.split(",");
-    distance = Double.parseDouble(parts[0]);
-    super.readFromString(parts[1]);
-  }
 }

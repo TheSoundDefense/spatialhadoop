@@ -7,7 +7,6 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.LineRecordReader;
 import org.apache.hadoop.mapred.RecordReader;
-import org.apache.hadoop.spatial.Shape;
 
 import edu.umn.cs.spatial.TigerShape;
 
@@ -18,10 +17,9 @@ import edu.umn.cs.spatial.TigerShape;
  * @author aseldawy
  *
  */
-public abstract class TigerShapeRecordReader implements RecordReader<LongWritable, TigerShape> {
+public class TigerShapeRecordReader implements RecordReader<LongWritable, TigerShape> {
   
   private RecordReader<LongWritable, Text> lineRecordReader;
-  private LongWritable subKey;
   private Text subValue;
 
   public TigerShapeRecordReader(Configuration job, FileSplit split)
@@ -37,33 +35,16 @@ public abstract class TigerShapeRecordReader implements RecordReader<LongWritabl
 	 * It stops after reading the first end of line (after) end.
 	 */
 	public boolean next(LongWritable key, TigerShape value) throws IOException {
-	  if (!lineRecordReader.next(subKey, subValue) || subValue.getLength() < 4) {
+	  if (!lineRecordReader.next(key, subValue) || subValue.getLength() < 4) {
 	    // Stop on wrapped reader EOF or a very short line which indicates EOF too
 	    return false;
 	  }
 	  // Convert to a regular string to be able to use split
 	  String line = new String(subValue.getBytes(), 0, subValue.getLength());
-	  String[] parts = line.split(",");
-	  key.set(Long.parseLong(parts[0]));
-	  value.id = key.get();
-	  parseShape(value.shape, parts);
+	  value.readFromString(line);
 
 	  return true;
 	}
-
-	/**
-	 * Creates a shape to be filled in with information later from each line.
-	 * @return
-	 */
-  protected abstract Shape createShape();
-  
-  /**
-   * Fills in shape details from the array parts.
-   * @param shape
-   * @param parts
-   * @return
-   */
-	protected abstract void parseShape(Shape shape, String[] parts);
 
   public long getPos() throws IOException {
     return lineRecordReader.getPos();
@@ -79,16 +60,13 @@ public abstract class TigerShapeRecordReader implements RecordReader<LongWritabl
 
   @Override
   public LongWritable createKey() {
-    subKey = lineRecordReader.createKey();
-    return new LongWritable();
+    return lineRecordReader.createKey();
   }
 
   @Override
   public TigerShape createValue() {
     subValue = lineRecordReader.createValue();
-    TigerShape tigerShape = new TigerShape();
-    tigerShape.shape = createShape();
-    return tigerShape;
+    return new TigerShape();
   }
 
 }

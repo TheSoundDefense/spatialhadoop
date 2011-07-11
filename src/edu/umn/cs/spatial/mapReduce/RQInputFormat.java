@@ -31,7 +31,7 @@ public class RQInputFormat extends FileInputFormat<LongWritable, TigerShape> {
 	public RecordReader<LongWritable, TigerShape> getRecordReader(InputSplit split,
 			JobConf job, Reporter reporter) throws IOException {
 	    reporter.setStatus(split.toString());
-		return new TigerRectangleRecordReader(job, (FileSplit)split);
+		return new TigerShapeRecordReader(job, (FileSplit)split);
 	}
 	
 	@Override

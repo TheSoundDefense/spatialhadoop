@@ -1,9 +1,6 @@
 package edu.umn.cs.spatial.mapReduce;
 import java.io.IOException;
-import java.util.Vector;
 
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.FileSplit;
@@ -11,9 +8,10 @@ import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
-import org.apache.hadoop.spatial.GridInfo;
 
-import edu.umn.cs.spatial.Rectangle;
+import edu.umn.cs.spatial.TigerShape;
+
+
 
 /**
  * Reads and parses a file that contains records of type Rectangle.
@@ -25,13 +23,13 @@ import edu.umn.cs.spatial.Rectangle;
  * @author aseldawy
  *
  */
-public class RepartitionInputFormat extends FileInputFormat<LongWritable, Rectangle> {
+public class RepartitionInputFormat extends FileInputFormat<LongWritable, TigerShape> {
 
 	@Override
-	public RecordReader<LongWritable, Rectangle> getRecordReader(InputSplit split,
+	public RecordReader<LongWritable, TigerShape> getRecordReader(InputSplit split,
 			JobConf job, Reporter reporter) throws IOException {
 	    reporter.setStatus(split.toString());
-		return new RQRectangleRecordReader(job, (FileSplit)split);
+		return new TigerShapeRecordReader(job, (FileSplit)split);
 	}
 	
 }
