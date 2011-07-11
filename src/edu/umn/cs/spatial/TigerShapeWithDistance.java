@@ -1,9 +1,17 @@
 package edu.umn.cs.spatial;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+
 import org.apache.hadoop.spatial.Shape;
 
 public class TigerShapeWithDistance extends TigerShape {
   public double distance;
+
+  public TigerShapeWithDistance() {
+    
+  }
   
   public TigerShapeWithDistance(TigerShape tigerShape, double distance) {
     super(tigerShape);
@@ -30,5 +38,22 @@ public class TigerShapeWithDistance extends TigerShape {
     if (difference > 0)
       return 1;
     return 0;
+  }
+  
+  @Override
+  public void write(DataOutput out) throws IOException {
+    super.write(out);
+    out.writeDouble(distance);
+  }
+  
+  @Override
+  public void readFields(DataInput in) throws IOException {
+    super.readFields(in);
+    distance = in.readDouble();
+  }
+  
+  @Override
+  public String toString() {
+    return super.toString() + " distance: "+distance;
   }
 }

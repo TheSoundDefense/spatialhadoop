@@ -31,6 +31,11 @@ public class PointWithK extends Point {
     this.k = k;
   }
 
+  public PointWithK(long x, long y, int k) {
+    super(x, y);
+    this.k = k;
+  }
+
   @Override
   public void write(DataOutput out) throws IOException {
     super.write(out);

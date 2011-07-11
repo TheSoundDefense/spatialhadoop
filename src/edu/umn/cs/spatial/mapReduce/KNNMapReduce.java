@@ -136,6 +136,8 @@ public class KNNMapReduce {
       GridInfo gridInfo = fileSystem.getFileStatus(inputPaths[0]).getGridInfo();
 
       if (gridInfo == null) {
+        Path outputPath = new Path(args[args.length - 1]);
+        FileOutputFormat.setOutputPath(conf, outputPath);
         // Heap file is processed in one pass
         JobClient.runJob(conf);
         return;

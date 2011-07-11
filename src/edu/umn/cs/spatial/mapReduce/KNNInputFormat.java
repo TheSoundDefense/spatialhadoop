@@ -9,8 +9,8 @@ import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
-import org.apache.hadoop.spatial.Rectangle;
 
+import edu.umn.cs.spatial.PointWithK;
 import edu.umn.cs.spatial.TigerShape;
 
 /**
@@ -36,15 +36,15 @@ public class KNNInputFormat extends FileInputFormat<LongWritable, TigerShape> {
 	public InputSplit[] getSplits(JobConf job, int numSplits) throws IOException {
     // TODO move this part to another code that gets processed once for each mapper
     // Set QueryRange in the mapper class
-    String queryRangeStr = job.get(RQMapReduce.QUERY_SHAPE);
+    String queryRangeStr = job.get(KNNMapReduce.QUERY_POINT);
     String[] parts = queryRangeStr.split(",");
-    RQMapReduce.queryShape = new Rectangle(Long.parseLong(parts[0]),
-        Long.parseLong(parts[1]), Long.parseLong(parts[2]),
-        Long.parseLong(parts[3]));    
+    KNNMapReduce.queryPoint = new PointWithK(Long.parseLong(parts[0]), Long.parseLong(parts[1]), Integer.parseInt(parts[2]));    
     
     // Generate splits for all input paths
     InputSplit[] splits = super.getSplits(job, numSplits);
     Vector<FileRange> fileRanges = SplitCalculator.calculateRanges(job);
+    if (fileRanges == null)
+      return splits;
     // Divide the splits into two lists; one for query splits and one for
     // input splits
     Vector<FileSplit> inputSplits = new Vector<FileSplit>();

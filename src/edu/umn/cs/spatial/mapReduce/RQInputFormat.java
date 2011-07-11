@@ -47,8 +47,10 @@ public class RQInputFormat extends FileInputFormat<LongWritable, TigerShape> {
 	  // Generate splits for all input paths
 	  InputSplit[] splits = super.getSplits(job, numSplits);
 	  Vector<FileRange> fileRanges = SplitCalculator.calculateRanges(job);
-	  // Divide the splits into two lists; one for query splits and one for
-	  // input splits
+	  // if processing a heap file, just use all of them
+	  if (fileRanges == null)
+      return splits;
+	  // Early prune file splits that are completely outside query range
     Vector<FileSplit> inputSplits = new Vector<FileSplit>();
 
     for (InputSplit split : splits) {
