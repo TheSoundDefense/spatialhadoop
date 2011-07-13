@@ -1,6 +1,8 @@
 package edu.umn.cs.spatial.mapReduce;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.Iterator;
 
 import org.apache.commons.logging.Log;
@@ -10,7 +12,6 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.LongWritable;
-import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
@@ -23,7 +24,6 @@ import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Rectangle;
-import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.spatial.PointWithK;
 import edu.umn.cs.spatial.TigerShapeWithDistance;
@@ -170,15 +170,14 @@ public class KNNMapReduce {
         double farthestNeighbor = 0.0;
         for (FileStatus resultFile : resultFiles) {
           if (resultFile.getLen() > 0) {
-            LineReader in = new LineReader(fileSystem.open(resultFile.getPath()));
-            Text line = new Text();
-            while (in.readLine(line) > 0) {
-              // TODO search for 'distance: '
-              int i = 0;
-              // Skip all characters till the -
-              while (line.charAt(i++) != '-');
+            BufferedReader in = new BufferedReader(new InputStreamReader(fileSystem.open(resultFile.getPath())));
+            String line;
+            while ((line = in.readLine()) != null) {
+              String pattern = "distance: ";
+              // search for 'distance: '
+              int i = line.indexOf(pattern);
               // Parse the rest of the line to get the distance
-              double distance = Double.parseDouble(new String(line.getBytes(), i, line.getLength() - i));
+              double distance = Double.parseDouble(line.substring(i + pattern.length()));
               if (distance > farthestNeighbor)
                 farthestNeighbor = distance;
             }

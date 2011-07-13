@@ -6,7 +6,6 @@ import java.util.HashMap;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.JobClient;
@@ -78,7 +77,7 @@ public class RepartitionMapReduce {
       gridInfo.calculateCellDimensions(fileSystem.getFileStatus(inputFile).getLen(), fileSystem.getDefaultBlockSize());
 
     // Save gridInfo in job configuration
-    conf.set(TigerShapeOutputFormat.OUTPUT_GRID, gridInfo.writeToString());
+    conf.set(GridOutputFormat.OUTPUT_GRID, gridInfo.writeToString());
     
     // Overwrite output file
     if (fileSystem.exists(outputPath)) {
@@ -89,7 +88,7 @@ public class RepartitionMapReduce {
     // add this query file as the first input path to the job
     RepartitionInputFormat.addInputPath(conf, inputFile);
     
-    conf.setOutputKeyClass(LongWritable.class);
+    conf.setOutputKeyClass(CellInfo.class);
     conf.setOutputValueClass(TigerShape.class);
 
     conf.setMapperClass(Map.class);
@@ -99,7 +98,7 @@ public class RepartitionMapReduce {
     conf.set(TigerShapeRecordReader.SHAPE_CLASS, Rectangle.class.getName());
 
     conf.setInputFormat(RepartitionInputFormat.class);
-    conf.setOutputFormat(TigerShapeOutputFormat.class);
+    conf.setOutputFormat(GridOutputFormat.class);
 
     // Last argument is the output file
     FileOutputFormat.setOutputPath(conf,outputPath);

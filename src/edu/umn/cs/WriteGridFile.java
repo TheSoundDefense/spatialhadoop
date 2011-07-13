@@ -12,7 +12,7 @@ import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Shape;
 
 import edu.umn.cs.spatial.TigerShape;
-import edu.umn.cs.spatial.mapReduce.TigerShapeRecordWriter;
+import edu.umn.cs.spatial.mapReduce.GridRecordWriter;
 
 public class WriteGridFile {
 
@@ -36,7 +36,7 @@ public class WriteGridFile {
       gridInfo.calculateCellDimensions(new File(inputFilename).length(), fileSystem.getDefaultBlockSize());
 
     // Prepare grid file writer
-    TigerShapeRecordWriter rrw = new TigerShapeRecordWriter(fileSystem, outputPath, gridInfo);
+    GridRecordWriter rrw = new GridRecordWriter(fileSystem, outputPath, gridInfo);
 
     // Open input file
     LineNumberReader reader = new LineNumberReader(new FileReader(inputFilename));

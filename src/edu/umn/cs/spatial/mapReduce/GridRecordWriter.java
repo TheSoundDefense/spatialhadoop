@@ -12,11 +12,12 @@ import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapred.RecordWriter;
 import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
 
 import edu.umn.cs.spatial.TigerShape;
 
-public class TigerShapeRecordWriter implements RecordWriter<LongWritable, TigerShape> {
+public class GridRecordWriter implements RecordWriter<CellInfo, TigerShape> {
   private static final int BufferLength = 1024 * 1024;
   private static long BlockSize = 64 * 1024 * 1024;
   private final GridInfo gridInfo;
@@ -26,7 +27,7 @@ public class TigerShapeRecordWriter implements RecordWriter<LongWritable, TigerS
   private final Path outFile;
   private final FileSystem fileSystem;
 
-  public TigerShapeRecordWriter(FileSystem fileSystem, Path outFile, GridInfo gridInfo) {
+  public GridRecordWriter(FileSystem fileSystem, Path outFile, GridInfo gridInfo) {
     this.fileSystem = fileSystem;
     this.outFile = outFile;
     this.gridInfo = gridInfo;
@@ -38,7 +39,7 @@ public class TigerShapeRecordWriter implements RecordWriter<LongWritable, TigerS
     cellSizes = new long[gridColumns][gridRows];
   }
 
-  public synchronized void write(LongWritable id, TigerShape rect) throws IOException {
+  public synchronized void write(LongWritable dummyId, TigerShape rect) throws IOException {
     String line = rect.writeToString();
     // Write to all possible grid cells
     for (long x = rect.getMBR().getX1(); x < rect.getMBR().getX2(); x += gridInfo.cellWidth) {
@@ -51,6 +52,27 @@ public class TigerShapeRecordWriter implements RecordWriter<LongWritable, TigerS
         cellSizes[column][row] += line.length() + 1;
       }
     }
+  }
+
+  public synchronized void write(CellInfo cellInfo, TigerShape rect) throws IOException {
+    String line = rect.writeToString();
+    // Write to all possible grid cells
+    /*for (long x = rect.getMBR().getX1(); x < rect.getMBR().getX2(); x += gridInfo.cellWidth) {
+      for (long y = rect.getMBR().getY1(); y < rect.getMBR().getY2(); y += gridInfo.cellHeight) {
+        PrintStream ps = getOrCreateCellFile(x, y);
+        ps.println(line);
+        // increase number of bytes written to this print stream
+        int column = (int)((x - gridInfo.xOrigin) / gridInfo.cellWidth);
+        int row = (int)((y - gridInfo.yOrigin) / gridInfo.cellHeight);
+        cellSizes[column][row] += line.length() + 1;
+      }
+    }*/
+    // Write to the cell given
+    PrintStream ps = getOrCreateCellFile(cellInfo.x, cellInfo.y);
+    ps.println(line);
+    int column = (int)((cellInfo.x - gridInfo.xOrigin) / gridInfo.cellWidth);
+    int row = (int)((cellInfo.y - gridInfo.yOrigin) / gridInfo.cellHeight);
+    cellSizes[column][row] += line.length() + 1;
   }
 
   public synchronized void close(Reporter reporter) throws IOException {
