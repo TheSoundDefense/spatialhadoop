@@ -110,7 +110,7 @@ public class KNNMapReduce {
       JobConf conf = new JobConf(KNNMapReduce.class);
       conf.setJobName("KNN");
       
-      // Retrieve query rectangle and store it in the job
+      // Retrieve query point and store it in the job
       String queryPointStr = args[0];
       conf.set(QUERY_POINT, queryPointStr);
       
@@ -147,10 +147,9 @@ public class KNNMapReduce {
 
       String[] parts = queryPointStr.split(",");
       Point queryPoint = new Point(Long.parseLong(parts[0]), Long.parseLong(parts[1]));
-      long k = Long.parseLong(parts[2]);
 
       // Start with a rectangle that contains the query point
-      Rectangle processedArea = new Rectangle(queryPoint.x, queryPoint.y, 0, 0);
+      Rectangle processedArea = new Rectangle(queryPoint.x, queryPoint.y, 1, 1);
       
       int round = 0;
 
@@ -158,9 +157,7 @@ public class KNNMapReduce {
       BlockLocation[] blockLocations = fileSystem.getFileBlockLocations(inputPaths[0], 0, fileSystem.getFileStatus(inputPaths[0]).getLen());
       
       while (!jobFinished) {
-      conf.set(SplitCalculator.QUERY_RANGE, processedArea.x + ","
-          + processedArea.y + "," + processedArea.width + ","
-          + processedArea.height);
+      conf.set(SplitCalculator.QUERY_RANGE, processedArea.writeToString());
         // Last argument is the base name output file
         Path outputPath = new Path(args[args.length - 1]+"_"+round);
         FileOutputFormat.setOutputPath(conf, outputPath);
@@ -176,6 +173,7 @@ public class KNNMapReduce {
             LineReader in = new LineReader(fileSystem.open(resultFile.getPath()));
             Text line = new Text();
             while (in.readLine(line) > 0) {
+              // TODO search for 'distance: '
               int i = 0;
               // Skip all characters till the -
               while (line.charAt(i++) != '-');

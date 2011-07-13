@@ -61,14 +61,9 @@ public class SplitCalculator {
 	 */
 	public static Vector<FileRange> RQCalculateRanges(JobConf conf) throws IOException {
 		// Find query range. We assume there is only one query range for the job
-		String queryRangeString = conf.get(QUERY_RANGE);
 
-		String[] splits = queryRangeString.split(",");
-		int x = Integer.parseInt(splits[0]);
-		int y = Integer.parseInt(splits[1]);
-		int width = Integer.parseInt(splits[2]);
-		int height = Integer.parseInt(splits[3]);
-		Rectangle queryRange = new Rectangle(x, y, width, height);
+		Rectangle queryRange = new Rectangle();
+		queryRange.readFromString(conf.get(QUERY_RANGE));
 
 		Vector<FileRange> ranges = new Vector<FileRange>();
 		// Retrieve a list of all input files
@@ -94,8 +89,10 @@ public class SplitCalculator {
 				BlockLocation[] blockLocations = fs.getFileBlockLocations(path, 0, fileLength);
 				for (BlockLocation blockLocation : blockLocations) {
 					CellInfo cellInfo = blockLocation.getCellInfo();
+					System.out.println("Checking " + cellInfo +" with "+ queryRange);
 					// 2- Check if block holds a grid cell in query range
 					if (cellInfo.isIntersected(queryRange)) {
+					  System.out.println("Matched");
 						// Add this block
 						ranges.add(new FileRange(path, blockLocation.getOffset(), blockLocation.getLength()));
 					}
