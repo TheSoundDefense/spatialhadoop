@@ -8,6 +8,7 @@ import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.spatial.GridInfo;
 
 import edu.umn.cs.spatial.TigerShape;
 
@@ -25,11 +26,14 @@ import edu.umn.cs.spatial.TigerShape;
  */
 public class RepartitionInputFormat extends FileInputFormat<LongWritable, TigerShape> {
 
-	@Override
-	public RecordReader<LongWritable, TigerShape> getRecordReader(InputSplit split,
-			JobConf job, Reporter reporter) throws IOException {
-	    reporter.setStatus(split.toString());
-		return new TigerShapeRecordReader(job, (FileSplit)split);
-	}
-	
+  @Override
+  public RecordReader<LongWritable, TigerShape> getRecordReader(InputSplit split,
+      JobConf job, Reporter reporter) throws IOException {
+
+    RepartitionMapReduce.gridInfo = new GridInfo();
+    RepartitionMapReduce.gridInfo.readFromString(job.get(TigerShapeOutputFormat.OUTPUT_GRID));
+    reporter.setStatus(split.toString());
+    return new TigerShapeRecordReader(job, (FileSplit)split);
+  }
+
 }

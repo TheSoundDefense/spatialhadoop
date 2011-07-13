@@ -1,6 +1,7 @@
 package edu.umn.cs.spatial.mapReduce;
 
 import java.io.IOException;
+import java.util.HashMap;
 
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -14,11 +15,11 @@ import org.apache.hadoop.mapred.MapReduceBase;
 import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Rectangle;
 
 import edu.umn.cs.spatial.TigerShape;
-import edu.umn.cs.spatial.TigerShapeWithIndex;
 
 
 /**
@@ -27,32 +28,62 @@ import edu.umn.cs.spatial.TigerShapeWithIndex;
  *
  */
 public class RepartitionMapReduce {
+  
+  public static GridInfo gridInfo;
+  
+  public static class Map extends MapReduceBase
+  implements
+  Mapper<LongWritable, TigerShape, CellInfo, TigerShape> {
+    private static HashMap<String, CellInfo> cellInfos = new HashMap<String, CellInfo>();
 
-	public static class Map extends MapReduceBase
-			implements
-			Mapper<LongWritable, Rectangle, IntWritable, Rectangle> {
-	  private static final IntWritable dummy = new IntWritable(1);
-    	public void map(
-    	    LongWritable id,
-    			Rectangle rect,
-    			OutputCollector<IntWritable, Rectangle> output,
-    			Reporter reporter) throws IOException {
-
-    	  output.collect(dummy, rect);
-    	}
+    private CellInfo getCellInfo(long x, long y) {
+      int col = (int) Math.floor((double)(x - gridInfo.xOrigin) / gridInfo.cellWidth);
+      int row = (int) Math.floor((double)(y - gridInfo.yOrigin) / gridInfo.cellHeight);
+      String cellStr = col+","+row;
+      CellInfo cellInfo = cellInfos.get(cellStr);
+      if (cellInfo == null) {
+        cellInfo = new CellInfo(gridInfo.xOrigin + col * gridInfo.cellWidth,
+            gridInfo.yOrigin + row * gridInfo.cellHeight,
+            gridInfo.cellWidth, gridInfo.cellHeight);
+        cellInfos.put(cellStr, cellInfo);
+      }
+      return cellInfo;
     }
+
+    public void map(
+        LongWritable id,
+        TigerShape shape,
+        OutputCollector<CellInfo, TigerShape> output,
+        Reporter reporter) throws IOException {
+
+      for (long x = shape.getMBR().getX1(); x < shape.getMBR().getX2(); x += gridInfo.cellWidth) {
+        for (long y = shape.getMBR().getY1(); y < shape.getMBR().getY2(); y += gridInfo.cellHeight) {
+          CellInfo cellInfo = getCellInfo(x, y);
+          output.collect(cellInfo, shape);
+        }
+      }
+    }
+  }
 	
 	public static void repartition(JobConf conf, Path inputFile, Path outputPath, GridInfo gridInfo) throws IOException {
     conf.setJobName("Repartition");
     
+    FileSystem fileSystem = FileSystem.get(conf);
+    // Automatically calculate recommended cell dimensions if not set
+    // Calculate appropriate values for cellWidth, cellHeight based on file size
+    // only if they're missing.
+    // Note that we use default block size because we really care more about
+    // output file block size rather than input file block size.
+    if (gridInfo.cellWidth == 0)
+      gridInfo.calculateCellDimensions(fileSystem.getFileStatus(inputFile).getLen(), fileSystem.getDefaultBlockSize());
+
     // Save gridInfo in job configuration
     conf.set(TigerShapeOutputFormat.OUTPUT_GRID, gridInfo.writeToString());
     
-    // Override output file
-    FileSystem fs = FileSystem.get(conf);
-    if (fs.exists(outputPath)) {
+    // Overwrite output file
+    if (fileSystem.exists(outputPath)) {
       // remove the file first
-      fs.delete(outputPath, false);
+      fileSystem.delete(outputPath, false);
     }
 
     // add this query file as the first input path to the job
@@ -77,15 +108,15 @@ public class RepartitionMapReduce {
     
     // Rename output file to required name
     // Check that results are correct
-    FileStatus[] resultFiles = fs.listStatus(outputPath);
+    FileStatus[] resultFiles = fileSystem.listStatus(outputPath);
     for (FileStatus resultFile : resultFiles) {
       if (resultFile.getLen() > 0) {
         Path temp = new Path("/tempppp");
-        fs.rename(resultFile.getPath(), temp);
+        fileSystem.rename(resultFile.getPath(), temp);
         
-        fs.delete(outputPath, true);
+        fileSystem.delete(outputPath, true);
         
-        fs.rename(temp, outputPath);
+        fileSystem.rename(temp, outputPath);
       }
     }
   }
@@ -106,15 +137,7 @@ public class RepartitionMapReduce {
     
     // Retrieve gridInfo from parameters
     GridInfo gridInfo = new GridInfo();
-    String[] parts = args[0].split(",");
-
-    gridInfo.xOrigin = Integer.parseInt(parts[0]);
-    gridInfo.yOrigin = Integer.parseInt(parts[1]);
-    gridInfo.gridWidth = Integer.parseInt(parts[2]);
-    gridInfo.gridHeight = Integer.parseInt(parts[3]);
-    gridInfo.cellWidth = Integer.parseInt(parts[4]);
-    gridInfo.cellHeight = Integer.parseInt(parts[5]);
-
+    gridInfo.readFromString(args[0]);
     
     repartition(conf, inputFile, outputPath, gridInfo);
 	}

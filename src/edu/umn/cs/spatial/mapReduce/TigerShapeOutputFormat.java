@@ -29,9 +29,8 @@ public class TigerShapeOutputFormat extends FileOutputFormat<LongWritable, Tiger
     FileSystem fileSystem = outFile.getFileSystem(job);
 
     // Get grid info
-    String gridStr = job.get(OUTPUT_GRID, "0,0,0,0,0,0");
     GridInfo gridInfo = new GridInfo();
-    gridInfo.readFromString(gridStr);
+    gridInfo.readFromString(job.get(OUTPUT_GRID));
     return new TigerShapeRecordWriter(fileSystem, outFile, gridInfo);
   }
 }
