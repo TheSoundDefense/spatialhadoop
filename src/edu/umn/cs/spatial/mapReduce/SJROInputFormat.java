@@ -16,9 +16,9 @@ import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.GridInfo;
 
-import edu.umn.cs.spatial.PairOfRectangles;
-import edu.umn.cs.spatial.Rectangle;
+import edu.umn.cs.CollectionWritable;
 import edu.umn.cs.spatial.SpatialAlgorithms;
+import edu.umn.cs.spatial.TigerShape;
 
 /**
  * Reads and parses a file that contains records of type Rectangle.
@@ -33,10 +33,10 @@ import edu.umn.cs.spatial.SpatialAlgorithms;
  * @author aseldawy
  *
  */
-public class SJROInputFormat extends FileInputFormat<CollectionWritable<Rectangle>, CollectionWritable<Rectangle>> {
+public class SJROInputFormat extends FileInputFormat<CollectionWritable<TigerShape>, CollectionWritable<TigerShape>> {
 
 	@Override
-	public RecordReader<CollectionWritable<Rectangle>, CollectionWritable<Rectangle>> getRecordReader(InputSplit split,
+	public RecordReader<CollectionWritable<TigerShape>, CollectionWritable<TigerShape>> getRecordReader(InputSplit split,
 			JobConf job, Reporter reporter) throws IOException {
 	    reporter.setStatus(split.toString());
 		return new SJROCombineRecordReader((PairOfFileSplits)split, job, reporter);
@@ -50,23 +50,16 @@ public class SJROInputFormat extends FileInputFormat<CollectionWritable<Rectangl
 	  // Generate splits for all input paths
 	  InputSplit[] splits = super.getSplits(job, numSplits);
 	  
-	  System.out.println("Total input splits: "+splits.length);
-	  for (int i = 0; i < splits.length; i++) {
-	    System.out.println(i+": " +splits[i]);
-	  }
-	  System.out.println("--------------------------");
-	  
 	  // Form two lists, one for splits from each file
-	  Vector<FileSplit>[] splitLists = new Vector[inputFiles.length];
+	  final Vector<FileSplit>[] splitLists = new Vector[inputFiles.length];
 	  
 	  // Holds a rectangle or more for each file split. Most probably one rectangle for each split
-	  Vector<Rectangle>[] rectangles = new Vector[inputFiles.length];
+	  Vector<TigerShape>[] rectangles = new Vector[inputFiles.length];
 
 	  for (int i = 0; i < inputFiles.length; i++) {
-	    System.out.println("-------- Checking: "+inputFiles[i].getPath());
 	    // Initialize an empty list to hold all splits for this file
 	    splitLists[i] = new Vector<FileSplit>();
-	    rectangles[i] = new Vector<Rectangle>();
+	    rectangles[i] = new Vector<TigerShape>();
 
 	    // Find grid info for this file
 	    GridInfo gridInfo = inputFiles[i].getGridInfo();
@@ -75,11 +68,6 @@ public class SJROInputFormat extends FileInputFormat<CollectionWritable<Rectangl
       BlockLocation[] blockLocations = inputFiles[i].getPath()
           .getFileSystem(job)
           .getFileBlockLocations(inputFiles[i], 0, inputFiles[i].getLen());
-      System.out.println("File has "+blockLocations.length+" blocks");
-      for (int j = 0; j < blockLocations.length; j++) {
-        System.out.println(j+": "+blockLocations[j].getCellInfo()+" ["+blockLocations[j].getOffset()+","+blockLocations[j].getLength()+"]");
-      }
-      System.out.println("--------------------------");
 
 	    // Filter all splits to this file
 	    for (InputSplit split : splits) {
@@ -95,11 +83,7 @@ public class SJROInputFormat extends FileInputFormat<CollectionWritable<Rectangl
 	          if (blockLocation.getOffset() < fileSplit.getStart() + fileSplit.getLength() &&
 	              fileSplit.getStart() < blockLocation.getOffset() + blockLocation.getLength()) {
 	            // Part of this split overlaps this file block
-	            Rectangle rect = new Rectangle(splitIndex, (int)blockLocation.getCellInfo().x,
-	                (int)blockLocation.getCellInfo().y,
-	                (int)(blockLocation.getCellInfo().x+gridInfo.cellWidth),
-	                (int)(blockLocation.getCellInfo().y+gridInfo.cellHeight));
-	            System.out.println("Matched block: "+blockLocation+" with split "+fileSplit+" with rectangle "+rect);
+	            TigerShape rect = new TigerShape(blockLocation.getCellInfo(), splitIndex);
 	            rectangles[i].add(rect);
 	          }
 	        }
@@ -108,35 +92,29 @@ public class SJROInputFormat extends FileInputFormat<CollectionWritable<Rectangl
 	  }
 	  
 	  // Now we need to join the two rectangles list to find all pairs of overlapping splits
-	  final Vector<PairOfRectangles> pairs = new Vector<PairOfRectangles>();
-	  OutputCollector<Rectangle, Rectangle> output = new OutputCollector<Rectangle, Rectangle>() {
-      @Override
-      public void collect(Rectangle r, Rectangle s) throws IOException {
-        System.out.println("Joining "+r+" with "+ s);
-        pairs.add(new PairOfRectangles(r, s));
-      }
-    };
+	  final Set<String> takenPairs = new HashSet<String>();
+	  final Vector<InputSplit> combinedSplits = new Vector<InputSplit>();
+	  OutputCollector<TigerShape, TigerShape> output = new OutputCollector<TigerShape, TigerShape>() {
+	    @Override
+	    public void collect(TigerShape r, TigerShape s) throws IOException {
+	      // Generate a combined file split for each pair of splits
+	      // Check that this pair was not taken before
+	      String thisPair = r.id+","+r.id;
+	      if (!takenPairs.contains(thisPair)) {
+	        takenPairs.add(thisPair);
+	        // Each rectangle here represents a file split.
+	        // Rectangle.id represents the index of the split in the array
+	        FileSplit fileSplit1 = splitLists[0].get((int)r.id);
+	        FileSplit fileSplit2 = splitLists[1].get((int)s.id);
+
+	        combinedSplits.add(new PairOfFileSplits(fileSplit1, fileSplit2));
+	      }
+	    }
+	  };
     
     // Do the spatial join between grid cells
     SpatialAlgorithms.SpatialJoin_planeSweep(rectangles[0], rectangles[1], output);
 
-    // Generate a combined file split for each pair of splits
-    int i = 0;
-    Set<String> takenPairs = new HashSet<String>();
-    InputSplit[] combinedSplits = new InputSplit[pairs.size()];
-    for (PairOfRectangles por : pairs) {
-      // Check that this pair was not taken before
-      String thisPair = (int)por.r1.id+","+(int)por.r2.id;
-      if (!takenPairs.contains(thisPair)) {
-        takenPairs.add(thisPair);
-        // Each rectangle here represents a file split.
-        // Rectangle.id represents the index of the split in the array
-        FileSplit fileSplit1 = splitLists[0].get((int)por.r1.id);
-        FileSplit fileSplit2 = splitLists[1].get((int)por.r2.id);
-
-        combinedSplits[i++] = new PairOfFileSplits(fileSplit1, fileSplit2);
-      }
-    }
-	  return combinedSplits;
+	  return combinedSplits.toArray(new InputSplit[combinedSplits.size()]);
 	}
 }

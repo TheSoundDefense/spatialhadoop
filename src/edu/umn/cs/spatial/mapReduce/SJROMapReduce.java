@@ -13,9 +13,12 @@ import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TextOutputFormat;
+import org.apache.hadoop.spatial.Rectangle;
 
-import edu.umn.cs.spatial.Rectangle;
+import edu.umn.cs.ArrayListWritable;
+import edu.umn.cs.CollectionWritable;
 import edu.umn.cs.spatial.SpatialAlgorithms;
+import edu.umn.cs.spatial.TigerShape;
 
 
 /**
@@ -35,16 +38,16 @@ public class SJROMapReduce {
 	 */
 	public static class Map extends MapReduceBase
 	implements
-	Mapper<CollectionWritable<Rectangle>, CollectionWritable<Rectangle>, Rectangle, Rectangle> {
+	Mapper<CollectionWritable<TigerShape>, CollectionWritable<TigerShape>, TigerShape, TigerShape> {
 
 		public void map(
-				CollectionWritable<Rectangle> r1,
-				CollectionWritable<Rectangle> r2,
-				OutputCollector<Rectangle, Rectangle> output,
+				CollectionWritable<TigerShape> r1,
+				CollectionWritable<TigerShape> r2,
+				OutputCollector<TigerShape, TigerShape> output,
 				Reporter reporter) throws IOException {
 		  // Cast arguments to ArrayList to be able to use PlaneSweep Algorithm
-		  ArrayListWritable<Rectangle> R = (ArrayListWritable<Rectangle>) r1;
-		  ArrayListWritable<Rectangle> S = (ArrayListWritable<Rectangle>) r2;
+		  ArrayListWritable<TigerShape> R = (ArrayListWritable<TigerShape>) r1;
+		  ArrayListWritable<TigerShape> S = (ArrayListWritable<TigerShape>) r2;
 		  System.out.println("Joining "+R.size()+" with "+S.size());
 		  SpatialAlgorithms.SpatialJoin_planeSweep(R, S, output);
 		}

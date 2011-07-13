@@ -1,6 +1,5 @@
-package edu.umn.cs.spatial.mapReduce;
+package edu.umn.cs;
 
-import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 
 /**

@@ -1,4 +1,4 @@
-package edu.umn.cs.spatial.mapReduce;
+package edu.umn.cs;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 
 import org.apache.hadoop.io.Writable;
+
 
 /**
  * An implementation of ArrayList that is Writable.

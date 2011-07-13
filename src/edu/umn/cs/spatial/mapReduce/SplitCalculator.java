@@ -14,6 +14,8 @@ import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.util.StringUtils;
 
+import edu.umn.cs.FileRange;
+
 public class SplitCalculator {
 	/**
 	 * Property name for records to read.

@@ -10,7 +10,7 @@ import org.apache.hadoop.spatial.GridInfo;
 
 
 /**
- * This performs a range query map reduce job with text file input.
+ * 
  * @author aseldawy
  *
  */

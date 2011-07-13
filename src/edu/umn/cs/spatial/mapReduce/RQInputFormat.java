@@ -11,6 +11,7 @@ import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.Rectangle;
 
+import edu.umn.cs.FileRange;
 import edu.umn.cs.spatial.TigerShape;
 
 

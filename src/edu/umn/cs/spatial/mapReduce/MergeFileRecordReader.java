@@ -9,6 +9,9 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.lib.CombineFileRecordReader;
 import org.apache.hadoop.mapred.lib.CombineFileSplit;
 
+import edu.umn.cs.ArrayListWritable;
+import edu.umn.cs.CollectionWritable;
+
 /**
  * Reads data from a CombineFileRecordReader.
  * It emits records where key is K and value is a collection of V.

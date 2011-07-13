@@ -10,6 +10,7 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 
+import edu.umn.cs.FileRange;
 import edu.umn.cs.spatial.PointWithK;
 import edu.umn.cs.spatial.TigerShape;
 

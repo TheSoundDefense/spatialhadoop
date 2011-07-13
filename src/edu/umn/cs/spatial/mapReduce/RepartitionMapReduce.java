@@ -43,7 +43,7 @@ public class RepartitionMapReduce {
     conf.setJobName("Repartition");
     
     // Save gridInfo in job configuration
-    conf.set(RectOutputFormat.OUTPUT_GRID, gridInfo.xOrigin + ","
+    conf.set(TigerShapeOutputFormat.OUTPUT_GRID, gridInfo.xOrigin + ","
         + gridInfo.yOrigin + "," + gridInfo.gridWidth + ","
         + gridInfo.gridHeight + "," + gridInfo.cellWidth + ","
         + gridInfo.cellHeight);
@@ -64,7 +64,7 @@ public class RepartitionMapReduce {
     conf.setMapperClass(Map.class);
 
     conf.setInputFormat(RepartitionInputFormat.class);
-    conf.setOutputFormat(RectOutputFormat.class);
+    conf.setOutputFormat(TigerShapeOutputFormat.class);
 
     // Last argument is the output file
     FileOutputFormat.setOutputPath(conf,outputPath);
