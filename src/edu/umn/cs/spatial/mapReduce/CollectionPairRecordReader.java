@@ -19,7 +19,7 @@ import edu.umn.cs.spatial.TigerShape;
  * @author aseldawy
  *
  */
-public class SJROCombineRecordReader implements RecordReader<CollectionWritable<TigerShape>, CollectionWritable<TigerShape>>{
+public class CollectionPairRecordReader implements RecordReader<CollectionWritable<TigerShape>, CollectionWritable<TigerShape>>{
   private LongWritable dummy1;
   private LongWritable dummy2;
   private TigerShapeRecordReader input1;
@@ -33,7 +33,7 @@ public class SJROCombineRecordReader implements RecordReader<CollectionWritable<
   private final PairOfFileSplits twoSplits;
   private long totalSize;
   
-  public SJROCombineRecordReader(PairOfFileSplits twoSplits,
+  public CollectionPairRecordReader(PairOfFileSplits twoSplits,
       Configuration job, Reporter reporter) throws IOException {
     this.twoSplits = twoSplits;
     this.job = job;

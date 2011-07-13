@@ -17,6 +17,9 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Rectangle;
 
+import edu.umn.cs.spatial.TigerShape;
+import edu.umn.cs.spatial.TigerShapeWithIndex;
+
 
 /**
  * Repartitions a file according to a different grid through a MapReduce job
@@ -43,10 +46,7 @@ public class RepartitionMapReduce {
     conf.setJobName("Repartition");
     
     // Save gridInfo in job configuration
-    conf.set(TigerShapeOutputFormat.OUTPUT_GRID, gridInfo.xOrigin + ","
-        + gridInfo.yOrigin + "," + gridInfo.gridWidth + ","
-        + gridInfo.gridHeight + "," + gridInfo.cellWidth + ","
-        + gridInfo.cellHeight);
+    conf.set(TigerShapeOutputFormat.OUTPUT_GRID, gridInfo.writeToString());
     
     // Override output file
     FileSystem fs = FileSystem.get(conf);
@@ -58,10 +58,14 @@ public class RepartitionMapReduce {
     // add this query file as the first input path to the job
     RepartitionInputFormat.addInputPath(conf, inputFile);
     
-    conf.setOutputKeyClass(IntWritable.class);
-    conf.setOutputValueClass(Rectangle.class);
+    conf.setOutputKeyClass(LongWritable.class);
+    conf.setOutputValueClass(TigerShape.class);
 
     conf.setMapperClass(Map.class);
+
+    // Set default parameters for reading input file
+    conf.set(TigerShapeRecordReader.TIGER_SHAPE_CLASS, TigerShape.class.getName());
+    conf.set(TigerShapeRecordReader.SHAPE_CLASS, Rectangle.class.getName());
 
     conf.setInputFormat(RepartitionInputFormat.class);
     conf.setOutputFormat(TigerShapeOutputFormat.class);

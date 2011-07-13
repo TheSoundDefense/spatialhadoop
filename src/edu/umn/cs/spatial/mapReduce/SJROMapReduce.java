@@ -63,7 +63,7 @@ public class SJROMapReduce {
 
     conf.set(TigerShapeRecordReader.SHAPE_CLASS, Rectangle.class.getName());
     conf.set(TigerShapeRecordReader.TIGER_SHAPE_CLASS, TigerShape.class.getName());
-    conf.setInputFormat(SJROInputFormat.class);
+    conf.setInputFormat(CollectionPairInputFormat.class);
     conf.setOutputFormat(TextOutputFormat.class);
 
     // All files except first and last ones are input files

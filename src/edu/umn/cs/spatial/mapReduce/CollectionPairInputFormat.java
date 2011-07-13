@@ -21,25 +21,20 @@ import edu.umn.cs.spatial.SpatialAlgorithms;
 import edu.umn.cs.spatial.TigerShape;
 
 /**
- * Reads and parses a file that contains records of type Rectangle.
- * Records are assumed to be fixed size and of the format
- * <id>,<left>,<top>,<right>,<bottom>
- * When a record of all zeros is encountered, it is assumed to be the end of file.
- * This means, no more records are processed after a zero-record.
- * Records are read one be one.
- * Input is a pair of files and splits generated are {@link PairOfFileSplits}.
- * A pair of splits is generated for each two splits coming from different files and have
- * overlapping rectangles.
+ * Reads two splits at the same time from two different files. Each file contains a list
+ * of TigerShapes. The associated RecordReader reads a list of TigerShapes from each file
+ * and generates one key/value pair where the key is the list of shapes from file 1
+ * and value is the shapes from file 2.
  * @author aseldawy
  *
  */
-public class SJROInputFormat extends FileInputFormat<CollectionWritable<TigerShape>, CollectionWritable<TigerShape>> {
+public class CollectionPairInputFormat extends FileInputFormat<CollectionWritable<TigerShape>, CollectionWritable<TigerShape>> {
 
 	@Override
 	public RecordReader<CollectionWritable<TigerShape>, CollectionWritable<TigerShape>> getRecordReader(InputSplit split,
 			JobConf job, Reporter reporter) throws IOException {
 	    reporter.setStatus(split.toString());
-		return new SJROCombineRecordReader((PairOfFileSplits)split, job, reporter);
+		return new CollectionPairRecordReader((PairOfFileSplits)split, job, reporter);
 	}
 	
 	@Override
