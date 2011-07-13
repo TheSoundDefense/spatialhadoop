@@ -164,8 +164,9 @@ public class SJMapReduce {
 		conf.setMapperClass(Map.class);
 		conf.setReducerClass(Reduce.class);
 
-		conf.setInputFormat(SJInputFormat.class);
 		conf.set(TigerShapeRecordReader.TIGER_SHAPE_CLASS, TigerShapeWithIndex.class.getName());
+		conf.set(TigerShapeRecordReader.SHAPE_CLASS, Rectangle.class.getName());
+		conf.setInputFormat(SJInputFormat.class);
 		conf.setOutputFormat(TextOutputFormat.class);
 
 		// All files except first and last ones are input files

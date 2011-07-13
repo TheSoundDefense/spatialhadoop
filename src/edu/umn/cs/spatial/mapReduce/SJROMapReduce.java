@@ -61,6 +61,8 @@ public class SJROMapReduce {
 
     conf.setMapperClass(Map.class);
 
+    conf.set(TigerShapeRecordReader.SHAPE_CLASS, Rectangle.class.getName());
+    conf.set(TigerShapeRecordReader.TIGER_SHAPE_CLASS, TigerShape.class.getName());
     conf.setInputFormat(SJROInputFormat.class);
     conf.setOutputFormat(TextOutputFormat.class);
 
