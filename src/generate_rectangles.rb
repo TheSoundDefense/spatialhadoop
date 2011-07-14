@@ -1,6 +1,6 @@
-# USAGE: generate_rectangles <output path> <file size> <type>
+# USAGE: generate_rectangles <output path> <file size>
 if ARGV.empty?
-  puts "USAGE: generate_rectangles <output path> <file size> <type>"
+  puts "USAGE: generate_rectangles <output path> <file size>"
 end
 xmin = 0
 xmax = 1024
@@ -22,7 +22,7 @@ File.open(out_filename, "w") do |f|
     y1 = rand(ymax-ymin)+ymin
     w = rand([max_width, xmax-x1].min) + 1
     h = rand([max_height, ymax-y1].min) + 1
-    str = [i, x1, y1, w, h, type].join(",")
+    str = [i, x1, y1, w, h].join(",")
     i += 1
     current_size += str.length + 1
     f.puts str

@@ -118,8 +118,8 @@ public class TigerShape implements Shape {
 
   @Override
   public void readFromString(String string) {
-    String[] parts = string.split(",", 2);
-    this.id = Long.parseLong(parts[0]);
-    shape.readFromString(parts[1]);
+    int i = string.indexOf(',');
+    this.id = Long.parseLong(string.substring(0, i));
+    shape.readFromString(string.substring(i+1));
   }
 }
