@@ -1,7 +1,10 @@
 package edu.umn.cs.spatial.mapReduce;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -13,12 +16,16 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.MapReduceBase;
 import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
+import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
+import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Rectangle;
 
+import edu.umn.cs.spatial.SpatialAlgorithms;
 import edu.umn.cs.spatial.TigerShape;
+import edu.umn.cs.spatial.TigerShapeWithIndex;
 
 
 /**
@@ -29,24 +36,15 @@ import edu.umn.cs.spatial.TigerShape;
 public class RepartitionMapReduce {
   
   public static GridInfo gridInfo;
+  public static CellInfo[][] cellInfos;
   
   public static class Map extends MapReduceBase
   implements
   Mapper<LongWritable, TigerShape, CellInfo, TigerShape> {
-    private static HashMap<String, CellInfo> cellInfos = new HashMap<String, CellInfo>();
 
     private CellInfo getCellInfo(long x, long y) {
-      int col = (int) Math.floor((double)(x - gridInfo.xOrigin) / gridInfo.cellWidth);
-      int row = (int) Math.floor((double)(y - gridInfo.yOrigin) / gridInfo.cellHeight);
-      String cellStr = col+","+row;
-      CellInfo cellInfo = cellInfos.get(cellStr);
-      if (cellInfo == null) {
-        cellInfo = new CellInfo(gridInfo.xOrigin + col * gridInfo.cellWidth,
-            gridInfo.yOrigin + row * gridInfo.cellHeight,
-            gridInfo.cellWidth, gridInfo.cellHeight);
-        cellInfos.put(cellStr, cellInfo);
-      }
-      return cellInfo;
+      return cellInfos[(int) ((x - gridInfo.xOrigin) / gridInfo.cellWidth)]
+                       [(int) ((y - gridInfo.yOrigin) / gridInfo.cellHeight)];
     }
 
     public void map(
@@ -63,7 +61,7 @@ public class RepartitionMapReduce {
       }
     }
   }
-	
+
 	public static void repartition(JobConf conf, Path inputFile, Path outputPath, GridInfo gridInfo) throws IOException {
     conf.setJobName("Repartition");
     
