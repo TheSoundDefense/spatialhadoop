@@ -56,8 +56,8 @@ public class SJROMapReduce {
 	public static void SJRO(JobConf conf, Path[] inputFiles, Path outputPath) throws IOException {
     conf.setJobName("Spatial Join Reduce Only");
 
-    conf.setOutputKeyClass(Rectangle.class);
-    conf.setOutputValueClass(Rectangle.class);
+    conf.setOutputKeyClass(TigerShape.class);
+    conf.setOutputValueClass(TigerShape.class);
 
     conf.setMapperClass(Map.class);
 

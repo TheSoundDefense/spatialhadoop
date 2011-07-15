@@ -46,6 +46,6 @@ public class TigerShapeWithIndex extends TigerShape {
 
   @Override
   public Object clone() {
-    return new TigerShapeWithIndex(this.shape, this.id, this.index);
+    return new TigerShapeWithIndex((Shape) this.shape.clone(), this.id, this.index);
   }
 }

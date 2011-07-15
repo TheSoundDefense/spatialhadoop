@@ -1,15 +1,16 @@
 package edu.umn.cs;
 import java.io.File;
-import java.io.FileReader;
+import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.LineNumberReader;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Shape;
+import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.spatial.TigerShape;
 import edu.umn.cs.spatial.mapReduce.GridRecordWriter;
@@ -39,22 +40,26 @@ public class WriteGridFile {
     GridRecordWriter rrw = new GridRecordWriter(fileSystem, outputPath, gridInfo);
 
     // Open input file
-    LineNumberReader reader = new LineNumberReader(new FileReader(inputFilename));
+    LineReader reader = new LineReader(new FileInputStream(inputFilename));
 
     TigerShape shape = new TigerShape(shapeClass.newInstance(), 0);
     LongWritable dummyId = new LongWritable();
-    while (reader.ready()) {
-      String line = reader.readLine().trim();
+    Text line = new Text();
+    int totalLines = 0;
+    while (reader.readLine(line) > 0) {
+      totalLines++;
       // Parse shape dimensions
-      shape.readFromString(line);
+      shape.fromText(line);
 
       // Write to output file
       rrw.write(dummyId, shape);
     }
     
+    System.out.println("Total lines: "+totalLines);
+    
     // Close input file
     reader.close();
-    
+
     // Close output file
     rrw.close(null);
   }

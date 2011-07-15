@@ -4,6 +4,8 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.TextSerializerHelper;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.Shape;
@@ -112,14 +114,35 @@ public class TigerShape implements Shape {
   }
 
   @Override
-  public String writeToString() {
-    return id+","+shape.writeToString();
+  public void toText(Text text) {
+    TextSerializerHelper.serializeLong(id, text, true);
+    shape.toText(text);
+  }
+  
+  @Override
+  public void fromBuffer(byte[] buf, int start, int length) {
+    int i = start;
+    while (buf[i] != ',') i++;
+    
+    this.id = TextSerializerHelper.deserializeLong(buf, 0, i);
+    shape.fromBuffer(buf, i+1, length - i);
+  }
+  
+  @Override
+  public void fromText(Text text) {
+    fromBuffer(text.getBytes(), 0, text.getLength());
   }
 
   @Override
-  public void readFromString(String string) {
-    int i = string.indexOf(',');
-    this.id = Long.parseLong(string.substring(0, i));
-    shape.readFromString(string.substring(i+1));
+  public String writeToString() {
+    Text text = new Text();
+    toText(text);
+    return text.toString();
+  }
+  
+  @Override
+  public void readFromString(String s) {
+    Text text = new Text(s);
+    fromText(text);
   }
 }
