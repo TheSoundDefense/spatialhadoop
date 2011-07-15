@@ -3,11 +3,11 @@ if ARGV.empty?
   puts "USAGE: generate_rectangles <output path> <file size>"
 end
 xmin = 0
-xmax = 1024
+xmax = 0x400
 ymin = 0
-ymax = 1024
-max_width = 10
-max_height = 10
+ymax = 0x400
+max_width = 0xa
+max_height = 0xa
 
 out_filename = ARGV[0] || File.expand_path("../res/test.txt", File.dirname(__FILE__))
 # Default size of 1 Gb

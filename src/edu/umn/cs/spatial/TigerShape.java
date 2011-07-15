@@ -125,7 +125,7 @@ public class TigerShape implements Shape {
     while (buf[i] != ',') i++;
     
     this.id = TextSerializerHelper.deserializeLong(buf, 0, i);
-    shape.fromBuffer(buf, i+1, length - i);
+    shape.fromBuffer(buf, i+1, length - i - 1);
   }
   
   @Override

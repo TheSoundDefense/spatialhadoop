@@ -2,7 +2,6 @@ package edu.umn.cs.spatial.mapReduce;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.PrintStream;
 import java.util.Vector;
 
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -38,19 +37,21 @@ public class GridRecordWriter implements RecordWriter<CellInfo, TigerShape> {
     // Prepare arrays that hold streams
     int gridColumns = (int) Math.ceil((double)gridInfo.gridWidth / gridInfo.cellWidth); 
     int gridRows = (int) Math.ceil((double)gridInfo.gridHeight / gridInfo.cellHeight);
-    cellStreams = new PrintStream[gridColumns][gridRows];
+    cellStreams = new OutputStream[gridColumns][gridRows];
     cellSizes = new long[gridColumns][gridRows];
     
     text = new Text();
   }
 
   public synchronized void write(LongWritable dummyId, TigerShape rect) throws IOException {
+    text.clear();
     rect.toText(text);
     // Write to all possible grid cells
     for (long x = rect.getMBR().getX1(); x < rect.getMBR().getX2(); x += gridInfo.cellWidth) {
       for (long y = rect.getMBR().getY1(); y < rect.getMBR().getY2(); y += gridInfo.cellHeight) {
         OutputStream os = getOrCreateCellFile(x, y);
         write(os, text);
+        os.write('\n');
         // increase number of bytes written to this print stream
         int column = (int)((x - gridInfo.xOrigin) / gridInfo.cellWidth);
         int row = (int)((y - gridInfo.yOrigin) / gridInfo.cellHeight);
@@ -145,7 +146,6 @@ public class GridRecordWriter implements RecordWriter<CellInfo, TigerShape> {
       cellStreams[column][row] = os;
       long xCell = column * gridInfo.cellWidth + gridInfo.xOrigin;
       long yCell = row * gridInfo.cellHeight + gridInfo.yOrigin;
-      System.out.println("Setting next block at "+xCell+","+ yCell);
       ((DFSOutputStream)((FSDataOutputStream)os).getWrappedStream()).setNextBlockCell(xCell, yCell);
     }
     return os;
