@@ -4,18 +4,16 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Vector;
 
-import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hdfs.DFSOutputStream;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.RecordWriter;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
+import org.apache.hadoop.spatial.TigerShape;
 
-import edu.umn.cs.spatial.TigerShape;
 
 public class GridRecordWriter implements RecordWriter<CellInfo, TigerShape> {
   private final GridInfo gridInfo;

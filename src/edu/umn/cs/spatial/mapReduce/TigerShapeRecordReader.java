@@ -9,8 +9,8 @@ import org.apache.hadoop.mapred.LineRecordReader;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Shape;
+import org.apache.hadoop.spatial.TigerShape;
 
-import edu.umn.cs.spatial.TigerShape;
 import edu.umn.cs.spatial.TigerShapeWithIndex;
 
 

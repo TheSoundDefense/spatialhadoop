@@ -25,9 +25,9 @@ import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Rectangle;
+import org.apache.hadoop.spatial.TigerShape;
 
 import edu.umn.cs.spatial.SpatialAlgorithms;
-import edu.umn.cs.spatial.TigerShape;
 import edu.umn.cs.spatial.TigerShapeWithIndex;
 
 

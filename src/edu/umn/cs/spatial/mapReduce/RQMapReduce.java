@@ -14,8 +14,8 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.Shape;
+import org.apache.hadoop.spatial.TigerShape;
 
-import edu.umn.cs.spatial.TigerShape;
 
 
 /**

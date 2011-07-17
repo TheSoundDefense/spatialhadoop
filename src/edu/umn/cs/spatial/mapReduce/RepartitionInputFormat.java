@@ -10,8 +10,8 @@ import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
+import org.apache.hadoop.spatial.TigerShape;
 
-import edu.umn.cs.spatial.TigerShape;
 
 
 

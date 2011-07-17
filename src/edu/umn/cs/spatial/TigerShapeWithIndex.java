@@ -5,6 +5,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.hadoop.spatial.Shape;
+import org.apache.hadoop.spatial.TigerShape;
 
 public class TigerShapeWithIndex extends TigerShape {
   // Note: index should not be written or read from string to be able to parse normal files

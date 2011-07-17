@@ -6,10 +6,10 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.spatial.TigerShape;
 
 import edu.umn.cs.ArrayListWritable;
 import edu.umn.cs.CollectionWritable;
-import edu.umn.cs.spatial.TigerShape;
 
 /**
  * Combines two record readers to read pair of files in the same time.

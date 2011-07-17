@@ -15,10 +15,10 @@ import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.GridInfo;
+import org.apache.hadoop.spatial.TigerShape;
 
 import edu.umn.cs.CollectionWritable;
 import edu.umn.cs.spatial.SpatialAlgorithms;
-import edu.umn.cs.spatial.TigerShape;
 
 /**
  * Reads two splits at the same time from two different files. Each file contains a list

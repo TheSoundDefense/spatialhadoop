@@ -9,9 +9,9 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordWriter;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
+import org.apache.hadoop.spatial.TigerShape;
 import org.apache.hadoop.util.Progressable;
 
-import edu.umn.cs.spatial.TigerShape;
 
 public class GridOutputFormat extends FileOutputFormat<CellInfo, TigerShape> {
   public static final String OUTPUT_GRID = "edu.umn.cs.spatial.mapReduce.RectOutputFormat.GridInfo";

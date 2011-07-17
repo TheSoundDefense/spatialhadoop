@@ -10,9 +10,9 @@ import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Shape;
+import org.apache.hadoop.spatial.TigerShape;
 import org.apache.hadoop.util.LineReader;
 
-import edu.umn.cs.spatial.TigerShape;
 import edu.umn.cs.spatial.mapReduce.GridRecordWriter;
 
 public class WriteGridFile {

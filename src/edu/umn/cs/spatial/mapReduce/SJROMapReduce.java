@@ -14,11 +14,11 @@ import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.Rectangle;
+import org.apache.hadoop.spatial.TigerShape;
 
 import edu.umn.cs.ArrayListWritable;
 import edu.umn.cs.CollectionWritable;
 import edu.umn.cs.spatial.SpatialAlgorithms;
-import edu.umn.cs.spatial.TigerShape;
 
 
 /**
