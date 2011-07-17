@@ -38,9 +38,8 @@ public class KNNInputFormat extends FileInputFormat<LongWritable, TigerShape> {
     // TODO move this part to another code that gets processed once for each mapper
     // Set QueryRange in the mapper class
     String queryRangeStr = job.get(KNNMapReduce.QUERY_POINT);
-    String[] parts = queryRangeStr.split(",");
-    KNNMapReduce.queryPoint = new PointWithK(Long.parseLong(parts[0]),
-        Long.parseLong(parts[1]), Integer.parseInt(parts[2]));
+    KNNMapReduce.queryPoint = new PointWithK();
+    KNNMapReduce.queryPoint.readFromString(queryRangeStr);
 
     // Generate splits for all input paths
     InputSplit[] splits = super.getSplits(job, numSplits);

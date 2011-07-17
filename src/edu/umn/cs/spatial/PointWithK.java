@@ -4,6 +4,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
+import org.apache.hadoop.io.TextSerializerHelper;
 import org.apache.hadoop.spatial.Point;
 
 /**
@@ -43,8 +44,21 @@ public class PointWithK extends Point {
   }
   
   @Override
+  public String toString() {
+    return String.format("%s K=%x", super.toString(), k);
+  }
+  
+  @Override
   public void readFields(DataInput in) throws IOException {
     super.readFields(in);
     this.k = in.readInt();
+  }
+  
+  @Override
+  public void fromBuffer(byte[] buf, int start, int length) {
+    int i2 = start + length - 1;
+    while (buf[i2] != ',') i2--;
+    this.k = (int) TextSerializerHelper.deserializeLong(buf, i2+1, start + length - (i2+1));
+    super.fromBuffer(buf, start, i2 - start );
   }
 }
