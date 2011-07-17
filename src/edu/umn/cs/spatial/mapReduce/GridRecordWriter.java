@@ -8,7 +8,6 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.DFSOutputStream;
-import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.RecordWriter;
@@ -19,8 +18,6 @@ import org.apache.hadoop.spatial.GridInfo;
 import edu.umn.cs.spatial.TigerShape;
 
 public class GridRecordWriter implements RecordWriter<CellInfo, TigerShape> {
-  private static final int BufferLength = 1024 * 1024;
-  private static long BlockSize = 64 * 1024 * 1024;
   private final GridInfo gridInfo;
   /**An output stream for each grid cell*/
   private static OutputStream[][] cellStreams;
@@ -76,17 +73,19 @@ public class GridRecordWriter implements RecordWriter<CellInfo, TigerShape> {
 
   public synchronized void close(Reporter reporter) throws IOException {
     // Create a buffer filled with new lines
-    byte[] buffer = new byte[BufferLength];
+    byte[] buffer = new byte[fileSystem.getConf().getInt("io.file.buffer.size", 1024 * 1024)];
     for (int i = 0; i < buffer.length; i++)
       buffer[i] = '\n';
 
     Vector<Path> pathsToConcat = new Vector<Path>();
+    
+    long blockSize = fileSystem.getFileStatus(outFile).getBlockSize();
     // Close all output files
     for (int i = 0; i < cellStreams.length; i++) {
       for (int j = 0; j < cellStreams[i].length; j++) {
         if (cellStreams[i][j] != null) {
           // Stuff all open streams with empty lines until each one is 64 MB
-          long remainingBytes = BlockSize - cellSizes[i][j] % BlockSize;
+          long remainingBytes = blockSize - cellSizes[i][j] % blockSize;
           // Write some bytes so that remainingBytes is multiple of buffer.length
           cellStreams[i][j].write(buffer, 0, (int)(remainingBytes % buffer.length));
           remainingBytes -= remainingBytes % buffer.length;
@@ -109,7 +108,7 @@ public class GridRecordWriter implements RecordWriter<CellInfo, TigerShape> {
 
       if (!pathsToConcat.isEmpty()) {
         Path[] paths = pathsToConcat.toArray(new Path[pathsToConcat.size()]);
-        ((DistributedFileSystem)fileSystem).concat(firstFile, paths);
+        fileSystem.concat(firstFile, paths);
       }
       // Rename file to original required filename
       fileSystem.rename(firstFile, outFile);
@@ -142,11 +141,11 @@ public class GridRecordWriter implements RecordWriter<CellInfo, TigerShape> {
     int row = (int)((y - gridInfo.yOrigin) / gridInfo.cellHeight);
     OutputStream os = cellStreams[column][row];
     if (os == null) {
-      os = fileSystem.create(getCellFilePath(column, row), gridInfo);
-      cellStreams[column][row] = os;
       long xCell = column * gridInfo.cellWidth + gridInfo.xOrigin;
       long yCell = row * gridInfo.cellHeight + gridInfo.yOrigin;
-      ((DFSOutputStream)((FSDataOutputStream)os).getWrappedStream()).setNextBlockCell(xCell, yCell);
+      os = fileSystem.create(getCellFilePath(column, row), new CellInfo(xCell,
+          yCell, gridInfo.cellWidth, gridInfo.cellHeight));
+      cellStreams[column][row] = os;
     }
     return os;
   }

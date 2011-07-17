@@ -23,7 +23,7 @@ public class WriteGridFile {
   private static FileSystem fileSystem;
   private static GridInfo gridInfo;
 
-  public static void writeFile(String inputFilename, Path outputPath,
+  public static void writeGridFile(String inputFilename, Path outputPath,
       GridInfo gridInfo, Class<Shape> shapeClass) throws IOException,
       InstantiationException, IllegalAccessException {
     // Get HDFS instance with default configuration
@@ -54,8 +54,6 @@ public class WriteGridFile {
       // Write to output file
       rrw.write(dummyId, shape);
     }
-    
-    System.out.println("Total lines: "+totalLines);
     
     // Close input file
     reader.close();
@@ -88,6 +86,6 @@ public class WriteGridFile {
 		String shapeName = args.length > 3 ? args[3] : "Rectangle";
 		shapeClassName = shapeClassName.replace("Shape", shapeName);
 		
-		writeFile(inputFilename, outputPath, gridInfo, (Class<Shape>) Class.forName(shapeClassName));
+		writeGridFile(inputFilename, outputPath, gridInfo, (Class<Shape>) Class.forName(shapeClassName));
 	}
 }
