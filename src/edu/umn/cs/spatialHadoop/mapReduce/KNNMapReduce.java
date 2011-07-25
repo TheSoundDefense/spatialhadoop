@@ -145,8 +145,8 @@ public class KNNMapReduce {
         return;
       }
 
-      String[] parts = queryPointStr.split(",");
-      Point queryPoint = new Point(Long.parseLong(parts[0]), Long.parseLong(parts[1]));
+      Point queryPoint = new Point();
+      queryPoint.readFromString(queryPointStr);
 
       // Start with a rectangle that contains the query point
       Rectangle processedArea = new Rectangle(queryPoint.x, queryPoint.y, 1, 1);
@@ -160,6 +160,8 @@ public class KNNMapReduce {
       conf.set(SplitCalculator.QUERY_RANGE, processedArea.writeToString());
         // Last argument is the base name output file
         Path outputPath = new Path(args[args.length - 1]+"_"+round);
+        // Delete output path if existing
+        fileSystem.delete(outputPath, true);
         FileOutputFormat.setOutputPath(conf, outputPath);
 
         JobClient.runJob(conf);
@@ -184,7 +186,7 @@ public class KNNMapReduce {
             in.close();
           }
         }
-
+        
         jobFinished = true;
 
         // Ensure that maximum distance cannot go outside current cell
