@@ -1,4 +1,4 @@
-package edu.umn.cs.spatial;
+package edu.umn.cs.spatialHadoop;
 
 import java.io.DataInputStream;
 import java.io.IOException;

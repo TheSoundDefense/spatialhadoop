@@ -1,4 +1,4 @@
-package edu.umn.cs.spatial.mapReduce;
+package edu.umn.cs.spatialHadoop.mapReduce;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,8 +27,8 @@ import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.TigerShape;
 
-import edu.umn.cs.spatial.SpatialAlgorithms;
-import edu.umn.cs.spatial.TigerShapeWithIndex;
+import edu.umn.cs.spatialHadoop.SpatialAlgorithms;
+import edu.umn.cs.spatialHadoop.TigerShapeWithIndex;
 
 
 /**

@@ -1,11 +1,12 @@
 # USAGE: generate_rectangles <output path> <file size>
 if ARGV.empty?
   puts "USAGE: generate_rectangles <output path> <file size>"
+  exit
 end
 xmin = 0
-xmax = 0x400
+xmax = 0x40000
 ymin = 0
-ymax = 0x400
+ymax = 0x40000
 max_width = 0xa
 max_height = 0xa
 

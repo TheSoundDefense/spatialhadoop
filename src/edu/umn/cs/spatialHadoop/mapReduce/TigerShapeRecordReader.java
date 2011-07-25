@@ -1,4 +1,4 @@
-package edu.umn.cs.spatial.mapReduce;
+package edu.umn.cs.spatialHadoop.mapReduce;
 import java.io.IOException;
 
 import org.apache.hadoop.conf.Configuration;
@@ -11,7 +11,7 @@ import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.TigerShape;
 
-import edu.umn.cs.spatial.TigerShapeWithIndex;
+import edu.umn.cs.spatialHadoop.TigerShapeWithIndex;
 
 
 /**

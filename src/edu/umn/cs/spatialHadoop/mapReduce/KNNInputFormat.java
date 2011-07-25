@@ -1,4 +1,4 @@
-package edu.umn.cs.spatial.mapReduce;
+package edu.umn.cs.spatialHadoop.mapReduce;
 import java.io.IOException;
 import java.util.Vector;
 
@@ -9,12 +9,10 @@ import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
-import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.TigerShape;
 
 import edu.umn.cs.FileRange;
-
-
+import edu.umn.cs.spatialHadoop.PointWithK;
 
 /**
  * Reads and parses a file that contains records of type Rectangle.
@@ -26,7 +24,7 @@ import edu.umn.cs.FileRange;
  * @author aseldawy
  *
  */
-public class RQInputFormat extends FileInputFormat<LongWritable, TigerShape> {
+public class KNNInputFormat extends FileInputFormat<LongWritable, TigerShape> {
 
 	@Override
 	public RecordReader<LongWritable, TigerShape> getRecordReader(InputSplit split,
@@ -37,21 +35,19 @@ public class RQInputFormat extends FileInputFormat<LongWritable, TigerShape> {
 	
 	@Override
 	public InputSplit[] getSplits(JobConf job, int numSplits) throws IOException {
-	  // TODO move this part to another code that gets processed once for each mapper
-	  // Set QueryRange in the mapper class
-	  String queryRangeStr = job.get(RQMapReduce.QUERY_SHAPE);
-	  String[] parts = queryRangeStr.split(",");
-    RQMapReduce.queryShape = new Rectangle(Long.parseLong(parts[0]),
-        Long.parseLong(parts[1]), Long.parseLong(parts[2]),
-        Long.parseLong(parts[3]));	  
-	  
-	  // Generate splits for all input paths
-	  InputSplit[] splits = super.getSplits(job, numSplits);
-	  Vector<FileRange> fileRanges = SplitCalculator.calculateRanges(job);
-	  // if processing a heap file, just use all of them
-	  if (fileRanges == null)
+    // TODO move this part to another code that gets processed once for each mapper
+    // Set QueryRange in the mapper class
+    String queryRangeStr = job.get(KNNMapReduce.QUERY_POINT);
+    KNNMapReduce.queryPoint = new PointWithK();
+    KNNMapReduce.queryPoint.readFromString(queryRangeStr);
+
+    // Generate splits for all input paths
+    InputSplit[] splits = super.getSplits(job, numSplits);
+    Vector<FileRange> fileRanges = SplitCalculator.calculateRanges(job);
+    // if processing a heap file, just use all of them
+    if (fileRanges == null)
       return splits;
-	  // Early prune file splits that are completely outside query range
+    // Prune away splits that are outside range
     Vector<FileSplit> inputSplits = new Vector<FileSplit>();
 
     for (InputSplit split : splits) {
@@ -59,7 +55,7 @@ public class RQInputFormat extends FileInputFormat<LongWritable, TigerShape> {
       if (SplitCalculator.isInputSplitInSearchSpace((FileSplit) split, fileRanges))
         inputSplits.add((FileSplit)split);
     }
-	  return inputSplits.toArray(new FileSplit[inputSplits.size()]);
-	}
-
+    return inputSplits.toArray(new FileSplit[inputSplits.size()]);
+  }
+	
 }

@@ -1,4 +1,4 @@
-package edu.umn.cs.spatial.mapReduce;
+package edu.umn.cs.spatialHadoop.mapReduce;
 
 import java.io.IOException;
 
@@ -18,7 +18,7 @@ import org.apache.hadoop.spatial.TigerShape;
 
 import edu.umn.cs.ArrayListWritable;
 import edu.umn.cs.CollectionWritable;
-import edu.umn.cs.spatial.SpatialAlgorithms;
+import edu.umn.cs.spatialHadoop.SpatialAlgorithms;
 
 
 /**

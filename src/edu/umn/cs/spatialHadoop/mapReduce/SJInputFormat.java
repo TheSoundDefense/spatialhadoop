@@ -1,4 +1,4 @@
-package edu.umn.cs.spatial.mapReduce;
+package edu.umn.cs.spatialHadoop.mapReduce;
 import java.io.IOException;
 
 import org.apache.hadoop.fs.FileStatus;

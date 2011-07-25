@@ -1,4 +1,4 @@
-package edu.umn.cs.spatial.mapReduce;
+package edu.umn.cs.spatialHadoop.mapReduce;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -25,8 +25,8 @@ import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Rectangle;
 
-import edu.umn.cs.spatial.PointWithK;
-import edu.umn.cs.spatial.TigerShapeWithDistance;
+import edu.umn.cs.spatialHadoop.PointWithK;
+import edu.umn.cs.spatialHadoop.TigerShapeWithDistance;
 
 
 /**
