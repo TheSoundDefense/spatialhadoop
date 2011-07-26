@@ -67,8 +67,7 @@ public class SJROMapReduce {
     conf.setOutputFormat(TextOutputFormat.class);
 
     // All files except first and last ones are input files
-    for (int i = 0; i < inputFiles.length; i++)
-      RQInputFormat.addInputPath(conf, inputFiles[i]);
+    CollectionPairInputFormat.setInputPaths(conf, inputFiles);
 
     // Last argument is the output file
     FileOutputFormat.setOutputPath(conf, outputPath);

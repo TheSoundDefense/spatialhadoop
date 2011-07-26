@@ -42,7 +42,7 @@ public class SJRepartitionMapReduce {
     // Now, repartition all files that are not of this grid
     for (int i = 0; i < inputFiles.length; i++) {
       FileStatus fileStatus = fileSystem.getFileStatus(inputFiles[i]);
-      if (!fileStatus.getGridInfo().equals(gridInfo)) {
+      if (fileStatus.getGridInfo() == null || !fileStatus.getGridInfo().equals(gridInfo)) {
         LOG.info("Going to repartition "+inputFiles[i]);
         Path repartitioned = new Path(inputFiles[i].toUri().getPath()+".grid");
         RepartitionMapReduce.repartition(conf, inputFiles[i], repartitioned, gridInfo);

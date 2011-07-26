@@ -84,7 +84,7 @@ public class RepartitionMapReduce {
     }
 
     // add this query file as the first input path to the job
-    RepartitionInputFormat.addInputPath(conf, inputFile);
+    RepartitionInputFormat.setInputPaths(conf, inputFile);
     
     conf.setOutputKeyClass(CellInfo.class);
     conf.setOutputValueClass(TigerShape.class);

@@ -144,15 +144,24 @@ public class SJMapReduce {
 		// Get the HDFS file system
 		FileSystem fs = FileSystem.get(conf);
 		
-		// If files are grid files, use the gridinfo of the largest files
+		// If files are grid files, use the grid info of the largest files
 		// instead of the one passed
 		long maxSize = 0;
+		long totalSize = 0;
 		for (int i = 1; i < args.length - 1; i++) {
 		  FileStatus fileStatus = fs.getFileStatus(new Path(args[i]));
+		  totalSize += fileStatus.getLen();
 		  if (fileStatus.getLen() > maxSize && fileStatus.getGridInfo() != null) {
 		    gridInfo = fileStatus.getGridInfo();
 		    maxSize = fileStatus.getLen();
 		  }
+		}
+		
+		// If grid info is not assigned cell info, calculate it form largest file size
+		if (gridInfo.cellWidth == 0) {
+		  LOG.info("Calculating grid info with size: "+totalSize);
+		  gridInfo.calculateCellDimensions(totalSize, fs.getDefaultBlockSize());
+		  LOG.info("Calculated grid info: "+gridInfo);
 		}
 
     // Retrieve query rectangle and store it in job info

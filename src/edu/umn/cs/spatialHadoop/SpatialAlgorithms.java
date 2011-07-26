@@ -6,6 +6,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.TreeSet;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -19,6 +21,8 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.TigerShape;
+
+import edu.umn.cs.spatialHadoop.mapReduce.KNNMapReduce;
 
 
 /**
@@ -68,10 +72,13 @@ class TOPK {
 }
 
 public class SpatialAlgorithms {
+  public static final Log LOG = LogFactory.getLog(SpatialAlgorithms.class);
 
   public static void SpatialJoin_planeSweep(List<? extends TigerShape> R,
       List<? extends TigerShape> S, OutputCollector<TigerShape, TigerShape> output)
       throws IOException {
+    
+    LOG.info("Joining "+ R.size()+" with "+S.size());
     Collections.sort(R);
     Collections.sort(S);
 
