@@ -149,8 +149,7 @@ public class KNNMapReduce {
       queryPoint.readFromString(queryPointStr);
 
       // Start with a rectangle that contains the query point
-      Rectangle processedArea = new Rectangle(queryPoint.x, queryPoint.y, 1, 1);
-      
+      Rectangle processedArea = gridInfo.getCellInfo(queryPoint.x, queryPoint.y);
       int round = 0;
 
       // Retrieve all blocks to be able to select blocks to be processed
@@ -194,6 +193,7 @@ public class KNNMapReduce {
           // Find cell that contains query point; the one that was actually processed
           double minDistance = processedArea.getMinDistanceTo(queryPoint);
           if (minDistance < farthestNeighbor) {
+            LOG.info("Min distance: "+minDistance+", farthestNeighbor: "+farthestNeighbor);
             // TODO ensure that there is another grid cell at that distance
             // This indicates that there might be a nearer neighbor in
             // an adjacent cell
