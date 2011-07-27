@@ -117,7 +117,6 @@ public class SJMapReduce {
       if (S == null)
         S = new ArrayList<TigerShapeWithIndex>();
 			
-      System.out.println("Joining "+R.size()+" with "+S.size());
 			SpatialAlgorithms.SpatialJoin_planeSweep(R, S, output);
 		}
 
@@ -142,14 +141,14 @@ public class SJMapReduce {
 		gridInfo.readFromString(args[0]);
 
 		// Get the HDFS file system
-		FileSystem fs = FileSystem.get(conf);
+		FileSystem outFS = FileSystem.get(conf);
 		
 		// If files are grid files, use the grid info of the largest files
 		// instead of the one passed
 		long maxSize = 0;
 		long totalSize = 0;
 		for (int i = 1; i < args.length - 1; i++) {
-		  FileStatus fileStatus = fs.getFileStatus(new Path(args[i]));
+		  FileStatus fileStatus = outFS.getFileStatus(new Path(args[i]));
 		  totalSize += fileStatus.getLen();
 		  if (fileStatus.getLen() > maxSize && fileStatus.getGridInfo() != null) {
 		    gridInfo = fileStatus.getGridInfo();
@@ -159,9 +158,7 @@ public class SJMapReduce {
 		
 		// If grid info is not assigned cell info, calculate it form largest file size
 		if (gridInfo.cellWidth == 0) {
-		  LOG.info("Calculating grid info with size: "+totalSize);
-		  gridInfo.calculateCellDimensions(totalSize, fs.getDefaultBlockSize());
-		  LOG.info("Calculated grid info: "+gridInfo);
+		  gridInfo.calculateCellDimensions(totalSize, outFS.getDefaultBlockSize());
 		}
 
     // Retrieve query rectangle and store it in job info

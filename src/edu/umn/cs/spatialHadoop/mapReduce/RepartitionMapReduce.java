@@ -1,11 +1,9 @@
 package edu.umn.cs.spatialHadoop.mapReduce;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -16,16 +14,11 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.MapReduceBase;
 import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
-import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
-import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.TigerShape;
-
-import edu.umn.cs.spatialHadoop.SpatialAlgorithms;
-import edu.umn.cs.spatialHadoop.TigerShapeWithIndex;
 
 
 /**
@@ -34,6 +27,7 @@ import edu.umn.cs.spatialHadoop.TigerShapeWithIndex;
  *
  */
 public class RepartitionMapReduce {
+  public static final Log LOG = LogFactory.getLog(RepartitionMapReduce.class);
   
   public static GridInfo gridInfo;
   public static CellInfo[][] cellInfos;
@@ -42,20 +36,23 @@ public class RepartitionMapReduce {
   implements
   Mapper<LongWritable, TigerShape, CellInfo, TigerShape> {
 
-    private CellInfo getCellInfo(long x, long y) {
-      return cellInfos[(int) ((x - gridInfo.xOrigin) / gridInfo.cellWidth)]
-                       [(int) ((y - gridInfo.yOrigin) / gridInfo.cellHeight)];
-    }
-
     public void map(
         LongWritable id,
         TigerShape shape,
         OutputCollector<CellInfo, TigerShape> output,
         Reporter reporter) throws IOException {
 
-      for (long x = shape.getMBR().getX1(); x < shape.getMBR().getX2(); x += gridInfo.cellWidth) {
-        for (long y = shape.getMBR().getY1(); y < shape.getMBR().getY2(); y += gridInfo.cellHeight) {
-          CellInfo cellInfo = getCellInfo(x, y);
+      Rectangle rectangle = shape.getMBR();
+      int cellCol1 = (int) ((rectangle.getX1() - gridInfo.xOrigin) / gridInfo.cellWidth);
+      int cellRow1 = (int) ((rectangle.getY1() - gridInfo.yOrigin) / gridInfo.cellHeight);
+      int cellCol2 = (int) ((rectangle.getX2() - gridInfo.xOrigin) / gridInfo.cellWidth);
+      int cellRow2 = (int) ((rectangle.getY2() - gridInfo.yOrigin) / gridInfo.cellHeight);
+
+      LOG.info("Mapping: "+rectangle);
+      LOG.info("Grid: "+gridInfo.writeToString());
+      for (int cellCol = cellCol1; cellCol <= cellCol2; cellCol++) {
+        for (int cellRow = cellRow1; cellRow <= cellRow2; cellRow++) {
+          CellInfo cellInfo = cellInfos[cellCol][cellRow];
           output.collect(cellInfo, shape);
         }
       }

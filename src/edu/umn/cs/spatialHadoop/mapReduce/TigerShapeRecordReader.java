@@ -1,6 +1,8 @@
 package edu.umn.cs.spatialHadoop.mapReduce;
 import java.io.IOException;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
@@ -22,6 +24,7 @@ import edu.umn.cs.spatialHadoop.TigerShapeWithIndex;
  *
  */
 public class TigerShapeRecordReader implements RecordReader<LongWritable, TigerShape> {
+  public static final Log LOG = LogFactory.getLog(TigerShapeRecordReader.class);
   public static final String TIGER_SHAPE_CLASS = "edu.umn.cs.spatial.mapReduce.TigerShapeRecordReader.TigerShapeClass";
   private static String TigerShapeClassName;
   public static final String SHAPE_CLASS = "edu.umn.cs.spatial.mapReduce.TigerShapeRecordReader.ShapeClass";
@@ -56,8 +59,7 @@ public class TigerShapeRecordReader implements RecordReader<LongWritable, TigerS
 	    return false;
 	  }
 	  // Convert to a regular string to be able to use split
-	  String line = new String(subValue.getBytes(), 0, subValue.getLength());
-	  value.readFromString(line);
+	  value.fromText(subValue);
 
 	  return true;
 	}
