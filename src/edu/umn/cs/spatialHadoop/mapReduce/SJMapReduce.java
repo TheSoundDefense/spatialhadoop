@@ -26,6 +26,7 @@ import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.TigerShape;
+import org.apache.hadoop.spatial.WriteGridFile;
 
 import edu.umn.cs.spatialHadoop.SpatialAlgorithms;
 import edu.umn.cs.spatialHadoop.TigerShapeWithIndex;
@@ -137,8 +138,15 @@ public class SJMapReduce {
 		conf.setJobName("Spatial Join");
 
 		// Retrieve query rectangle and store it to an HDFS file
-		GridInfo gridInfo = new GridInfo();
-		gridInfo.readFromString(args[0]);
+		int iArg = 0;
+		GridInfo gridInfo = null;
+		if (args[iArg].indexOf(':') != -1) {
+		  String gridStr = args[iArg];
+		  gridStr = gridStr.substring(gridStr.indexOf(':'));
+		  gridInfo = new GridInfo();
+		  gridInfo.readFromString(gridStr);
+		  iArg++;
+		}
 
 		// Get the HDFS file system
 		FileSystem outFS = FileSystem.get(conf);
@@ -147,12 +155,29 @@ public class SJMapReduce {
 		// instead of the one passed
 		long maxSize = 0;
 		long totalSize = 0;
-		for (int i = 1; i < args.length - 1; i++) {
-		  FileStatus fileStatus = outFS.getFileStatus(new Path(args[i]));
-		  totalSize += fileStatus.getLen();
-		  if (fileStatus.getLen() > maxSize && fileStatus.getGridInfo() != null) {
-		    gridInfo = fileStatus.getGridInfo();
-		    maxSize = fileStatus.getLen();
+		Rectangle allMBR = null;
+		if (gridInfo == null) {
+		  // Find grid info based on files MBRs
+		  for (int i = 1; i < args.length - 1; i++) {
+		    Path filePath = new Path(args[i]);
+		    FileStatus fileStatus = outFS.getFileStatus(filePath);
+		    totalSize += fileStatus.getLen();
+		    if (fileStatus.getGridInfo() != null) {
+		      if (fileStatus.getLen() > maxSize) {
+		        gridInfo = fileStatus.getGridInfo();
+		        maxSize = fileStatus.getLen();
+		      }
+		      if (allMBR == null)
+		        allMBR = fileStatus.getGridInfo().getMBR();
+		      else
+		        allMBR = (Rectangle) allMBR.union(fileStatus.getGridInfo().getMBR());
+		    } else {
+		      Rectangle rectangle = WriteGridFile.calculateMBR(outFS, filePath);
+          if (allMBR == null)
+            allMBR = rectangle;
+          else
+            allMBR = (Rectangle) allMBR.union(rectangle);
+		    }
 		  }
 		}
 		
