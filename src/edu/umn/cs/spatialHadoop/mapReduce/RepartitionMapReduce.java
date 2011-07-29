@@ -19,6 +19,9 @@ import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.TigerShape;
+import org.apache.hadoop.spatial.WriteGridFile;
+
+import edu.umn.cs.CommandLineArguments;
 
 
 /**
@@ -68,6 +71,8 @@ public class RepartitionMapReduce {
     // only if they're missing.
     // Note that we use default block size because we really care more about
     // output file block size rather than input file block size.
+    if (gridInfo == null)
+      gridInfo = WriteGridFile.getGridInfo(fileSystem, inputFile, fileSystem);
     if (gridInfo.cellWidth == 0)
       gridInfo.calculateCellDimensions(fileSystem.getFileStatus(inputFile).getLen(), fileSystem.getDefaultBlockSize());
 
@@ -126,13 +131,12 @@ public class RepartitionMapReduce {
 	 */
 	public static void main(String[] args) throws Exception {
     JobConf conf = new JobConf(RepartitionMapReduce.class);
-    Path inputFile = new Path(args[1]);
-    Path outputPath = new Path(args[2]);
+    CommandLineArguments cla = new CommandLineArguments(args);
+    Path inputPath = cla.getInputPath();
+    Path outputPath = cla.getOutputPath();
     
-    // Retrieve gridInfo from parameters
-    GridInfo gridInfo = new GridInfo();
-    gridInfo.readFromString(args[0]);
+    GridInfo gridInfo = cla.getGridInfo();
     
-    repartition(conf, inputFile, outputPath, gridInfo);
+    repartition(conf, inputPath, outputPath, gridInfo);
 	}
 }

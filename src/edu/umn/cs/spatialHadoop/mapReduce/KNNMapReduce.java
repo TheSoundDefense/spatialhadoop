@@ -25,6 +25,7 @@ import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Rectangle;
 
+import edu.umn.cs.CommandLineArguments;
 import edu.umn.cs.spatialHadoop.PointWithK;
 import edu.umn.cs.spatialHadoop.TigerShapeWithDistance;
 
@@ -42,12 +43,10 @@ public class KNNMapReduce {
 
   public static class Map extends MapReduceBase
   implements
-  Mapper<LongWritable, TigerShapeWithDistance, LongWritable, TigerShapeWithDistance> {
+      Mapper<LongWritable, TigerShapeWithDistance, LongWritable, TigerShapeWithDistance> {
     private static final LongWritable ONE = new LongWritable(1);
-    
-    public void map(
-        LongWritable id,
-        TigerShapeWithDistance shape,
+
+    public void map(LongWritable id, TigerShapeWithDistance shape,
         OutputCollector<LongWritable, TigerShapeWithDistance> output,
         Reporter reporter) throws IOException {
       shape.distance = shape.getAvgDistanceTo(queryPoint);
@@ -110,9 +109,11 @@ public class KNNMapReduce {
       JobConf conf = new JobConf(KNNMapReduce.class);
       conf.setJobName("KNN");
       
+      CommandLineArguments cla = new CommandLineArguments(args);
+      
       // Retrieve query point and store it in the job
-      String queryPointStr = args[0];
-      conf.set(QUERY_POINT, queryPointStr);
+      PointWithK queryPoint = cla.getPointWithK();
+      conf.set(QUERY_POINT, queryPoint.writeToString());
       
       conf.setOutputKeyClass(LongWritable.class);
       conf.setOutputValueClass(TigerShapeWithDistance.class);
@@ -127,15 +128,14 @@ public class KNNMapReduce {
       conf.setOutputFormat(TextOutputFormat.class);
 
       // All files except first and last one are input files
-      Path[] inputPaths = new Path[args.length - 2];
-      for (int i = 1; i < args.length - 1; i++)
-        RQInputFormat.addInputPath(conf, inputPaths[i-1] = new Path(args[i]));
+      Path inputPath = cla.getInputPath();
+      RQInputFormat.setInputPaths(conf, inputPath);
       
       boolean jobFinished = false;
 
       // Get grid info of the file to be processed
       FileSystem fileSystem = FileSystem.get(conf);
-      GridInfo gridInfo = fileSystem.getFileStatus(inputPaths[0]).getGridInfo();
+      GridInfo gridInfo = fileSystem.getFileStatus(inputPath).getGridInfo();
 
       if (gridInfo == null) {
         Path outputPath = new Path(args[args.length - 1]);
@@ -145,18 +145,15 @@ public class KNNMapReduce {
         return;
       }
 
-      Point queryPoint = new Point();
-      queryPoint.readFromString(queryPointStr);
-
       // Start with a rectangle that contains the query point
       Rectangle processedArea = gridInfo.getCellInfo(queryPoint.x, queryPoint.y);
       int round = 0;
 
       // Retrieve all blocks to be able to select blocks to be processed
-      BlockLocation[] blockLocations = fileSystem.getFileBlockLocations(inputPaths[0], 0, fileSystem.getFileStatus(inputPaths[0]).getLen());
+      BlockLocation[] blockLocations = fileSystem.getFileBlockLocations(inputPath, 0, fileSystem.getFileStatus(inputPath).getLen());
       
       while (!jobFinished) {
-      conf.set(SplitCalculator.QUERY_RANGE, processedArea.writeToString());
+        conf.set(SplitCalculator.QUERY_RANGE, processedArea.writeToString());
         // Last argument is the base name output file
         Path outputPath = new Path(args[args.length - 1]+"_"+round);
         // Delete output path if existing
@@ -189,23 +186,21 @@ public class KNNMapReduce {
         jobFinished = true;
 
         // Ensure that maximum distance cannot go outside current cell
-        for (int i = 0; i < inputPaths.length; i++) {
-          // Find cell that contains query point; the one that was actually processed
-          double minDistance = processedArea.getMinDistanceTo(queryPoint);
-          if (minDistance < farthestNeighbor) {
-            LOG.info("Min distance: "+minDistance+", farthestNeighbor: "+farthestNeighbor);
-            // TODO ensure that there is another grid cell at that distance
-            // This indicates that there might be a nearer neighbor in
-            // an adjacent cell
+        // Find cell that contains query point; the one that was actually processed
+        double minDistance = processedArea.getMinDistanceTo(queryPoint);
+        if (minDistance < farthestNeighbor) {
+          LOG.info("Min distance: "+minDistance+", farthestNeighbor: "+farthestNeighbor);
+          // TODO ensure that there is another grid cell at that distance
+          // This indicates that there might be a nearer neighbor in
+          // an adjacent cell
 
-            // Add all grid cells that need to be processed
-            for (BlockLocation blockLocation : blockLocations) {
-              Rectangle rect = blockLocation.getCellInfo();
-              if (rect.getMinDistanceTo(queryPoint) < farthestNeighbor &&
-                  !processedArea.union(rect).equals(processedArea)) {
-                processedArea = (Rectangle) processedArea.union(rect);
-                jobFinished = false;
-              }
+          // Add all grid cells that need to be processed
+          for (BlockLocation blockLocation : blockLocations) {
+            Rectangle rect = blockLocation.getCellInfo();
+            if (rect.getMinDistanceTo(queryPoint) < farthestNeighbor &&
+                !processedArea.union(rect).equals(processedArea)) {
+              processedArea = (Rectangle) processedArea.union(rect);
+              jobFinished = false;
             }
           }
         }

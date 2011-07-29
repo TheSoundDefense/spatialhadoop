@@ -2,7 +2,6 @@ package edu.umn.cs.spatialHadoop.mapReduce;
 
 import java.io.IOException;
 
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.JobClient;
@@ -15,6 +14,8 @@ import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.TigerShape;
+
+import edu.umn.cs.CommandLineArguments;
 
 
 
@@ -56,12 +57,14 @@ public class RQMapReduce {
       JobConf conf = new JobConf(RQMapReduce.class);
       conf.setJobName("BasicRangeQuery");
       
+      CommandLineArguments cla = new CommandLineArguments(args);
+      
       // Retrieve query rectangle and store it along with the job
-      String queryRectangle = args[0];
+      Rectangle queryRectangle = cla.getRectangle();
       // Set the rectangle to be used in map job
-      conf.set(QUERY_SHAPE, queryRectangle);
+      conf.set(QUERY_SHAPE, queryRectangle.writeToString());
       // Define the subset to be processed of input file
-      conf.set(SplitCalculator.QUERY_RANGE, queryRectangle);
+      conf.set(SplitCalculator.QUERY_RANGE, queryRectangle.writeToString());
 
       conf.setOutputKeyClass(LongWritable.class);
       conf.setOutputValueClass(TigerShape.class);
@@ -73,11 +76,10 @@ public class RQMapReduce {
       conf.setOutputFormat(TextOutputFormat.class);
 
       // All files except last one are input files
-      for (int i = 1; i < args.length - 1; i++)
-        RQInputFormat.addInputPath(conf, new Path(args[i]));
+      RQInputFormat.setInputPaths(conf, cla.getInputPaths());
       
       // Last argument is the output file
-      FileOutputFormat.setOutputPath(conf, new Path(args[args.length - 1]));
+      FileOutputFormat.setOutputPath(conf, cla.getOutputPath());
 
       // Start the job
       JobClient.runJob(conf);

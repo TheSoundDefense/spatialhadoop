@@ -28,6 +28,7 @@ import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.TigerShape;
 import org.apache.hadoop.spatial.WriteGridFile;
 
+import edu.umn.cs.CommandLineArguments;
 import edu.umn.cs.spatialHadoop.SpatialAlgorithms;
 import edu.umn.cs.spatialHadoop.TigerShapeWithIndex;
 
@@ -136,17 +137,11 @@ public class SJMapReduce {
 	public static void main(String[] args) throws Exception {
 		JobConf conf = new JobConf(SJMapReduce.class);
 		conf.setJobName("Spatial Join");
-
-		// Retrieve query rectangle and store it to an HDFS file
-		int iArg = 0;
-		GridInfo gridInfo = null;
-		if (args[iArg].indexOf(':') != -1) {
-		  String gridStr = args[iArg];
-		  gridStr = gridStr.substring(gridStr.indexOf(':'));
-		  gridInfo = new GridInfo();
-		  gridInfo.readFromString(gridStr);
-		  iArg++;
-		}
+		
+		CommandLineArguments cla = new CommandLineArguments(args);
+		GridInfo gridInfo = cla.getGridInfo();
+		Path[] inputPaths = cla.getInputPaths();
+		Path outputPath = cla.getOutputPath();
 
 		// Get the HDFS file system
 		FileSystem outFS = FileSystem.get(conf);
@@ -155,37 +150,32 @@ public class SJMapReduce {
 		// instead of the one passed
 		long maxSize = 0;
 		long totalSize = 0;
-		Rectangle allMBR = null;
+		Rectangle allMBR = WriteGridFile.getMBR(outFS, inputPaths[0]);
 		if (gridInfo == null) {
 		  // Find grid info based on files MBRs
-		  for (int i = 1; i < args.length - 1; i++) {
-		    Path filePath = new Path(args[i]);
-		    FileStatus fileStatus = outFS.getFileStatus(filePath);
+		  for (Path inputPath : inputPaths) {
+		    FileStatus fileStatus = outFS.getFileStatus(inputPath);
 		    totalSize += fileStatus.getLen();
 		    if (fileStatus.getGridInfo() != null) {
 		      if (fileStatus.getLen() > maxSize) {
 		        gridInfo = fileStatus.getGridInfo();
 		        maxSize = fileStatus.getLen();
 		      }
-		      if (allMBR == null)
-		        allMBR = fileStatus.getGridInfo().getMBR();
-		      else
-		        allMBR = (Rectangle) allMBR.union(fileStatus.getGridInfo().getMBR());
-		    } else {
-		      Rectangle rectangle = WriteGridFile.calculateMBR(outFS, filePath);
-          if (allMBR == null)
-            allMBR = rectangle;
-          else
-            allMBR = (Rectangle) allMBR.union(rectangle);
 		    }
+        allMBR = (Rectangle) allMBR.union(WriteGridFile.getMBR(outFS, inputPath));
 		  }
 		}
 		
-		// If grid info is not assigned cell info, calculate it form largest file size
-		if (gridInfo.cellWidth == 0) {
+		// Initialize grid info to MBR of all files with uninitialized cell
+		if (gridInfo == null)
+		  gridInfo = new GridInfo(allMBR.x, allMBR.y, allMBR.width, allMBR.height, 0, 0);
+		
+		// If cell is not initialized, initialize it using MBR (defined) and total size of files
+		if (gridInfo.cellWidth == 0)
 		  gridInfo.calculateCellDimensions(totalSize, outFS.getDefaultBlockSize());
-		}
 
+		LOG.info("Using SJMR with grid: "+gridInfo);
+		
     // Retrieve query rectangle and store it in job info
     conf.set(GRID_INFO, gridInfo.writeToString());
 
@@ -201,12 +191,9 @@ public class SJMapReduce {
 		conf.setOutputFormat(TextOutputFormat.class);
 
 		// All files except first and last ones are input files
-		Path[] inputPaths = new Path[args.length - 2];
-		for (int i = 1; i < args.length - 1; i++)
-			RQInputFormat.addInputPath(conf, inputPaths[i-1] = new Path(args[i]));
+		RQInputFormat.setInputPaths(conf, inputPaths);
 
 		// Last argument is the output file
-		Path outputPath = new Path(args[args.length - 1]);
 		FileOutputFormat.setOutputPath(conf, outputPath);
 
 		JobClient.runJob(conf);
