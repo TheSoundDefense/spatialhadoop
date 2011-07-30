@@ -9,6 +9,10 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.spatial.GridInfo;
+import org.apache.hadoop.spatial.Rectangle;
+import org.apache.hadoop.spatial.WriteGridFile;
+
+import edu.umn.cs.CommandLineArguments;
 
 
 /**
@@ -22,20 +26,32 @@ import org.apache.hadoop.spatial.GridInfo;
 public class SJRepartitionMapReduce {
 	public static final Log LOG = LogFactory.getLog(SJRepartitionMapReduce.class);
 
-	public static void SJRO(JobConf conf, Path[] inputFiles, Path outputPath) throws IOException {
+	public static void spatialJoinRepartition(JobConf conf, Path[] inputFiles, Path outputPath) throws IOException {
 	  
     FileSystem fileSystem = FileSystem.get(conf);
     
     // Find grid info for largest file
     GridInfo gridInfo = null;
     long largestFileSize = 0;
+    Rectangle mbr = null;
+    long totalSizes = 0;
     for (Path inputFile : inputFiles) {
       FileStatus fileStatus = fileSystem.getFileStatus(inputFile);
+      Rectangle fileMBR = WriteGridFile.getMBR(fileSystem, inputFile);
+      mbr = (Rectangle) (mbr == null ? fileMBR : mbr.union(fileMBR));
+      totalSizes += fileStatus.getLen();
       if (gridInfo == null
           || (fileStatus.getLen() > largestFileSize && fileStatus.getGridInfo() != null)) {
         largestFileSize = fileStatus.getLen();
         gridInfo = fileStatus.getGridInfo();
       }
+    }
+    if (!gridInfo.getMBR().contains(mbr)) {
+      gridInfo.xOrigin = mbr.x;
+      gridInfo.yOrigin = mbr.y;
+      gridInfo.gridWidth= mbr.width;
+      gridInfo.gridHeight = mbr.height;
+      gridInfo.calculateCellDimensions(totalSizes, fileSystem.getDefaultBlockSize());
     }
     LOG.info("Repartitioning according to the grid: "+gridInfo);
 
@@ -65,9 +81,10 @@ public class SJRepartitionMapReduce {
 	 */
 	public static void main(String[] args) throws Exception {
     JobConf conf = new JobConf(RepartitionMapReduce.class);
-    Path[] inputFiles = {new Path(args[0]), new Path(args[1])};
-    Path outputPath = new Path(args[2]);
+    CommandLineArguments cla = new CommandLineArguments(args);
+    Path[] inputFiles = cla.getInputPaths();
+    Path outputPath = cla.getOutputPath();
     
-    SJRO(conf, inputFiles, outputPath);
+    spatialJoinRepartition(conf, inputFiles, outputPath);
 	}
 }
