@@ -82,7 +82,7 @@ public class RepartitionMapReduce {
     // Overwrite output file
     if (fileSystem.exists(outputPath)) {
       // remove the file first
-      fileSystem.delete(outputPath, false);
+      fileSystem.delete(outputPath, true);
     }
 
     // add this query file as the first input path to the job
