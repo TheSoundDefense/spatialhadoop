@@ -51,8 +51,6 @@ public class RepartitionMapReduce {
       int cellCol2 = (int) ((rectangle.getX2() - gridInfo.xOrigin) / gridInfo.cellWidth);
       int cellRow2 = (int) ((rectangle.getY2() - gridInfo.yOrigin) / gridInfo.cellHeight);
 
-      LOG.info("Mapping: "+rectangle);
-      LOG.info("Grid: "+gridInfo.writeToString());
       for (int cellCol = cellCol1; cellCol <= cellCol2; cellCol++) {
         for (int cellRow = cellRow1; cellRow <= cellRow2; cellRow++) {
           CellInfo cellInfo = cellInfos[cellCol][cellRow];
