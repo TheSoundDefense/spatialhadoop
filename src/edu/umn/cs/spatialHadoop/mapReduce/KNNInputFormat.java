@@ -29,18 +29,18 @@ public class KNNInputFormat extends FileInputFormat<LongWritable, TigerShape> {
 	@Override
 	public RecordReader<LongWritable, TigerShape> getRecordReader(InputSplit split,
 			JobConf job, Reporter reporter) throws IOException {
+	    // TODO move this part to another code that gets processed once for each mapper
+	    // Set QueryRange in the mapper class
+	    String queryRangeStr = job.get(KNNMapReduce.QUERY_POINT);
+	    KNNMapReduce.queryPoint = new PointWithK();
+	    KNNMapReduce.queryPoint.readFromString(queryRangeStr);
+
 	    reporter.setStatus(split.toString());
 		return new TigerShapeRecordReader(job, (FileSplit)split);
 	}
 	
 	@Override
 	public InputSplit[] getSplits(JobConf job, int numSplits) throws IOException {
-    // TODO move this part to another code that gets processed once for each mapper
-    // Set QueryRange in the mapper class
-    String queryRangeStr = job.get(KNNMapReduce.QUERY_POINT);
-    KNNMapReduce.queryPoint = new PointWithK();
-    KNNMapReduce.queryPoint.readFromString(queryRangeStr);
-
     // Generate splits for all input paths
     InputSplit[] splits = super.getSplits(job, numSplits);
     Vector<FileRange> fileRanges = SplitCalculator.calculateRanges(job);

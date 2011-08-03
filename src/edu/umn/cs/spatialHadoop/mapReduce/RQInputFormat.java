@@ -31,17 +31,18 @@ public class RQInputFormat extends FileInputFormat<LongWritable, TigerShape> {
 	@Override
 	public RecordReader<LongWritable, TigerShape> getRecordReader(InputSplit split,
 			JobConf job, Reporter reporter) throws IOException {
+		// TODO move this part to another code that gets processed once for each mapper
+		// Set QueryRange in the mapper class
+		String queryRangeStr = job.get(RQMapReduce.QUERY_SHAPE);
+		RQMapReduce.queryShape = new Rectangle();
+		RQMapReduce.queryShape.readFromString(queryRangeStr);
+		// Create record reader
 	    reporter.setStatus(split.toString());
 		return new TigerShapeRecordReader(job, (FileSplit)split);
 	}
 	
 	@Override
 	public InputSplit[] getSplits(JobConf job, int numSplits) throws IOException {
-	  // TODO move this part to another code that gets processed once for each mapper
-	  // Set QueryRange in the mapper class
-	  String queryRangeStr = job.get(RQMapReduce.QUERY_SHAPE);
-	  RQMapReduce.queryShape = new Rectangle();
-	  RQMapReduce.queryShape.readFromString(queryRangeStr);
 	  
 	  // Generate splits for all input paths
 	  InputSplit[] splits = super.getSplits(job, numSplits);

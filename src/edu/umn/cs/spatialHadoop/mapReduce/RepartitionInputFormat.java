@@ -31,9 +31,11 @@ public class RepartitionInputFormat extends FileInputFormat<LongWritable, TigerS
   public RecordReader<LongWritable, TigerShape> getRecordReader(InputSplit split,
       JobConf job, Reporter reporter) throws IOException {
 
+    // Extract required grid info
     GridInfo gridInfo = new GridInfo();
     RepartitionMapReduce.gridInfo = gridInfo;
     gridInfo.readFromString(job.get(GridOutputFormat.OUTPUT_GRID));
+    
     RepartitionMapReduce.cellInfos = new CellInfo[gridInfo.getGridColumns()][gridInfo
         .getGridRows()];
     for (int col = 0; col < gridInfo.getGridColumns(); col++) {
