@@ -126,6 +126,7 @@ public class KNNMapReduce {
       conf.set(TigerShapeRecordReader.TIGER_SHAPE_CLASS, TigerShapeWithDistance.class.getName());
       conf.set(TigerShapeRecordReader.SHAPE_CLASS, Point.class.getName());
       conf.setOutputFormat(TextOutputFormat.class);
+      conf.setOutputCommitter(KNNOutputCommitter.class);
 
       // All files except first and last one are input files
       Path inputPath = cla.getInputPath();
