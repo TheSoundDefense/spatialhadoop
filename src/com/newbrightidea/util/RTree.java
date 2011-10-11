@@ -56,12 +56,12 @@ public class RTree<T> implements Writable
 
   private Node buildRoot(boolean asLeaf)
   {
-    float[] initCoords = new float[numDims];
-    float[] initDimensions = new float[numDims];
+    long[] initCoords = new long[numDims];
+    long[] initDimensions = new long[numDims];
     for (int i = 0; i < this.numDims; i++)
     {
-      initCoords[i] = (float) Math.sqrt(Float.MAX_VALUE);
-      initDimensions[i] = -2.0f * (float) Math.sqrt(Float.MAX_VALUE);
+      initCoords[i] = (long) Math.sqrt(Long.MAX_VALUE);
+      initDimensions[i] = -2 * (long) Math.sqrt(Long.MAX_VALUE);
     }
     return new Node(initCoords, initDimensions, asLeaf);
   }
@@ -111,7 +111,7 @@ public class RTree<T> implements Writable
    * @return a list of objects whose rectangles overlap with the given
    *         rectangle.
    */
-  public List<T> search(float[] coords, float[] dimensions)
+  public List<T> search(long[] coords, long[] dimensions)
   {
     assert (coords.length == numDims);
     assert (dimensions.length == numDims);
@@ -120,7 +120,7 @@ public class RTree<T> implements Writable
     return results;
   }
 
-  private void search(float[] coords, float[] dimensions, Node n,
+  private void search(long[] coords, long[] dimensions, Node n,
       LinkedList<T> results)
   {
     if (n.leaf)
@@ -157,7 +157,7 @@ public class RTree<T> implements Writable
    *          the entry to delete
    * @return true iff the entry was deleted from the RTree.
    */
-  public boolean delete(float[] coords, float[] dimensions, T entry)
+  public boolean delete(long[] coords, long[] dimensions, T entry)
   {
     assert (coords.length == numDims);
     assert (dimensions.length == numDims);
@@ -184,7 +184,7 @@ public class RTree<T> implements Writable
     return (removed != null);
   }
 
-  private Node findLeaf(Node n, float[] coords, float[] dimensions, T entry)
+  private Node findLeaf(Node n, long[] coords, long[] dimensions, T entry)
   {
     if (n.leaf)
     {
@@ -268,7 +268,7 @@ public class RTree<T> implements Writable
    * @param entry
    *          the entry to insert
    */
-  public void insert(float[] coords, float[] dimensions, T entry)
+  public void insert(long[] coords, long[] dimensions, T entry)
   {
     assert (coords.length == numDims);
     assert (dimensions.length == numDims);
@@ -363,8 +363,8 @@ public class RTree<T> implements Writable
       Node c = cc.pop();
       Node preferred;
       // Implementation of linear PickNext
-      float e0 = getRequiredExpansion(nn[0].coords, nn[0].dimensions, c);
-      float e1 = getRequiredExpansion(nn[1].coords, nn[1].dimensions, c);
+      long e0 = getRequiredExpansion(nn[0].coords, nn[0].dimensions, c);
+      long e1 = getRequiredExpansion(nn[1].coords, nn[1].dimensions, c);
       if (e0 < e1)
       {
         preferred = nn[0];
@@ -375,8 +375,8 @@ public class RTree<T> implements Writable
       }
       else
       {
-        float a0 = getArea(nn[0].dimensions);
-        float a1 = getArea(nn[1].dimensions);
+        long a0 = getArea(nn[0].dimensions);
+        long a1 = getArea(nn[1].dimensions);
         if (a0 < a1)
         {
           preferred = nn[0];
@@ -412,7 +412,7 @@ public class RTree<T> implements Writable
   private RTree<T>.Node[] pickSeeds(LinkedList<Node> nn)
   {
     RTree<T>.Node[] bestPair = null;
-    float bestSep = 0.0f;
+    long bestSep = 0;
     for (int i = 0; i < numDims; i++)
     {
       float dimLb = Float.MAX_VALUE, dimMinUb = Float.MAX_VALUE;
@@ -439,8 +439,8 @@ public class RTree<T> implements Writable
           nMinUb = n;
         }
       }
-      float sep = (nMaxLb == nMinUb) ? 0.0f :
-                  Math.abs((dimMinUb - dimMaxLb) / (dimUb - dimLb));
+      long sep = (nMaxLb == nMinUb) ? 0 :
+                  (long)Math.abs((dimMinUb - dimMaxLb) / (dimUb - dimLb));
       if (sep >= bestSep)
       {
         bestPair = new RTree.Node[]
@@ -462,12 +462,12 @@ public class RTree<T> implements Writable
 
   private void tighten(Node n)
   {
-    float[] minCoords = new float[n.coords.length];
-    float[] maxDimensions = new float[n.dimensions.length];
+    long[] minCoords = new long[n.coords.length];
+    long[] maxDimensions = new long[n.dimensions.length];
     for (int i = 0; i < minCoords.length; i++)
     {
-      minCoords[i] = Float.MAX_VALUE;
-      maxDimensions[i] = 0.0f;
+      minCoords[i] = Long.MAX_VALUE;
+      maxDimensions[i] = 0;
 
       for (Node c : n.children)
       {
@@ -495,11 +495,11 @@ public class RTree<T> implements Writable
     {
       return n;
     }
-    float minInc = Float.MAX_VALUE;
+    long minInc = Long.MAX_VALUE;
     Node next = null;
     for (RTree<T>.Node c : n.children)
     {
-      float inc = getRequiredExpansion(c.coords, c.dimensions, e);
+      long inc = getRequiredExpansion(c.coords, c.dimensions, e);
       if (inc < minInc)
       {
         minInc = inc;
@@ -507,8 +507,8 @@ public class RTree<T> implements Writable
       }
       else if (inc == minInc)
       {
-        float curArea = 1.0f;
-        float thisArea = 1.0f;
+        long curArea = 1;
+        long thisArea = 1;
         for (int i = 0; i < c.dimensions.length; i++)
         {
           curArea *= next.dimensions[i];
@@ -527,10 +527,10 @@ public class RTree<T> implements Writable
    * Returns the increase in area necessary for the given rectangle to cover the
    * given entry.
    */
-  private float getRequiredExpansion(float[] coords, float[] dimensions, Node e)
+  private long getRequiredExpansion(long[] coords, long[] dimensions, Node e)
   {
-    float area = getArea(dimensions);
-    float[] deltas = new float[dimensions.length];
+    long area = getArea(dimensions);
+    long[] deltas = new long[dimensions.length];
     for (int i = 0; i < deltas.length; i++)
     {
       if (coords[i] + dimensions[i] < e.coords[i] + e.dimensions[i])
@@ -542,7 +542,7 @@ public class RTree<T> implements Writable
         deltas[i] = coords[i] - e.coords[i];
       }
     }
-    float expanded = 1.0f;
+    long expanded = 1;
     for (int i = 0; i < dimensions.length; i++)
     {
       area *= dimensions[i] + deltas[i];
@@ -550,9 +550,9 @@ public class RTree<T> implements Writable
     return (expanded - area);
   }
 
-  private float getArea(float[] dimensions)
+  private long getArea(long[] dimensions)
   {
-    float area = 1.0f;
+    long area = 1;
     for (int i = 0; i < dimensions.length; i++)
     {
       area *= dimensions[i];
@@ -560,8 +560,8 @@ public class RTree<T> implements Writable
     return area;
   }
 
-  private boolean isOverlap(float[] scoords, float[] sdimensions,
-      float[] coords, float[] dimensions)
+  private boolean isOverlap(long[] scoords, long[] sdimensions,
+      long[] coords, long[] dimensions)
   {
     for (int i = 0; i < scoords.length; i++)
     {
@@ -594,17 +594,17 @@ public class RTree<T> implements Writable
  
   private class Node implements Writable
   {
-    float[] coords;
-    float[] dimensions;
+    long[] coords;
+    long[] dimensions;
     LinkedList<Node> children;
     boolean leaf;
 
     Node parent;
 
-    private Node(float[] coords, float[] dimensions, boolean leaf)
+    private Node(long[] coords, long[] dimensions, boolean leaf)
     {
-      this.coords = new float[coords.length];
-      this.dimensions = new float[dimensions.length];
+      this.coords = new long[coords.length];
+      this.dimensions = new long[dimensions.length];
       System.arraycopy(coords, 0, this.coords, 0, coords.length);
       System.arraycopy(dimensions, 0, this.dimensions, 0, dimensions.length);
       this.leaf = leaf;
@@ -612,8 +612,8 @@ public class RTree<T> implements Writable
     }
     
     public Node() {
-      this.coords = new float[RTree.this.numDims];
-      this.dimensions = new float[RTree.this.numDims];
+      this.coords = new long[RTree.this.numDims];
+      this.dimensions = new long[RTree.this.numDims];
       this.leaf = false;
       children = new LinkedList<Node>();
     }
@@ -621,12 +621,12 @@ public class RTree<T> implements Writable
     @Override
     public void readFields(DataInput datain) throws IOException {
       if (coords == null)
-        coords = new float[RTree.this.numDims];
+        coords = new long[RTree.this.numDims];
       if (dimensions == null)
-        dimensions = new float[RTree.this.numDims];
+        dimensions = new long[RTree.this.numDims];
       for (int i = 0; i < coords.length; i++) {
-        coords[i] = datain.readFloat();
-        dimensions[i] = datain.readFloat();
+        coords[i] = datain.readLong();
+        dimensions[i] = datain.readLong();
       }
       int numChildren = datain.readInt();
       children.clear();
@@ -641,8 +641,8 @@ public class RTree<T> implements Writable
     @Override
     public void write(DataOutput dataout) throws IOException {
       for (int i = 0; i < coords.length; i++) {
-        dataout.writeFloat(coords[i]);
-        dataout.writeFloat(dimensions[i]);
+        dataout.writeLong(coords[i]);
+        dataout.writeLong(dimensions[i]);
       }
       dataout.writeInt(children.size());
       for (Node child : children) {
@@ -655,7 +655,7 @@ public class RTree<T> implements Writable
   {
     T entry;
 
-    public Entry(float[] coords, float[] dimensions, T entry)
+    public Entry(long[] coords, long[] dimensions, T entry)
     {
       // an entry isn't actually a leaf (its parent is a leaf)
       // but all the algorithms should stop at the first leaf they encounter,
