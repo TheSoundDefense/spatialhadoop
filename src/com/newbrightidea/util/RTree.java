@@ -1,11 +1,16 @@
 package com.newbrightidea.util;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Set;
+
+import org.apache.hadoop.io.Writable;
 
 /**
  * Implementation of an arbitrary-dimension RTree. Based on R-Trees: A Dynamic
@@ -19,12 +24,12 @@ import java.util.Set;
  * @param <T>
  *          the type of entry to store in this RTree.
  */
-public class RTree<T>
+public class RTree<T> implements Writable
 {
 
-  private final int maxEntries;
-  private final int minEntries;
-  private final int numDims;
+  private int maxEntries;
+  private int minEntries;
+  private int numDims;
 
   private Node root;
 
@@ -587,12 +592,12 @@ public class RTree<T>
     return true;
   }
  
-  private class Node
+  private class Node implements Writable
   {
-    final float[] coords;
-    final float[] dimensions;
-    final LinkedList<Node> children;
-    final boolean leaf;
+    float[] coords;
+    float[] dimensions;
+    LinkedList<Node> children;
+    boolean leaf;
 
     Node parent;
 
@@ -605,12 +610,50 @@ public class RTree<T>
       this.leaf = leaf;
       children = new LinkedList<Node>();
     }
+    
+    public Node() {
+      this.coords = new float[RTree.this.numDims];
+      this.dimensions = new float[RTree.this.numDims];
+      this.leaf = false;
+      children = new LinkedList<Node>();
+    }
 
+    @Override
+    public void readFields(DataInput datain) throws IOException {
+      if (coords == null)
+        coords = new float[RTree.this.numDims];
+      if (dimensions == null)
+        dimensions = new float[RTree.this.numDims];
+      for (int i = 0; i < coords.length; i++) {
+        coords[i] = datain.readFloat();
+        dimensions[i] = datain.readFloat();
+      }
+      int numChildren = datain.readInt();
+      children.clear();
+      while (numChildren-- > 0) {
+        Entry entry = new Entry();
+        entry.readFields(datain);
+        children.add(entry);
+      }
+      this.leaf = children.isEmpty();
+    }
+
+    @Override
+    public void write(DataOutput dataout) throws IOException {
+      for (int i = 0; i < coords.length; i++) {
+        dataout.writeFloat(coords[i]);
+        dataout.writeFloat(dimensions[i]);
+      }
+      dataout.writeInt(children.size());
+      for (Node child : children) {
+        child.write(dataout);
+      }
+    }
   }
 
   private class Entry extends Node
   {
-    final T entry;
+    T entry;
 
     public Entry(float[] coords, float[] dimensions, T entry)
     {
@@ -619,6 +662,9 @@ public class RTree<T>
       // so this little hack shouldn't be a problem.
       super(coords, dimensions, true);
       this.entry = entry;
+    }
+
+    public Entry() {
     }
 
     public String toString()
@@ -664,5 +710,26 @@ public class RTree<T>
           y0 + elemHeight, (int)(w/(float)numChildren), h - elemHeight);
     }
     pw.println( "</div>" );
+  }
+
+  @Override
+  public void readFields(DataInput datain) throws IOException {
+    maxEntries = datain.readInt();
+    minEntries = datain.readInt();
+    numDims = datain.readInt();
+    if (datain.readBoolean()) {
+      root = new Entry();
+      root.readFields(datain);
+    }
+  }
+
+  @Override
+  public void write(DataOutput dataout) throws IOException {
+    dataout.writeInt(maxEntries);
+    dataout.writeInt(minEntries);
+    dataout.writeInt(numDims);
+    dataout.writeBoolean(root != null);
+    if (root != null)
+      root.write(dataout);
   }
 }
