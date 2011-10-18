@@ -35,6 +35,10 @@ public class RTree<T> implements Writable
 
   private volatile int size;
 
+  public int getSize() {
+    return size;
+  }
+
   /**
    * Creates a new RTree.
    * 
@@ -649,6 +653,15 @@ public class RTree<T> implements Writable
         child.write(dataout);
       }
     }
+
+    public int size() {
+      if (leaf)
+        return children.size();
+      int size = 0;
+      for (Node node : children)
+        size += node.size();
+      return size;
+    }
   }
 
   private class Entry extends Node
@@ -721,6 +734,7 @@ public class RTree<T> implements Writable
       root = new Entry();
       root.readFields(datain);
     }
+    this.size = root.size();
   }
 
   @Override
