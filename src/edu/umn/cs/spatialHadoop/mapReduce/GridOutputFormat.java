@@ -31,7 +31,7 @@ public class GridOutputFormat extends FileOutputFormat<CellInfo, TigerShape> {
     // Get grid info
     GridInfo gridInfo = new GridInfo();
     gridInfo.readFromString(job.get(OUTPUT_GRID));
-    return new GridRecordWriter(fileSystem, outFile, gridInfo);
+    return new GridRecordWriter(fileSystem, outFile, gridInfo, gridInfo.getAllCells());
   }
 }
 

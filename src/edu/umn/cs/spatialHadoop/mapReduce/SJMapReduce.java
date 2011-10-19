@@ -124,6 +124,58 @@ public class SJMapReduce {
 
 	}
 
+	public static GridInfo calculateGridInfo(GridInfo gridInfo, FileSystem outFS, Path[] inputPaths) throws IOException {
+	  // Calculate a suitable grid info to use with SJMR
+    // 1- If a complete grid info is given (MBR + cell size), use it
+    // 2- If no grid info is given and largest file is a grid file and
+    //    grid info of largest file covers MBR of all files, use it
+    // 3- If no grid info is given or largest file is not a grid or
+    //    grid info of largest file does not cover MBR of all files,
+    //    generate a grid info using MBR of all files and total files sizes
+    long totalSize = 0;
+    long sizeOfLargestFile = 0;
+    Rectangle mbrOfAllFiles = WriteGridFile.getMBR(outFS, inputPaths[0]);
+
+    GridInfo gridInfoOfLargestFile = null;
+    // Find grid info based on files MBRs
+    for (Path inputPath : inputPaths) {
+      FileStatus fileStatus = outFS.getFileStatus(inputPath);
+      totalSize += fileStatus.getLen();
+      if (fileStatus.getLen() > sizeOfLargestFile) {
+        gridInfoOfLargestFile = fileStatus.getGridInfo();
+        sizeOfLargestFile = fileStatus.getLen();
+      }
+      mbrOfAllFiles = (Rectangle) mbrOfAllFiles.union(WriteGridFile.getMBR(outFS, inputPath));
+    }
+
+    LOG.info("SJ gridInfo: " + gridInfo);
+    LOG.info("SJ gridInfoOfLargestFile: " + gridInfoOfLargestFile);
+    LOG.info("SJ mbrOfAllFiles: "+mbrOfAllFiles);
+
+    // Invalidate any grid info that is not complete or does not contain MBR of all files
+    if (gridInfo != null && gridInfo.cellWidth == 0)
+      gridInfo = null;
+    if (gridInfo != null && !gridInfo.getMBR().contains(mbrOfAllFiles))
+      gridInfo = null;
+    if (gridInfoOfLargestFile != null && !gridInfoOfLargestFile.getMBR().contains(mbrOfAllFiles))
+      gridInfoOfLargestFile = null;
+    
+    // Initialize grid info to MBR of all files with uninitialized cell
+    if (gridInfo == null) {
+      gridInfo = gridInfoOfLargestFile;
+      LOG.info("SJ gridInfo <- gridInfoOfLargestFile");
+    }
+    
+    if (gridInfo == null) {
+      gridInfo = new GridInfo(mbrOfAllFiles.x, mbrOfAllFiles.y, mbrOfAllFiles.width, mbrOfAllFiles.height, 0, 0);
+      gridInfo.calculateCellDimensions(totalSize, outFS.getDefaultBlockSize());
+      LOG.info("SJ gridInfo calculated using MBR: " + gridInfo);
+    }
+
+    LOG.info("Using SJMR with grid: "+gridInfo);
+
+    return gridInfo;
+	}
 
 	/**
 	 * Entry point to the file.
@@ -146,36 +198,8 @@ public class SJMapReduce {
 		// Get the HDFS file system
 		FileSystem outFS = FileSystem.get(conf);
 		
-		// If files are grid files, use the grid info of the largest files
-		// instead of the one passed
-		long maxSize = 0;
-		long totalSize = 0;
-		Rectangle allMBR = WriteGridFile.getMBR(outFS, inputPaths[0]);
-		if (gridInfo == null) {
-		  // Find grid info based on files MBRs
-		  for (Path inputPath : inputPaths) {
-		    FileStatus fileStatus = outFS.getFileStatus(inputPath);
-		    totalSize += fileStatus.getLen();
-		    if (fileStatus.getGridInfo() != null) {
-		      if (fileStatus.getLen() > maxSize) {
-		        gridInfo = fileStatus.getGridInfo();
-		        maxSize = fileStatus.getLen();
-		      }
-		    }
-        allMBR = (Rectangle) allMBR.union(WriteGridFile.getMBR(outFS, inputPath));
-		  }
-		}
-		
-		// Initialize grid info to MBR of all files with uninitialized cell
-		if (gridInfo == null)
-		  gridInfo = new GridInfo(allMBR.x, allMBR.y, allMBR.width, allMBR.height, 0, 0);
-		
-		// If cell is not initialized, initialize it using MBR (defined) and total size of files
-		if (gridInfo.cellWidth == 0)
-		  gridInfo.calculateCellDimensions(totalSize, outFS.getDefaultBlockSize());
+		gridInfo = calculateGridInfo(gridInfo, outFS, inputPaths);
 
-		LOG.info("Using SJMR with grid: "+gridInfo);
-		
     // Retrieve query rectangle and store it in job info
     conf.set(GRID_INFO, gridInfo.writeToString());
 

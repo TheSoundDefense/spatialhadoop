@@ -9,8 +9,6 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.spatial.GridInfo;
-import org.apache.hadoop.spatial.Rectangle;
-import org.apache.hadoop.spatial.WriteGridFile;
 
 import edu.umn.cs.CommandLineArguments;
 
@@ -28,36 +26,14 @@ public class SJRepartitionMapReduce {
 
 	public static void spatialJoinRepartition(JobConf conf, Path[] inputFiles, Path outputPath) throws IOException {
 	  
-    FileSystem fileSystem = FileSystem.get(conf);
+    FileSystem outFS = FileSystem.get(conf);
     
     // Find grid info for largest file
-    GridInfo gridInfo = null;
-    long largestFileSize = 0;
-    Rectangle mbr = null;
-    long totalSizes = 0;
-    for (Path inputFile : inputFiles) {
-      FileStatus fileStatus = fileSystem.getFileStatus(inputFile);
-      Rectangle fileMBR = WriteGridFile.getMBR(fileSystem, inputFile);
-      mbr = (Rectangle) (mbr == null ? fileMBR : mbr.union(fileMBR));
-      totalSizes += fileStatus.getLen();
-      if (gridInfo == null
-          || (fileStatus.getLen() > largestFileSize && fileStatus.getGridInfo() != null)) {
-        largestFileSize = fileStatus.getLen();
-        gridInfo = fileStatus.getGridInfo();
-      }
-    }
-    if (!gridInfo.getMBR().contains(mbr)) {
-      gridInfo.xOrigin = mbr.x;
-      gridInfo.yOrigin = mbr.y;
-      gridInfo.gridWidth= mbr.width;
-      gridInfo.gridHeight = mbr.height;
-      gridInfo.calculateCellDimensions(totalSizes, fileSystem.getDefaultBlockSize());
-    }
-    LOG.info("Repartitioning according to the grid: "+gridInfo);
+    GridInfo gridInfo = SJMapReduce.calculateGridInfo(null, outFS, inputFiles);
 
     // Now, repartition all files that are not of this grid
     for (int i = 0; i < inputFiles.length; i++) {
-      FileStatus fileStatus = fileSystem.getFileStatus(inputFiles[i]);
+      FileStatus fileStatus = outFS.getFileStatus(inputFiles[i]);
       if (fileStatus.getGridInfo() == null || !fileStatus.getGridInfo().equals(gridInfo)) {
         LOG.info("Going to repartition "+inputFiles[i]);
         Path repartitioned = new Path(inputFiles[i].toUri().getPath()+".grid");
