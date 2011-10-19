@@ -8,7 +8,6 @@ import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
-import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.TigerShape;
 
@@ -36,15 +35,7 @@ public class RepartitionInputFormat extends FileInputFormat<LongWritable, TigerS
     RepartitionMapReduce.gridInfo = gridInfo;
     gridInfo.readFromString(job.get(GridOutputFormat.OUTPUT_GRID));
     
-    RepartitionMapReduce.cellInfos = new CellInfo[gridInfo.getGridColumns()][gridInfo
-        .getGridRows()];
-    for (int col = 0; col < gridInfo.getGridColumns(); col++) {
-      for (int row = 0; row < gridInfo.getGridRows(); row++) {
-        RepartitionMapReduce.cellInfos[col][row] = new CellInfo(col
-            * gridInfo.cellWidth + gridInfo.xOrigin, row * gridInfo.cellHeight
-            + gridInfo.yOrigin, gridInfo.cellWidth, gridInfo.cellHeight);
-      }
-    }
+    RepartitionMapReduce.cellInfos = gridInfo.getAllCells();
     reporter.setStatus(split.toString());
     return new TigerShapeRecordReader(job, (FileSplit)split);
   }

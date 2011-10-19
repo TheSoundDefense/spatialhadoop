@@ -33,7 +33,7 @@ public class RepartitionMapReduce {
   public static final Log LOG = LogFactory.getLog(RepartitionMapReduce.class);
   
   public static GridInfo gridInfo;
-  public static CellInfo[][] cellInfos;
+  public static CellInfo[] cellInfos;
   
   public static class Map extends MapReduceBase
   implements
@@ -45,16 +45,9 @@ public class RepartitionMapReduce {
         OutputCollector<CellInfo, TigerShape> output,
         Reporter reporter) throws IOException {
 
-      Rectangle rectangle = shape.getMBR();
-      int cellCol1 = (int) ((rectangle.getX1() - gridInfo.xOrigin) / gridInfo.cellWidth);
-      int cellRow1 = (int) ((rectangle.getY1() - gridInfo.yOrigin) / gridInfo.cellHeight);
-      int cellCol2 = (int) ((rectangle.getX2() - gridInfo.xOrigin) / gridInfo.cellWidth);
-      int cellRow2 = (int) ((rectangle.getY2() - gridInfo.yOrigin) / gridInfo.cellHeight);
-
-      for (int cellCol = cellCol1; cellCol <= cellCol2; cellCol++) {
-        for (int cellRow = cellRow1; cellRow <= cellRow2; cellRow++) {
-          CellInfo cellInfo = cellInfos[cellCol][cellRow];
-          output.collect(cellInfo, shape);
+      for (int cellIndex = 0; cellIndex < cellInfos.length; cellIndex++) {
+        if (cellInfos[cellIndex].isIntersected(shape)) {
+          output.collect(cellInfos[cellIndex], shape);
         }
       }
     }
