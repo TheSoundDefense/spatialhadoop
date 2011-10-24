@@ -68,8 +68,8 @@ public class RepartitionMapReduce {
     // output file block size rather than input file block size.
     if (gridInfo == null)
       gridInfo = WriteGridFile.getGridInfo(fileSystem, inputFile, fileSystem);
-    if (gridInfo.cellWidth == 0)
-      gridInfo.calculateCellDimensions(fileSystem.getFileStatus(inputFile).getLen(), fileSystem.getDefaultBlockSize());
+    if (gridInfo.cellWidth == 0 || rtree)
+      gridInfo.calculateCellDimensions(fileSystem.getFileStatus(inputFile).getLen() * (rtree? 3 : 1), fileSystem.getDefaultBlockSize());
 
     // Save gridInfo in job configuration
     conf.set(GridOutputFormat.OUTPUT_GRID, gridInfo.writeToString());

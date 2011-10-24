@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.Iterator;
+import java.util.Vector;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -23,7 +24,6 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Point;
-import org.apache.hadoop.spatial.Rectangle;
 
 import edu.umn.cs.CommandLineArguments;
 import edu.umn.cs.spatialHadoop.PointWithK;
@@ -98,7 +98,7 @@ public class KNNMapReduce {
 	
 	/**
 	 * Entry point to the file.
-	 * Params <query rectangle> <input filenames> <output filename>
+	 * Params point:<query point> <input filenames> <output filename>
 	 * query rectangle: in the form x1,y1,x2,y2
 	 * input filenames: A list of paths to input files in HDFS
 	 * output filename: A path to an output file in HDFS
@@ -106,107 +106,93 @@ public class KNNMapReduce {
 	 * @throws Exception
 	 */
 	public static void main(String[] args) throws Exception {
-      JobConf conf = new JobConf(KNNMapReduce.class);
-      conf.setJobName("KNN");
-      
-      CommandLineArguments cla = new CommandLineArguments(args);
-      
-      // Retrieve query point and store it in the job
-      PointWithK queryPoint = cla.getPointWithK();
-      conf.set(QUERY_POINT, queryPoint.writeToString());
-      
-      conf.setOutputKeyClass(LongWritable.class);
-      conf.setOutputValueClass(TigerShapeWithDistance.class);
+    JobConf conf = new JobConf(KNNMapReduce.class);
+    conf.setJobName("KNN");
+    
+    CommandLineArguments cla = new CommandLineArguments(args);
+    
+    // Retrieve query point and store it in the job
+    TigerShapeWithDistance queryPoint = new TigerShapeWithDistance(0, cla.getPointWithK(), 0.0);
+    conf.set(QUERY_POINT, ((PointWithK)queryPoint.shape).writeToString());
+    
+    conf.setOutputKeyClass(LongWritable.class);
+    conf.setOutputValueClass(TigerShapeWithDistance.class);
 
-      conf.setMapperClass(Map.class);
-      conf.setReducerClass(Reduce.class);
-      conf.setCombinerClass(Reduce.class);
+    conf.setMapperClass(Map.class);
+    conf.setReducerClass(Reduce.class);
+    conf.setCombinerClass(Reduce.class);
 
-      conf.setInputFormat(KNNInputFormat.class);
-      conf.set(TigerShapeRecordReader.TIGER_SHAPE_CLASS, TigerShapeWithDistance.class.getName());
-      conf.set(TigerShapeRecordReader.SHAPE_CLASS, Point.class.getName());
-      conf.setOutputFormat(TextOutputFormat.class);
-      conf.setOutputCommitter(KNNOutputCommitter.class);
+    conf.setInputFormat(KNNInputFormat.class);
+    conf.set(TigerShapeRecordReader.TIGER_SHAPE_CLASS, TigerShapeWithDistance.class.getName());
+    conf.set(TigerShapeRecordReader.SHAPE_CLASS, Point.class.getName());
+    conf.setOutputFormat(TextOutputFormat.class);
+    conf.setOutputCommitter(KNNOutputCommitter.class);
 
-      // All files except first and last one are input files
-      Path inputPath = cla.getInputPath();
-      RQInputFormat.setInputPaths(conf, inputPath);
-      
-      boolean jobFinished = false;
+    // All files except first and last one are input files
+    Path inputPath = cla.getInputPath();
+    RQInputFormat.setInputPaths(conf, inputPath);
+    
+    boolean jobFinished = false;
 
-      // Get grid info of the file to be processed
-      FileSystem fileSystem = FileSystem.get(conf);
-      GridInfo gridInfo = fileSystem.getFileStatus(inputPath).getGridInfo();
+    // Get grid info of the file to be processed
+    FileSystem fileSystem = FileSystem.get(conf);
+    
+    GridInfo gridInfo = fileSystem.getFileStatus(inputPath).getGridInfo();
 
-      if (gridInfo == null) {
-        Path outputPath = new Path(args[args.length - 1]);
-        FileOutputFormat.setOutputPath(conf, outputPath);
-        // Heap file is processed in one pass
-        JobClient.runJob(conf);
-        return;
-      }
+    if (gridInfo == null) {
+      // Processing a heap file
+      Path outputPath = new Path(args[args.length - 1]);
+      FileOutputFormat.setOutputPath(conf, outputPath);
+      // Heap file is processed in one pass
+      JobClient.runJob(conf);
+      return;
+    }
 
-      // Start with a rectangle that contains the query point
-      Rectangle processedArea = gridInfo.getCellInfo(queryPoint.x, queryPoint.y);
-      int round = 0;
+    int round = 0;
 
-      // Retrieve all blocks to be able to select blocks to be processed
-      BlockLocation[] blockLocations = fileSystem.getFileBlockLocations(inputPath, 0, fileSystem.getFileStatus(inputPath).getLen());
-      
-      while (!jobFinished) {
-        conf.set(SplitCalculator.QUERY_RANGE, processedArea.writeToString());
-        // Last argument is the base name output file
-        Path outputPath = new Path(args[args.length - 1]+"_"+round);
-        // Delete output path if existing
-        fileSystem.delete(outputPath, true);
-        FileOutputFormat.setOutputPath(conf, outputPath);
+    Vector<BlockLocation> processedBlocks = new Vector<BlockLocation>();
+    SplitCalculator.KNNBlocksInRange(fileSystem, inputPath, queryPoint, processedBlocks);
+    
+    while (!jobFinished) {
+      conf.set(SplitCalculator.QUERY_POINT_DISTANCE,
+          ((Point)queryPoint.shape).x+","+((Point)queryPoint.shape).y+
+          ","+(long)queryPoint.distance);
+      // Last argument is the base name output file
+      Path outputPath = new Path(args[args.length - 1]+"_"+round);
+      // Delete output path if existing
+      fileSystem.delete(outputPath, true);
+      FileOutputFormat.setOutputPath(conf, outputPath);
 
-        JobClient.runJob(conf);
+      JobClient.runJob(conf);
 
-        // Check that results are correct
-        FileStatus[] resultFiles = fileSystem.listStatus(outputPath);
-        // Maximum distance of neighbors
-        double farthestNeighbor = 0.0;
-        for (FileStatus resultFile : resultFiles) {
-          if (resultFile.getLen() > 0) {
-            BufferedReader in = new BufferedReader(new InputStreamReader(fileSystem.open(resultFile.getPath())));
-            String line;
-            while ((line = in.readLine()) != null) {
-              String pattern = "distance: ";
-              // search for 'distance: '
-              int i = line.indexOf(pattern);
-              // Parse the rest of the line to get the distance
-              double distance = Double.parseDouble(line.substring(i + pattern.length()));
-              if (distance > farthestNeighbor)
-                farthestNeighbor = distance;
-            }
-            in.close();
+      // Check that results are correct
+      FileStatus[] resultFiles = fileSystem.listStatus(outputPath);
+      // Maximum distance of neighbors
+      double farthestNeighbor = 0.0;
+      for (FileStatus resultFile : resultFiles) {
+        if (resultFile.getLen() > 0) {
+          BufferedReader in = new BufferedReader(new InputStreamReader(fileSystem.open(resultFile.getPath())));
+          String line;
+          while ((line = in.readLine()) != null) {
+            String pattern = "distance: ";
+            // search for 'distance: '
+            int i = line.indexOf(pattern);
+            // Parse the rest of the line to get the distance
+            double distance = Double.parseDouble(line.substring(i + pattern.length()));
+            if (distance > farthestNeighbor)
+              farthestNeighbor = distance;
           }
+          in.close();
         }
-        
-        jobFinished = true;
-
-        // Ensure that maximum distance cannot go outside current cell
-        // Find cell that contains query point; the one that was actually processed
-        double minDistance = processedArea.getMinDistanceTo(queryPoint);
-        if (minDistance < farthestNeighbor) {
-          LOG.info("Min distance: "+minDistance+", farthestNeighbor: "+farthestNeighbor);
-          // TODO ensure that there is another grid cell at that distance
-          // This indicates that there might be a nearer neighbor in
-          // an adjacent cell
-
-          // Add all grid cells that need to be processed
-          for (BlockLocation blockLocation : blockLocations) {
-            Rectangle rect = blockLocation.getCellInfo();
-            if (rect.getMinDistanceTo(queryPoint) < farthestNeighbor &&
-                !processedArea.union(rect).equals(processedArea)) {
-              processedArea = (Rectangle) processedArea.union(rect);
-              jobFinished = false;
-            }
-          }
-        }
-        ++round;
-
       }
+      queryPoint.distance = farthestNeighbor;
+
+      // Ensure that we don't need to process more blocks to find the final answer
+      Vector<BlockLocation> processedBlocksForNextRound = new Vector<BlockLocation>();
+      SplitCalculator.KNNBlocksInRange(fileSystem, inputPath, queryPoint, processedBlocksForNextRound);
+      jobFinished = processedBlocks.size() == processedBlocksForNextRound.size();
+      processedBlocks = processedBlocksForNextRound;
+      ++round;
+    }
 	}
 }

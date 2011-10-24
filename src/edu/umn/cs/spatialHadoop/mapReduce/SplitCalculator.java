@@ -3,6 +3,8 @@ package edu.umn.cs.spatialHadoop.mapReduce;
 import java.io.IOException;
 import java.util.Vector;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -15,8 +17,11 @@ import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.util.StringUtils;
 
 import edu.umn.cs.FileRange;
+import edu.umn.cs.spatialHadoop.PointWithK;
+import edu.umn.cs.spatialHadoop.TigerShapeWithDistance;
 
 public class SplitCalculator {
+  public static final Log LOG = LogFactory.getLog(SplitCalculator.class);
 	/**
 	 * Property name for records to read.
 	 * This property can be used to choose the blocks to read in one of four ways:
@@ -37,16 +42,17 @@ public class SplitCalculator {
 	public static final String QUERY_RANGE = 
 		"spatial_hadoop.query_range";
 
-	public static final String QUERY_POINT = 
+	public static final String QUERY_POINT_DISTANCE = 
 		"spatial_hadoop.query_point";
 
 	public static Vector<FileRange> calculateRanges(JobConf job) throws IOException {
 		if (job.get(QUERY_RANGE) != null)
 			return RQCalculateRanges(job);
-		if (job.get(QUERY_POINT) != null)
+		if (job.get(QUERY_POINT_DISTANCE) != null)
 			return KNNCalculateRanges(job);
-		else
-			return null;
+		
+		LOG.info("Processing the whole file");
+		return null;
 	}
 
 	/**
@@ -63,6 +69,7 @@ public class SplitCalculator {
 		// Find query range. We assume there is only one query range for the job
 
 		Rectangle queryRange = new Rectangle();
+		LOG.info("Restricting blocks according to the range: "+queryRange);
 		queryRange.readFromString(conf.get(QUERY_RANGE));
 
 		Vector<FileRange> ranges = new Vector<FileRange>();
@@ -105,6 +112,33 @@ public class SplitCalculator {
 	}
 
 	/**
+	 * Return all blocks within the range of a query point
+	 * @param fileSystem
+	 * @param filePath
+	 * @param queryPoint
+	 * @param matchedBlocks
+	 * @throws IOException
+	 */
+  public static void KNNBlocksInRange(FileSystem fileSystem,
+      Path filePath, TigerShapeWithDistance queryPoint, Vector<BlockLocation> matchedBlocks) throws IOException {
+    double requiredDistance = queryPoint.distance;
+	  long fileLength = fileSystem.getFileStatus(filePath).getLen();
+	  BlockLocation[] blockLocations = fileSystem.getFileBlockLocations(filePath, 0, fileLength);
+	  for (BlockLocation blockLocation : blockLocations) {
+	    CellInfo blockMBR = blockLocation.getCellInfo();
+	    if (blockMBR == null) {
+	      matchedBlocks.add(blockLocation);
+	    } else {
+	      double minDistanceToBlock = blockMBR.getMinDistanceTo(queryPoint);
+	      if (minDistanceToBlock <= requiredDistance) {
+	        LOG.info("Block "+blockLocation.getCellInfo()+" matched with distance: "+minDistanceToBlock);
+	        matchedBlocks.add(blockLocation);
+	      }
+	    }
+	  }
+	}
+	
+	/**
 	 * Calculate ranges in each input file that need to be processed.
 	 * 
 	 * For range query:
@@ -116,13 +150,14 @@ public class SplitCalculator {
 	 */
 	public static Vector<FileRange> KNNCalculateRanges(JobConf conf) throws IOException {
 		// Find query range. We assume there is only one query range for the job
-		String queryPointString = conf.get(QUERY_POINT);
-
+		String queryPointString = conf.get(QUERY_POINT_DISTANCE);
+		
 		String[] splits = queryPointString.split(",");
-		int x = Integer.parseInt(splits[0]);
-		int y = Integer.parseInt(splits[1]);
-		//int k = Integer.parseInt(splits[2]);
-		Point queryPoint = new Point(x, y);
+    long x = Long.parseLong(splits[0]);
+    long y = Long.parseLong(splits[1]);
+    long distance = Long.parseLong(splits[2]);
+		TigerShapeWithDistance queryPoint = new TigerShapeWithDistance(0, new Point(x,y), distance);
+    LOG.info("Restricting blocks according to the range: "+queryPoint);
 
 		Vector<FileRange> ranges = new Vector<FileRange>();
 		// Retrieve a list of all input files
@@ -137,23 +172,12 @@ public class SplitCalculator {
 		// Retrieve list of blocks in each input path
 		for (Path path : inputPaths) {
 			FileSystem fs = path.getFileSystem(conf);
-			Long fileLength = fs.getFileStatus(path).getLen();
-			// Retrieve grid info for this file
-			GridInfo gridInfo = fs.getFileStatus(path).getGridInfo();
-			if (gridInfo == null) {
-				// Add all the file without checking
-				ranges.add(new FileRange(path, 0, fileLength));
-			} else {
-				// Check each block
-				BlockLocation[] blockLocations = fs.getFileBlockLocations(path, 0, fileLength);
-				for (BlockLocation blockLocation : blockLocations) {
-					CellInfo cellInfo = blockLocation.getCellInfo();
-					// 2- Check if block holds a grid cell in query range
-					if (cellInfo.contains(queryPoint)) {
-						// Add this block
-						ranges.add(new FileRange(path, blockLocation.getOffset(), blockLocation.getLength()));
-					}
-				}
+			Vector<BlockLocation> blocksToBeProcessed = new Vector<BlockLocation>();
+			KNNBlocksInRange(fs, path, queryPoint, blocksToBeProcessed);
+
+			for (BlockLocation blockLocation : blocksToBeProcessed) {
+			  LOG.info("Going to process the block at: "+blockLocation.getCellInfo());
+			  ranges.add(new FileRange(path, blockLocation.getOffset(), blockLocation.getLength()));
 			}
 			// TODO merge consecutive ranges in the same file
 		}
