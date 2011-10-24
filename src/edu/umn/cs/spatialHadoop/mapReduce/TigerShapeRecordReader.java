@@ -40,6 +40,14 @@ public class TigerShapeRecordReader implements RecordReader<LongWritable, TigerS
     ShapeClassName = job.get(SHAPE_CLASS, Point.class.getName());
   }
 
+  /**
+   * Appends the given index to all objects read by this reader.
+   * Used to identify argument index for binary operators such as spatial join
+   * @param job
+   * @param split
+   * @param index
+   * @throws IOException
+   */
   public TigerShapeRecordReader(Configuration job, FileSplit split, int index)
   throws IOException {
     this(job, split);

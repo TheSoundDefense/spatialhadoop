@@ -1,6 +1,7 @@
 package edu.umn.cs.spatialHadoop.mapReduce;
 
 import java.io.IOException;
+import java.util.Iterator;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -14,6 +15,7 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.MapReduceBase;
 import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
+import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
@@ -22,7 +24,7 @@ import org.apache.hadoop.spatial.TigerShape;
 import org.apache.hadoop.spatial.WriteGridFile;
 
 import edu.umn.cs.CommandLineArguments;
-
+import edu.umn.cs.spatialHadoop.TigerShapeWithIndex;
 
 /**
  * Repartitions a file according to a different grid through a MapReduce job
@@ -51,9 +53,11 @@ public class RepartitionMapReduce {
         }
       }
     }
+    
   }
 
-	public static void repartition(JobConf conf, Path inputFile, Path outputPath, GridInfo gridInfo) throws IOException {
+  public static void repartition(JobConf conf, Path inputFile, Path outputPath,
+      GridInfo gridInfo, boolean pack, boolean rtree) throws IOException {
     conf.setJobName("Repartition");
     
     FileSystem fileSystem = FileSystem.get(conf);
@@ -89,7 +93,11 @@ public class RepartitionMapReduce {
     conf.set(TigerShapeRecordReader.SHAPE_CLASS, Rectangle.class.getName());
 
     conf.setInputFormat(RepartitionInputFormat.class);
-    conf.setOutputFormat(GridOutputFormat.class);
+    if (rtree) {
+      conf.setOutputFormat(RTreeGridOutputFormat.class);
+    } else {
+      conf.setOutputFormat(GridOutputFormat.class);
+    }
 
     // Last argument is the output file
     FileOutputFormat.setOutputPath(conf,outputPath);
@@ -101,6 +109,7 @@ public class RepartitionMapReduce {
     FileStatus[] resultFiles = fileSystem.listStatus(outputPath);
     for (FileStatus resultFile : resultFiles) {
       if (resultFile.getLen() > 0) {
+        // TODO whoever created this tempppp folder is responsible for deleting it
         Path temp = new Path("/tempppp");
         fileSystem.rename(resultFile.getPath(), temp);
         
@@ -113,7 +122,7 @@ public class RepartitionMapReduce {
 	
 	/**
 	 * Entry point to the file.
-	 * Params <gridInfo> <input filenames> <output filename>
+	 * Params grid:<gridInfo> [-pack] [-rtree] <input filenames> <output filename>
 	 * gridInfo in the format <x1,y1,w,h,cw,ch>
 	 * input filenames: Input file in HDFS
 	 * output filename: Outputfile in HDFS
@@ -128,6 +137,9 @@ public class RepartitionMapReduce {
     
     GridInfo gridInfo = cla.getGridInfo();
     
-    repartition(conf, inputPath, outputPath, gridInfo);
+    boolean rtree = cla.isRtree();
+    boolean pack = cla.isPack();
+    
+    repartition(conf, inputPath, outputPath, gridInfo, pack, rtree);
 	}
 }

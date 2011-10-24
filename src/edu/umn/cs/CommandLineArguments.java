@@ -14,12 +14,16 @@ public class CommandLineArguments {
   private GridInfo gridInfo;
   private Rectangle rectangle;
   private PointWithK pointWithK;
+  private boolean rtree;
+  private boolean pack;
   
   public Rectangle getRectangle() {
     return rectangle;
   }
 
   public CommandLineArguments(String[] args) {
+    rtree = false;
+    pack = false;
     Vector<String> paths = new Vector<String>();
     for (String arg : args) {
       if (arg.startsWith("grid:") || arg.startsWith("g:")) {
@@ -34,6 +38,10 @@ public class CommandLineArguments {
         pointWithK = new PointWithK();
         String strPoint = arg.substring(arg.indexOf(':') + 1);
         pointWithK.readFromString(strPoint);
+      } else if (arg.equals("-rtree")) {
+        rtree = true;
+      } else if (arg.equals("-pack")) {
+        pack = true;
       } else {
         paths.add(arg);
       }
@@ -92,5 +100,13 @@ public class CommandLineArguments {
 
   public PointWithK getPointWithK() {
     return pointWithK;
+  }
+
+  public boolean isRtree() {
+    return rtree;
+  }
+
+  public boolean isPack() {
+    return pack;
   }
 }
