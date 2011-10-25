@@ -1,6 +1,7 @@
 package edu.umn.cs.spatialHadoop.mapReduce;
 
 import java.io.IOException;
+import java.util.Vector;
 
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -9,12 +10,12 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordWriter;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
-import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.TigerShape;
 import org.apache.hadoop.util.Progressable;
 
 
 public class RTreeGridOutputFormat extends FileOutputFormat<CellInfo, TigerShape> {
+  public static final String OUTPUT_CELLS = "edu.umn.cs.spatial.mapReduce.RectOutputFormat.CellsInfo";
 
   @Override
   public RecordWriter<CellInfo, TigerShape> getRecordWriter(FileSystem ignored,
@@ -30,8 +31,17 @@ public class RTreeGridOutputFormat extends FileOutputFormat<CellInfo, TigerShape
 
     // Get grid info
     GridInfo gridInfo = new GridInfo();
-    gridInfo.readFromString(job.get(GridOutputFormat.OUTPUT_GRID));
-    return new RTreeGridRecordWriter(fileSystem, outFile, gridInfo, gridInfo.getAllCells());
+    return new RTreeGridRecordWriter(fileSystem, outFile, gridInfo, extractCells(job.get(OUTPUT_CELLS)));
+  }
+  
+  public static CellInfo[] extractCells(String encodedCells) {
+    String[] parts = encodedCells.split(";");
+    CellInfo[] cellsInfo = new CellInfo[parts.length];
+    for (int i = 0; i < parts.length; i++) {
+      cellsInfo[i] = new CellInfo();
+      cellsInfo[i].readFromString(parts[i]);
+    }
+    return cellsInfo;
   }
 }
 

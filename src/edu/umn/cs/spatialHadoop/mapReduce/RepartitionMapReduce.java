@@ -34,7 +34,6 @@ import edu.umn.cs.spatialHadoop.TigerShapeWithIndex;
 public class RepartitionMapReduce {
   public static final Log LOG = LogFactory.getLog(RepartitionMapReduce.class);
   
-  public static GridInfo gridInfo;
   public static CellInfo[] cellInfos;
   
   public static class Map extends MapReduceBase
@@ -53,31 +52,31 @@ public class RepartitionMapReduce {
         }
       }
     }
-    
   }
 
   public static void repartition(JobConf conf, Path inputFile, Path outputPath,
       GridInfo gridInfo, boolean pack, boolean rtree) throws IOException {
     conf.setJobName("Repartition");
     
-    FileSystem fileSystem = FileSystem.get(conf);
+    FileSystem inFileSystem = inputFile.getFileSystem(conf);
+    FileSystem outFileSystem = outputPath.getFileSystem(conf);
     // Automatically calculate recommended cell dimensions if not set
     // Calculate appropriate values for cellWidth, cellHeight based on file size
     // only if they're missing.
     // Note that we use default block size because we really care more about
     // output file block size rather than input file block size.
     if (gridInfo == null)
-      gridInfo = WriteGridFile.getGridInfo(fileSystem, inputFile, fileSystem);
+      gridInfo = WriteGridFile.getGridInfo(inFileSystem, inputFile, inFileSystem);
     if (gridInfo.cellWidth == 0 || rtree)
-      gridInfo.calculateCellDimensions(fileSystem.getFileStatus(inputFile).getLen() * (rtree? 3 : 1), fileSystem.getDefaultBlockSize());
+      gridInfo.calculateCellDimensions(inFileSystem.getFileStatus(inputFile).getLen() * (rtree? 4 : 1), inFileSystem.getDefaultBlockSize());
+    CellInfo[] cellsInfo = pack ? 
+        WriteGridFile.packInRectangles(inFileSystem, inputFile, outFileSystem, gridInfo) :
+          gridInfo.getAllCells();
 
-    // Save gridInfo in job configuration
-    conf.set(GridOutputFormat.OUTPUT_GRID, gridInfo.writeToString());
-    
     // Overwrite output file
-    if (fileSystem.exists(outputPath)) {
+    if (inFileSystem.exists(outputPath)) {
       // remove the file first
-      fileSystem.delete(outputPath, true);
+      inFileSystem.delete(outputPath, true);
     }
 
     // add this query file as the first input path to the job
@@ -94,8 +93,18 @@ public class RepartitionMapReduce {
 
     conf.setInputFormat(RepartitionInputFormat.class);
     if (rtree) {
+      // Save cellsInfo in job configuration
+      String encodedCellsInfo = "";
+      for (CellInfo cellInfo : cellsInfo) {
+        if (encodedCellsInfo.length() > 0)
+          encodedCellsInfo += ";";
+        encodedCellsInfo += cellInfo.writeToString();
+      }
+      conf.set(RTreeGridOutputFormat.OUTPUT_CELLS, encodedCellsInfo);
       conf.setOutputFormat(RTreeGridOutputFormat.class);
     } else {
+      // Save gridInfo in job configuration
+      conf.set(GridOutputFormat.OUTPUT_GRID, gridInfo.writeToString());
       conf.setOutputFormat(GridOutputFormat.class);
     }
 
@@ -106,16 +115,16 @@ public class RepartitionMapReduce {
     
     // Rename output file to required name
     // Check that results are correct
-    FileStatus[] resultFiles = fileSystem.listStatus(outputPath);
+    FileStatus[] resultFiles = inFileSystem.listStatus(outputPath);
     for (FileStatus resultFile : resultFiles) {
       if (resultFile.getLen() > 0) {
         // TODO whoever created this tempppp folder is responsible for deleting it
         Path temp = new Path("/tempppp");
-        fileSystem.rename(resultFile.getPath(), temp);
+        inFileSystem.rename(resultFile.getPath(), temp);
         
-        fileSystem.delete(outputPath, true);
+        inFileSystem.delete(outputPath, true);
         
-        fileSystem.rename(temp, outputPath);
+        inFileSystem.rename(temp, outputPath);
       }
     }
   }
