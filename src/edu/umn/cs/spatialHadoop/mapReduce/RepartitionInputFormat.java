@@ -31,16 +31,9 @@ public class RepartitionInputFormat extends FileInputFormat<LongWritable, TigerS
       JobConf job, Reporter reporter) throws IOException {
 
     
-    String gridInfoStr = job.get(GridOutputFormat.OUTPUT_GRID);
-    if (gridInfoStr != null) {
-      // Extract required grid info
-      GridInfo gridInfo = new GridInfo();
-      gridInfo.readFromString(gridInfoStr);
-      RepartitionMapReduce.cellInfos = gridInfo.getAllCells();
-    } else {
-      String cellsInfoStr = job.get(RTreeGridOutputFormat.OUTPUT_CELLS);
-      RepartitionMapReduce.cellInfos = RTreeGridOutputFormat.extractCells(cellsInfoStr);
-    }
+    String cellsInfoStr = job.get(GridOutputFormat.OUTPUT_CELLS);
+    RepartitionMapReduce.cellInfos = GridOutputFormat.decodeCells(cellsInfoStr);
+
     reporter.setStatus(split.toString());
     return new TigerShapeRecordReader(job, (FileSplit)split);
   }

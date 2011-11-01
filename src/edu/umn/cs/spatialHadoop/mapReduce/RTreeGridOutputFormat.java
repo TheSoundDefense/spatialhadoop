@@ -15,7 +15,6 @@ import org.apache.hadoop.util.Progressable;
 
 
 public class RTreeGridOutputFormat extends FileOutputFormat<CellInfo, TigerShape> {
-  public static final String OUTPUT_CELLS = "edu.umn.cs.spatial.mapReduce.RectOutputFormat.CellsInfo";
 
   @Override
   public RecordWriter<CellInfo, TigerShape> getRecordWriter(FileSystem ignored,
@@ -31,17 +30,10 @@ public class RTreeGridOutputFormat extends FileOutputFormat<CellInfo, TigerShape
 
     // Get grid info
     GridInfo gridInfo = new GridInfo();
-    return new RTreeGridRecordWriter(fileSystem, outFile, gridInfo, extractCells(job.get(OUTPUT_CELLS)));
+    gridInfo.readFromString(job.get(GridOutputFormat.OUTPUT_GRID));
+    CellInfo[] cellsInfo = GridOutputFormat.decodeCells(job.get(GridOutputFormat.OUTPUT_CELLS));
+    return new RTreeGridRecordWriter(fileSystem, outFile, gridInfo, cellsInfo);
   }
-  
-  public static CellInfo[] extractCells(String encodedCells) {
-    String[] parts = encodedCells.split(";");
-    CellInfo[] cellsInfo = new CellInfo[parts.length];
-    for (int i = 0; i < parts.length; i++) {
-      cellsInfo[i] = new CellInfo();
-      cellsInfo[i].readFromString(parts[i]);
-    }
-    return cellsInfo;
-  }
+
 }
 

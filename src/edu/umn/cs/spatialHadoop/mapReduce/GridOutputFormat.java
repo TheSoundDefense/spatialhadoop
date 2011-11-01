@@ -15,6 +15,7 @@ import org.apache.hadoop.util.Progressable;
 
 public class GridOutputFormat extends FileOutputFormat<CellInfo, TigerShape> {
   public static final String OUTPUT_GRID = "edu.umn.cs.spatial.mapReduce.RectOutputFormat.GridInfo";
+  public static final String OUTPUT_CELLS = "edu.umn.cs.spatial.mapReduce.RectOutputFormat.CellsInfo";
 
   @Override
   public RecordWriter<CellInfo, TigerShape> getRecordWriter(FileSystem ignored,
@@ -31,7 +32,28 @@ public class GridOutputFormat extends FileOutputFormat<CellInfo, TigerShape> {
     // Get grid info
     GridInfo gridInfo = new GridInfo();
     gridInfo.readFromString(job.get(OUTPUT_GRID));
-    return new GridRecordWriter(fileSystem, outFile, gridInfo, gridInfo.getAllCells());
+    CellInfo[] cellsInfo = decodeCells(job.get(OUTPUT_CELLS));
+    return new GridRecordWriter(fileSystem, outFile, gridInfo, cellsInfo);
+  }
+  
+  public static String encodeCells(CellInfo[] cellsInfo) {
+    String encodedCellsInfo = "";
+    for (CellInfo cellInfo : cellsInfo) {
+      if (encodedCellsInfo.length() > 0)
+        encodedCellsInfo += ";";
+      encodedCellsInfo += cellInfo.writeToString();
+    }
+    return encodedCellsInfo;
+  }
+  
+  public static CellInfo[] decodeCells(String encodedCells) {
+    String[] parts = encodedCells.split(";");
+    CellInfo[] cellsInfo = new CellInfo[parts.length];
+    for (int i = 0; i < parts.length; i++) {
+      cellsInfo[i] = new CellInfo();
+      cellsInfo[i].readFromString(parts[i]);
+    }
+    return cellsInfo;
   }
 }
 
