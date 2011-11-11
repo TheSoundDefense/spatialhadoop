@@ -16,6 +16,7 @@ public class CommandLineArguments {
   private PointWithK pointWithK;
   private boolean rtree;
   private boolean pack;
+  private boolean overwrite;
   
   public Rectangle getRectangle() {
     return rectangle;
@@ -42,6 +43,8 @@ public class CommandLineArguments {
         rtree = true;
       } else if (arg.equals("-pack")) {
         pack = true;
+      } else if (arg.equals("-overwrite")) {
+        overwrite = true;
       } else {
         paths.add(arg);
       }
@@ -108,5 +111,9 @@ public class CommandLineArguments {
 
   public boolean isPack() {
     return pack;
+  }
+  
+  public boolean isOverwrite() {
+    return overwrite;
   }
 }

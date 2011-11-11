@@ -14,8 +14,9 @@ import org.apache.hadoop.util.Progressable;
 
 
 public class GridOutputFormat extends FileOutputFormat<CellInfo, TigerShape> {
-  public static final String OUTPUT_GRID = "edu.umn.cs.spatial.mapReduce.RectOutputFormat.GridInfo";
-  public static final String OUTPUT_CELLS = "edu.umn.cs.spatial.mapReduce.RectOutputFormat.CellsInfo";
+  public static final String OUTPUT_GRID = "edu.umn.cs.spatial.mapReduce.GridOutputFormat.GridInfo";
+  public static final String OUTPUT_CELLS = "edu.umn.cs.spatial.mapReduce.GridOutputFormat.CellsInfo";
+  public static final String OVERWRITE = "edu.umn.cs.spatial.mapReduce.GridOutputFormat.Overwrite";
 
   @Override
   public RecordWriter<CellInfo, TigerShape> getRecordWriter(FileSystem ignored,
@@ -33,7 +34,8 @@ public class GridOutputFormat extends FileOutputFormat<CellInfo, TigerShape> {
     GridInfo gridInfo = new GridInfo();
     gridInfo.readFromString(job.get(OUTPUT_GRID));
     CellInfo[] cellsInfo = decodeCells(job.get(OUTPUT_CELLS));
-    return new GridRecordWriter(fileSystem, outFile, gridInfo, cellsInfo);
+    boolean overwrite = job.getBoolean(OVERWRITE, false);
+    return new GridRecordWriter(fileSystem, outFile, gridInfo, cellsInfo, overwrite);
   }
   
   public static String encodeCells(CellInfo[] cellsInfo) {

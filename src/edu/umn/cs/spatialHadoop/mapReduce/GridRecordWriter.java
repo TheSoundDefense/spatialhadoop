@@ -12,8 +12,8 @@ import org.apache.hadoop.spatial.TigerShape;
 
 public class GridRecordWriter extends org.apache.hadoop.spatial.GridRecordWriter implements RecordWriter<CellInfo, TigerShape> {
 
-  public GridRecordWriter(FileSystem fileSystem, Path outFile, GridInfo gridInfo, CellInfo[] cells) throws IOException {
-    super(fileSystem, outFile, gridInfo, cells);
+  public GridRecordWriter(FileSystem fileSystem, Path outFile, GridInfo gridInfo, CellInfo[] cells, boolean overwrite) throws IOException {
+    super(fileSystem, outFile, gridInfo, cells,  overwrite);
   }
 
   @Override

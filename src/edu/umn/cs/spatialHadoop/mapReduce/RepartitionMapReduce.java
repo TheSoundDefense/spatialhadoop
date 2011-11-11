@@ -52,7 +52,7 @@ public class RepartitionMapReduce {
   }
 
   public static void repartition(JobConf conf, Path inputFile, Path outputPath,
-      GridInfo gridInfo, boolean pack, boolean rtree) throws IOException {
+      GridInfo gridInfo, boolean pack, boolean rtree, boolean overwrite) throws IOException {
     conf.setJobName("Repartition");
     
     FileSystem inFileSystem = inputFile.getFileSystem(conf);
@@ -87,6 +87,7 @@ public class RepartitionMapReduce {
     conf.setOutputFormat(rtree ? RTreeGridOutputFormat.class : GridOutputFormat.class);
     conf.set(GridOutputFormat.OUTPUT_GRID, gridInfo.writeToString());
     conf.set(GridOutputFormat.OUTPUT_CELLS, GridOutputFormat.encodeCells(cellsInfo));
+    conf.setBoolean(GridOutputFormat.OVERWRITE, overwrite);
 
     JobClient.runJob(conf);
     
@@ -125,7 +126,8 @@ public class RepartitionMapReduce {
     
     boolean rtree = cla.isRtree();
     boolean pack = cla.isPack();
+    boolean overwrite = cla.isOverwrite();
     
-    repartition(conf, inputPath, outputPath, gridInfo, pack, rtree);
+    repartition(conf, inputPath, outputPath, gridInfo, pack, rtree, overwrite);
 	}
 }
