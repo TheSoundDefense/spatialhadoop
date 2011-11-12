@@ -69,8 +69,8 @@ public class SplitCalculator {
 		// Find query range. We assume there is only one query range for the job
 
 		Rectangle queryRange = new Rectangle();
-		LOG.info("Restricting blocks according to the range: "+queryRange);
 		queryRange.readFromString(conf.get(QUERY_RANGE));
+		LOG.info("Restricting blocks according to the range: "+queryRange);
 
 		Vector<FileRange> ranges = new Vector<FileRange>();
 		// Retrieve a list of all input files
@@ -88,21 +88,18 @@ public class SplitCalculator {
 			Long fileLength = fs.getFileStatus(path).getLen();
 			// Retrieve grid info for this file
 			GridInfo gridInfo = fs.getFileStatus(path).getGridInfo();
-			if (gridInfo == null) {
-				// Add all the file without checking
-				ranges.add(new FileRange(path, 0, fileLength));
-			} else {
-				// Check each block
-				BlockLocation[] blockLocations = fs.getFileBlockLocations(path, 0, fileLength);
-				for (BlockLocation blockLocation : blockLocations) {
-					CellInfo cellInfo = blockLocation.getCellInfo();
-					System.out.println("Checking " + cellInfo +" with "+ queryRange);
-					// 2- Check if block holds a grid cell in query range
-					if (cellInfo.isIntersected(queryRange)) {
-					  System.out.println("Matched");
-						// Add this block
-						ranges.add(new FileRange(path, blockLocation.getOffset(), blockLocation.getLength()));
-					}
+			// Check each block
+			BlockLocation[] blockLocations = fs.getFileBlockLocations(path, 0, fileLength);
+			for (BlockLocation blockLocation : blockLocations) {
+				CellInfo cellInfo = blockLocation.getCellInfo();
+				// 2- Check if block holds a grid cell in query range
+				if (cellInfo == null) {
+				  LOG.info("Matched a cell of a heap file");
+          ranges.add(new FileRange(path, blockLocation.getOffset(), blockLocation.getLength()));
+				} else if (cellInfo.isIntersected(queryRange)) {
+				  LOG.info("Matched cell: " + cellInfo +" with query: "+ queryRange);
+					// Add this block
+					ranges.add(new FileRange(path, blockLocation.getOffset(), blockLocation.getLength()));
 				}
 			}
 			// TODO merge consecutive ranges in the same file
