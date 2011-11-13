@@ -56,17 +56,15 @@ public class PointWithK extends Point {
   }
   
   @Override
-  public void fromBuffer(byte[] buf, int start, int length) {
-    int i2 = start + length - 1;
-    while (buf[i2] != ',') i2--;
-    this.k = (int) TextSerializerHelper.deserializeLong(buf, i2+1, start + length - (i2+1));
-    super.fromBuffer(buf, start, i2 - start );
+  public String writeToString() {
+    return String.format("%s%x,%s", this.k < 0 ? "-" : "", Math.abs(k),
+        super.writeToString());
   }
   
   @Override
-  public void toText(Text text) {
-    super.toText(text);
-    text.append(new byte[] {','}, 0, 1);
-    TextSerializerHelper.serializeLong(k, text, false);
+  public void readFromString(String s) {
+    String[] parts = s.split(",", 2);
+    this.k = Integer.parseInt(parts[0], 16);
+    super.readFromString(parts[1]);
   }
 }

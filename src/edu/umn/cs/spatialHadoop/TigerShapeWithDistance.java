@@ -60,4 +60,15 @@ public class TigerShapeWithDistance extends TigerShape {
     return super.toString() + " distance: "+distance;
   }
   
+  @Override
+  public String writeToString() {
+    return String.format("%f,%s", this.distance, super.writeToString());
+  }
+  
+  @Override
+  public void readFromString(String s) {
+    String[] parts = s.split(",", 2);
+    this.distance = Double.parseDouble(parts[0]);
+    super.readFromString(parts[1]);
+  }
 }

@@ -49,4 +49,16 @@ public class TigerShapeWithIndex extends TigerShape {
   public Object clone() {
     return new TigerShapeWithIndex((Shape) this.shape.clone(), this.id, this.index);
   }
+  
+  @Override
+  public String writeToString() {
+    return String.format("%s%x,%s", this.index < 0 ? "-" : "", Math.abs(index), super.writeToString());
+  }
+  
+  @Override
+  public void readFromString(String s) {
+    String[] parts = s.split(",", 2);
+    this.index = Integer.parseInt(parts[0], 16);
+    super.readFromString(parts[1]);
+  }
 }
