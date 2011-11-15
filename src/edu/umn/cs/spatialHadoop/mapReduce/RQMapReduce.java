@@ -48,13 +48,20 @@ public class RQMapReduce {
       Mapper<CellInfo, RTree<TigerShape>, LongWritable, TigerShape> {
 
     public void map(CellInfo cellInfo, RTree<TigerShape> rtree,
-        OutputCollector<LongWritable, TigerShape> output, Reporter reporter)
+        final OutputCollector<LongWritable, TigerShape> output, Reporter reporter)
         throws IOException {
       Rectangle querymbr = queryShape.getMBR();
-      List<TigerShape> result = rtree.search(new long[] {querymbr.x, querymbr.y}, new long[] {querymbr.width, querymbr.height});
-      for (TigerShape tigerShape : result) {
-        output.collect(new LongWritable(tigerShape.id), tigerShape);
-      }
+      RTree.ResultCollector<TigerShape> results = new RTree.ResultCollector<TigerShape>() {
+        @Override
+        public void add(TigerShape tigerShape) {
+          try {
+            output.collect(new LongWritable(tigerShape.id), tigerShape);
+          } catch (IOException e) {
+            e.printStackTrace();
+          }
+        }
+      };
+      rtree.search(new long[] {querymbr.x, querymbr.y}, new long[] {querymbr.width, querymbr.height}, results);
     }
   }
 
