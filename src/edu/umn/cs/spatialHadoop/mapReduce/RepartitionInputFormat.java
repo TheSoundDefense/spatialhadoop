@@ -8,11 +8,7 @@ import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
-import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.TigerShape;
-
-
-
 
 /**
  * Reads and parses a file that contains records of type Rectangle.
@@ -30,7 +26,6 @@ public class RepartitionInputFormat extends FileInputFormat<LongWritable, TigerS
   public RecordReader<LongWritable, TigerShape> getRecordReader(InputSplit split,
       JobConf job, Reporter reporter) throws IOException {
 
-    
     String cellsInfoStr = job.get(GridOutputFormat.OUTPUT_CELLS);
     RepartitionMapReduce.cellInfos = GridOutputFormat.decodeCells(cellsInfoStr);
 

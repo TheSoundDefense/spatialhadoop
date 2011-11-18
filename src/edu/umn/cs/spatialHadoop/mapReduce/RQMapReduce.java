@@ -1,8 +1,9 @@
 package edu.umn.cs.spatialHadoop.mapReduce;
 
 import java.io.IOException;
-import java.util.List;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.io.LongWritable;
@@ -29,6 +30,7 @@ import edu.umn.cs.CommandLineArguments;
  *
  */
 public class RQMapReduce {
+  public static final Log LOG = LogFactory.getLog(RQMapReduce.class);
   public static final String QUERY_SHAPE = "edu.umn.cs.spatial.mapReduce.RQMapReduce.QueryRectangle";
   public static Shape queryShape;
 
@@ -95,9 +97,11 @@ public class RQMapReduce {
       FSDataInputStream fileIn = fileSystem.open(cla.getInputPath());
       int fileMarker = fileIn.readInt();
       if (fileMarker == RTreeGridRecordWriter.RTreeFileMarker) {
+        LOG.info("Searching RTree file");
         conf.setMapperClass(RTreeMap.class);
         conf.setInputFormat(RTreeInputFormat.class);
       } else {
+        LOG.info("Searching RTree file");
         conf.setMapperClass(Map.class);
         conf.setInputFormat(RQInputFormat.class);
       }
