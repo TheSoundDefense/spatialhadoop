@@ -110,7 +110,8 @@ public class RTreeRecordReader  implements RecordReader<CellInfo, RTree<TigerSha
       return false;
     }
     long start = this.pos;
-    value.setInputStream(fileIn);
+    //value.setInputStream(fileIn);
+    value.readFields(fileIn);
     this.pos = fileIn.getPos();
     long len = this.pos - start;
     BlockLocation[] blockLocations = fs.getFileBlockLocations(file, start, len);

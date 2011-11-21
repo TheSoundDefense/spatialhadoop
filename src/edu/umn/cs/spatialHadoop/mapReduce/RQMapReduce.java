@@ -63,7 +63,9 @@ public class RQMapReduce {
           }
         }
       };
-      rtree.search(new long[] {querymbr.x, querymbr.y}, new long[] {querymbr.width, querymbr.height}, results);
+      long t1 = System.currentTimeMillis();
+      int numResults = rtree.search(new long[] {querymbr.x, querymbr.y}, new long[] {querymbr.width, querymbr.height}, results);
+      LOG.info("RTree disk search elapsed: "+(System.currentTimeMillis() - t1)+" millis to find "+numResults+" results");
     }
   }
 
