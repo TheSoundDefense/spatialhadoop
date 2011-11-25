@@ -113,7 +113,9 @@ public class KNNMapReduce {
     
     // Retrieve query point and store it in the job
     TigerShapeWithDistance queryPoint = new TigerShapeWithDistance(0, cla.getPointWithK(), 0.0);
+    System.out.println("PointWithK: "+queryPoint);
     conf.set(QUERY_POINT, ((PointWithK)queryPoint.shape).writeToString());
+    System.out.println("PointWithK in conf: "+conf.get(QUERY_POINT));
     
     conf.setOutputKeyClass(LongWritable.class);
     conf.setOutputValueClass(TigerShapeWithDistance.class);

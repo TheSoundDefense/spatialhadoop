@@ -119,14 +119,17 @@ public class SplitCalculator {
   public static void KNNBlocksInRange(FileSystem fileSystem,
       Path filePath, TigerShapeWithDistance queryPoint, Vector<BlockLocation> matchedBlocks) throws IOException {
     double requiredDistance = queryPoint.distance;
+    LOG.info("Matching blocks withing a distance of "+requiredDistance+" of the point: "+queryPoint);
 	  long fileLength = fileSystem.getFileStatus(filePath).getLen();
 	  BlockLocation[] blockLocations = fileSystem.getFileBlockLocations(filePath, 0, fileLength);
 	  for (BlockLocation blockLocation : blockLocations) {
 	    CellInfo blockMBR = blockLocation.getCellInfo();
 	    if (blockMBR == null) {
+	      LOG.info("Heap block matched with distance");
 	      matchedBlocks.add(blockLocation);
 	    } else {
 	      double minDistanceToBlock = blockMBR.getMinDistanceTo(queryPoint);
+	      LOG.info("Minimum distance for block "+blockMBR+" is "+minDistanceToBlock);
 	      if (minDistanceToBlock <= requiredDistance) {
 	        LOG.info("Block "+blockLocation.getCellInfo()+" matched with distance: "+minDistanceToBlock);
 	        matchedBlocks.add(blockLocation);
@@ -154,7 +157,7 @@ public class SplitCalculator {
     long y = Long.parseLong(splits[1]);
     long distance = Long.parseLong(splits[2]);
 		TigerShapeWithDistance queryPoint = new TigerShapeWithDistance(0, new Point(x,y), distance);
-    LOG.info("Restricting blocks according to the range: "+queryPoint);
+    LOG.info("Restricting blocks according to the point: "+queryPoint);
 
 		Vector<FileRange> ranges = new Vector<FileRange>();
 		// Retrieve a list of all input files

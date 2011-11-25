@@ -62,13 +62,18 @@ public class TigerShapeWithDistance extends TigerShape {
   
   @Override
   public String writeToString() {
-    return String.format("%f,%s", this.distance, super.writeToString());
+    return String.format("%f;%s", this.distance, super.writeToString());
   }
   
   @Override
   public void readFromString(String s) {
-    String[] parts = s.split(",", 2);
-    this.distance = Double.parseDouble(parts[0]);
-    super.readFromString(parts[1]);
+    String[] parts = s.split(";", 2);
+    if (parts.length > 1) {
+      this.distance = Double.parseDouble(parts[0]);
+      super.readFromString(parts[1]);
+    } else {
+      this.distance = 0.0;
+      super.readFromString(parts[0]);
+    }
   }
 }
