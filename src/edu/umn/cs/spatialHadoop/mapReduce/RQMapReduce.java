@@ -103,7 +103,7 @@ public class RQMapReduce {
         conf.setMapperClass(RTreeMap.class);
         conf.setInputFormat(RTreeInputFormat.class);
       } else {
-        LOG.info("Searching RTree file");
+        LOG.info("Searching regular file");
         conf.setMapperClass(Map.class);
         conf.setInputFormat(RQInputFormat.class);
       }
