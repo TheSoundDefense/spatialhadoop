@@ -203,8 +203,8 @@ public class SJMapReduce {
     // Retrieve query rectangle and store it in job info
     conf.set(GRID_INFO, gridInfo.writeToString());
 
-		conf.setOutputKeyClass(CellInfo.class);
-		conf.setOutputValueClass(TigerShapeWithIndex.class);
+		conf.setOutputKeyClass(TigerShape.class);
+		conf.setOutputValueClass(TigerShape.class);
 
 		conf.setMapperClass(Map.class);
 		conf.setReducerClass(Reduce.class);

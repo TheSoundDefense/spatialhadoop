@@ -52,13 +52,15 @@ public class TigerShapeWithIndex extends TigerShape {
   
   @Override
   public String writeToString() {
-    return String.format("%s%x,%s", this.index < 0 ? "-" : "", Math.abs(index), super.writeToString());
+    return String.format("%s#%s%x", super.writeToString(), this.index < 0 ? "-" : "", Math.abs(index));
   }
   
   @Override
   public void readFromString(String s) {
-    String[] parts = s.split(",", 2);
-    this.index = Integer.parseInt(parts[0], 16);
-    super.readFromString(parts[1]);
+    String[] parts = s.split("#", 2);
+    super.readFromString(parts[0]);
+    if (parts.length == 2) {
+      this.index = Integer.parseInt(parts[1], 16);
+    }
   }
 }
