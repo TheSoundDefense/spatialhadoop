@@ -9,7 +9,6 @@ import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
-import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.TigerShape;
 
 /**
@@ -28,9 +27,7 @@ public class SJInputFormat extends FileInputFormat<LongWritable, TigerShape> {
   public RecordReader<LongWritable, TigerShape> getRecordReader(
       InputSplit split, JobConf job, Reporter reporter) throws IOException {
     // Set grid info in SJMapReduce
-    String gridInfoStr = job.get(SJMapReduce.GRID_INFO);
-    SJMapReduce.gridInfo = new GridInfo();
-    SJMapReduce.gridInfo.readFromString(gridInfoStr);
+    SJMapReduce.cellsInfo = GridOutputFormat.decodeCells(job.get(SJMapReduce.CELLS_INFO));
 
     reporter.setStatus(split.toString());
 

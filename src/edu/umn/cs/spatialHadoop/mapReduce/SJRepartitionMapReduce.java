@@ -24,7 +24,7 @@ import edu.umn.cs.CommandLineArguments;
 public class SJRepartitionMapReduce {
 	public static final Log LOG = LogFactory.getLog(SJRepartitionMapReduce.class);
 
-	public static void spatialJoinRepartition(JobConf conf, Path[] inputFiles, Path outputPath) throws IOException {
+	public static void spatialJoinRepartition(JobConf conf, Path[] inputFiles, Path outputPath, boolean pack) throws IOException {
 	  
     FileSystem outFS = FileSystem.get(conf);
     
@@ -37,7 +37,7 @@ public class SJRepartitionMapReduce {
       if (fileStatus.getGridInfo() == null || !fileStatus.getGridInfo().equals(gridInfo)) {
         LOG.info("Going to repartition "+inputFiles[i]);
         Path repartitioned = new Path(inputFiles[i].toUri().getPath()+".grid");
-        RepartitionMapReduce.repartition(conf, inputFiles[i], repartitioned, gridInfo, false, false, true);
+        RepartitionMapReduce.repartition(conf, inputFiles[i], repartitioned, gridInfo, pack, false, true);
         // Use the repartitioned file instead of original file
         inputFiles[i] = repartitioned;
       }
@@ -61,6 +61,6 @@ public class SJRepartitionMapReduce {
     Path[] inputFiles = cla.getInputPaths();
     Path outputPath = cla.getOutputPath();
     
-    spatialJoinRepartition(conf, inputFiles, outputPath);
+    spatialJoinRepartition(conf, inputFiles, outputPath, cla.isPack());
 	}
 }

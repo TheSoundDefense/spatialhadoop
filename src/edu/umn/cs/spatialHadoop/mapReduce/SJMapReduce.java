@@ -2,7 +2,6 @@ package edu.umn.cs.spatialHadoop.mapReduce;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.List;
 
@@ -23,7 +22,6 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
-import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.TigerShape;
 import org.apache.hadoop.spatial.WriteGridFile;
@@ -40,8 +38,8 @@ import edu.umn.cs.spatialHadoop.TigerShapeWithIndex;
  */
 public class SJMapReduce {
 	public static final Log LOG = LogFactory.getLog(SJMapReduce.class);
-	public static final String GRID_INFO = "edu.umn.cs.spatial.mapReduce.SJMapReduce.GridInfo";
-	public static GridInfo gridInfo;
+	public static final String CELLS_INFO = "edu.umn.cs.spatial.mapReduce.SJMapReduce.CellsInfo";
+	public static CellInfo[] cellsInfo;
 
 	/**
 	 * Maps each rectangle in the input data set to a grid cell
@@ -52,20 +50,6 @@ public class SJMapReduce {
 	implements
 	Mapper<LongWritable, TigerShapeWithIndex, CellInfo, TigerShapeWithIndex> {
 	  
-		private static Hashtable<Integer, CellInfo> cellRectangles = new Hashtable<Integer, CellInfo>();
-
-		private static CellInfo getCellRectangle(GridInfo gridInfo, int cellCol, int cellRow) {
-			int cellNumber = (int)Point.mortonOrder(cellCol, cellRow);
-			CellInfo cellInfo = cellRectangles.get(cellNumber);
-			if (cellInfo == null) {
-				long cellX = cellCol * gridInfo.cellWidth + gridInfo.xOrigin;
-				long cellY = cellRow * gridInfo.cellHeight + gridInfo.yOrigin;
-				cellInfo = new CellInfo(cellX, cellY, gridInfo.cellWidth, gridInfo.cellHeight);
-				cellRectangles.put(cellNumber, cellInfo);
-			}
-			return cellInfo;
-		}
-
 		public void map(
 				LongWritable id,
 				TigerShapeWithIndex shape,
@@ -73,18 +57,11 @@ public class SJMapReduce {
 				Reporter reporter) throws IOException {
 
 			// output the input rectangle to each grid cell it intersects with
-		  Rectangle rectangle = shape.getMBR();
-			int cellCol1 = (int) ((rectangle.getX1() - gridInfo.xOrigin) / gridInfo.cellWidth);
-			int cellRow1 = (int) ((rectangle.getY1() - gridInfo.yOrigin) / gridInfo.cellHeight);
-			int cellCol2 = (int) ((rectangle.getX2() - gridInfo.xOrigin) / gridInfo.cellWidth);
-			int cellRow2 = (int) ((rectangle.getY2() - gridInfo.yOrigin) / gridInfo.cellHeight);
-
-			for (int cellCol = cellCol1; cellCol <= cellCol2; cellCol++) {
-				for (int cellRow = cellRow1; cellRow <= cellRow2; cellRow++) {
-					CellInfo cellInfo = getCellRectangle(gridInfo, cellCol, cellRow);
-					output.collect(cellInfo, shape);
-				}
-			}
+		  for (int cellIndex = 0; cellIndex < cellsInfo.length; cellIndex++) {
+		    if (cellsInfo[cellIndex].isIntersected(shape)) {
+		      output.collect(cellsInfo[cellIndex], shape);
+		    }
+		  }
 		}
 	}
 
@@ -179,8 +156,8 @@ public class SJMapReduce {
 
 	/**
 	 * Entry point to the file.
-	 * Params <grid info> <input filenames> <output filename>
-	 * grid info: in the form xOrigin,yOrigin,gridWidth,gridHeight,cellWidth,cellHeight. No spaces here please.
+	 * Params -pack <grid info> <input filenames> <output filename>
+	 * grid info: in the form grid:xOrigin,yOrigin,gridWidth,gridHeight,cellWidth,cellHeight. No spaces here please.
 	 * input filenames: A list of paths to input files in HDFS
 	 * output filename: A path to an output file in HDFS
 	 * @param args
@@ -196,12 +173,18 @@ public class SJMapReduce {
 		Path outputPath = cla.getOutputPath();
 
 		// Get the HDFS file system
-		FileSystem outFS = FileSystem.get(conf);
+		FileSystem inFS = inputPaths[0].getFileSystem(conf);
+		FileSystem outFS = outputPath.getFileSystem(conf);
 		
-		gridInfo = calculateGridInfo(gridInfo, outFS, inputPaths);
+		gridInfo = calculateGridInfo(gridInfo, inFS, inputPaths);
+		CellInfo[] cellsInfo;
+		if (cla.isPack())
+		  cellsInfo = WriteGridFile.packInRectangles(inFS, inputPaths, outFS, gridInfo);
+		else
+		  cellsInfo = gridInfo.getAllCells();
 
     // Retrieve query rectangle and store it in job info
-    conf.set(GRID_INFO, gridInfo.writeToString());
+    conf.set(CELLS_INFO, GridOutputFormat.encodeCells(cellsInfo));
 
 		conf.setOutputKeyClass(CellInfo.class);
 		conf.setOutputValueClass(TigerShapeWithIndex.class);
