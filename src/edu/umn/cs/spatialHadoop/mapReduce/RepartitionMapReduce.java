@@ -1,22 +1,32 @@
 package edu.umn.cs.spatialHadoop.mapReduce;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Vector;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.MapReduceBase;
 import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
+import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
+import org.apache.hadoop.spatial.RTree;
+import org.apache.hadoop.spatial.RTreeGridRecordWriter;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.TigerShape;
 import org.apache.hadoop.spatial.WriteGridFile;
@@ -50,6 +60,71 @@ public class RepartitionMapReduce {
       }
     }
   }
+  
+  public static class Reduce extends MapReduceBase implements
+  Reducer<CellInfo, TigerShape, CellInfo, Text> {
+    /**Maximum buffer size in bytes*/
+    private static final int BUFFER_LIMIT = 0x100000;
+    
+    /** New line marker */
+    private static final byte[] NEW_LINE = {'\n'};
+
+    @Override
+    public void reduce(CellInfo cellInfo, Iterator<TigerShape> values,
+        OutputCollector<CellInfo, Text> output, Reporter reporter)
+            throws IOException {
+
+      // If writing to a grid file, concatenated in text
+      Text concatenatedText = new Text();
+      while (values.hasNext()) {
+        TigerShape nextShape = values.next();
+        nextShape.toText(concatenatedText);
+        if (concatenatedText.getLength() >= BUFFER_LIMIT || !values.hasNext()) {
+          output.collect(cellInfo, concatenatedText);
+          concatenatedText.clear();
+        } else {
+          concatenatedText.append(NEW_LINE, 0, NEW_LINE.length);
+        }
+      }
+    }
+  }
+  
+  public static class RTreeReduce extends MapReduceBase implements
+  Reducer<CellInfo, TigerShape, CellInfo, BytesWritable> {
+    /**Maximum number of entries per RTree*/
+    private static final int RTREE_LIMIT = 10000;
+
+    @Override
+    public void reduce(CellInfo cellInfo, Iterator<TigerShape> values,
+        OutputCollector<CellInfo, BytesWritable> output, Reporter reporter)
+            throws IOException {
+
+      // Hold values and insert every chunk of RTREE_LIMIT shapes to
+      // a single RTree and write to disk
+      List<Rectangle> keys = new Vector<Rectangle>();
+      List<TigerShape> shapes = new Vector<TigerShape>();
+      while (values.hasNext()) {
+        TigerShape nextShape = (TigerShape) values.next().clone();
+        keys.add(nextShape.getMBR());
+        shapes.add(nextShape);
+        if (keys.size() >= RTREE_LIMIT || !values.hasNext()) {
+          RTree<TigerShape> concatenatedRTree = new RTree<TigerShape>(
+              RTreeGridRecordWriter.RTREE_MAX_ENTRIES,
+              RTreeGridRecordWriter.RTREE_MIN_ENTRIES, 2);
+          concatenatedRTree.bulkLoad(keys, shapes);
+          // Write data in current RTree
+          ByteArrayOutputStream os = new ByteArrayOutputStream();
+          DataOutputStream dos = new DataOutputStream(os);
+          concatenatedRTree.write(dos);
+          dos.close();
+          BytesWritable buffer = new BytesWritable(os.toByteArray());
+          output.collect(cellInfo, buffer);
+          keys.clear();
+          shapes.clear();
+        }
+      }
+    }
+  }
 
   public static void repartition(JobConf conf, Path inputFile, Path outputPath,
       GridInfo gridInfo, boolean pack, boolean rtree, boolean overwrite) throws IOException {
@@ -78,6 +153,7 @@ public class RepartitionMapReduce {
     conf.setOutputValueClass(TigerShape.class);
 
     conf.setMapperClass(Map.class);
+    conf.setReducerClass(rtree ? RTreeReduce.class : Reduce.class);
 
     // Set default parameters for reading input file
     conf.set(TigerShapeRecordReader.TIGER_SHAPE_CLASS, TigerShape.class.getName());

@@ -97,7 +97,7 @@ public class RQMapReduce {
       // Check whether input file is RTree or heap
       FileSystem fileSystem = cla.getInputPath().getFileSystem(conf);
       FSDataInputStream fileIn = fileSystem.open(cla.getInputPath());
-      int fileMarker = fileIn.readInt();
+      long fileMarker = fileIn.readLong();
       if (fileMarker == RTreeGridRecordWriter.RTreeFileMarker) {
         LOG.info("Searching RTree file");
         conf.setMapperClass(RTreeMap.class);

@@ -105,12 +105,14 @@ public class RTreeRecordReader  implements RecordReader<CellInfo, RTree<TigerSha
 
   @Override
   public boolean next(CellInfo key, RTree<TigerShape> value) throws IOException {
-    int marker = fileIn.readInt();
+    long marker = fileIn.readLong();
     if (marker != RTreeGridRecordWriter.RTreeFileMarker) {
       return false;
     }
     long start = this.pos;
+    // Access RTree on disk
     //value.setInputStream(fileIn);
+    // Read the entire RTree in memory
     value.readFields(fileIn);
     this.pos = fileIn.getPos();
     long len = this.pos - start;
