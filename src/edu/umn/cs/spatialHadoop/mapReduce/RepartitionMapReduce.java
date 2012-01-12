@@ -41,7 +41,14 @@ import edu.umn.cs.CommandLineArguments;
 public class RepartitionMapReduce {
   public static final Log LOG = LogFactory.getLog(RepartitionMapReduce.class);
   
-  public static CellInfo[] cellInfos;
+  private static CellInfo[] cellInfos;
+  
+  public static void setCellInfos(CellInfo[] cellInfos) {
+    for (int i = 0; i < cellInfos.length; i++) {
+      LOG.info(String.format("Cell #%03d: %s", i, cellInfos.toString()));
+    }
+    RepartitionMapReduce.cellInfos = cellInfos;
+  }
   
   public static class Map extends MapReduceBase
   implements

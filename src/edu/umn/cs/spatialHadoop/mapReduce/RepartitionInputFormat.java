@@ -8,6 +8,7 @@ import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.TigerShape;
 
 /**
@@ -27,7 +28,7 @@ public class RepartitionInputFormat extends FileInputFormat<LongWritable, TigerS
       JobConf job, Reporter reporter) throws IOException {
 
     String cellsInfoStr = job.get(GridOutputFormat.OUTPUT_CELLS);
-    RepartitionMapReduce.cellInfos = GridOutputFormat.decodeCells(cellsInfoStr);
+    RepartitionMapReduce.setCellInfos(GridOutputFormat.decodeCells(cellsInfoStr));
 
     reporter.setStatus(split.toString());
     return new TigerShapeRecordReader(job, (FileSplit)split);
