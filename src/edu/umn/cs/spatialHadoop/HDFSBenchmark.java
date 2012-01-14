@@ -88,11 +88,12 @@ public class HDFSBenchmark {
       if (readMode.equals("sequential")) {
         t1 = System.currentTimeMillis();
         InputStream is = hdfs.open(path, bufferSize);
-        int readSize;
-        do {
-          readSize = is.read(chunk);
+        for (int i = 0; i < 1000; i++) {
+          int readSize = is.read(chunk);
           totalSize += readSize;
-        } while (readSize > 0);
+          if (readSize == 0)
+            break;
+        };
         is.close();
         t2 = System.currentTimeMillis();
       } else if (readMode.equals("random")) {
