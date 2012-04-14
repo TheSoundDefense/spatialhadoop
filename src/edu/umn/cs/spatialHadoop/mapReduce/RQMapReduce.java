@@ -6,6 +6,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.JobClient;
@@ -35,29 +36,32 @@ public class RQMapReduce {
   public static Shape queryShape;
 
   public static class Map extends MapReduceBase implements
-      Mapper<LongWritable, TigerShape, LongWritable, TigerShape> {
+      Mapper<LongWritable, TigerShape, IntWritable, TigerShape> {
+    
+    private static final IntWritable ONE = new IntWritable(1);
 
     public void map(LongWritable shapeId, TigerShape tigerShape,
-        OutputCollector<LongWritable, TigerShape> output, Reporter reporter)
+        OutputCollector<IntWritable, TigerShape> output, Reporter reporter)
         throws IOException {
       if (queryShape.isIntersected(tigerShape.shape)) {
-        output.collect(shapeId, tigerShape);
+        output.collect(ONE, tigerShape);
       }
     }
   }
 
   public static class RTreeMap extends MapReduceBase implements
-      Mapper<CellInfo, RTree<TigerShape>, LongWritable, TigerShape> {
+      Mapper<CellInfo, RTree<TigerShape>, IntWritable, TigerShape> {
+    private static final IntWritable ONE = new IntWritable(1);
 
     public void map(CellInfo cellInfo, RTree<TigerShape> rtree,
-        final OutputCollector<LongWritable, TigerShape> output, Reporter reporter)
+        final OutputCollector<IntWritable, TigerShape> output, Reporter reporter)
         throws IOException {
       Rectangle querymbr = queryShape.getMBR();
       RTree.ResultCollector<TigerShape> results = new RTree.ResultCollector<TigerShape>() {
         @Override
         public void add(TigerShape tigerShape) {
           try {
-            output.collect(new LongWritable(tigerShape.id), tigerShape);
+            output.collect(ONE, tigerShape);
           } catch (IOException e) {
             e.printStackTrace();
           }
@@ -78,47 +82,47 @@ public class RQMapReduce {
 	 * @param args
 	 * @throws Exception
 	 */
-	public static void main(String[] args) throws Exception {
-      JobConf conf = new JobConf(RQMapReduce.class);
-      conf.setJobName("BasicRangeQuery");
-      
-      CommandLineArguments cla = new CommandLineArguments(args);
-      
-      // Retrieve query rectangle and store it along with the job
-      Rectangle queryRectangle = cla.getRectangle();
-      // Set the rectangle to be used in map job
-      conf.set(QUERY_SHAPE, queryRectangle.writeToString());
-      // Define the subset to be processed of input file
-      conf.set(SplitCalculator.QUERY_RANGE, queryRectangle.writeToString());
+  public static void main(String[] args) throws Exception {
+    JobConf conf = new JobConf(RQMapReduce.class);
+    conf.setJobName("BasicRangeQuery");
 
-      conf.setOutputKeyClass(LongWritable.class);
-      conf.setOutputValueClass(TigerShape.class);
+    CommandLineArguments cla = new CommandLineArguments(args);
 
-      // Check whether input file is RTree or heap
-      FileSystem fileSystem = cla.getInputPath().getFileSystem(conf);
-      FSDataInputStream fileIn = fileSystem.open(cla.getInputPath());
-      long fileMarker = fileIn.readLong();
-      if (fileMarker == RTreeGridRecordWriter.RTreeFileMarker) {
-        LOG.info("Searching RTree file");
-        conf.setMapperClass(RTreeMap.class);
-        conf.setInputFormat(RTreeInputFormat.class);
-      } else {
-        LOG.info("Searching regular file");
-        conf.setMapperClass(Map.class);
-        conf.setInputFormat(RQInputFormat.class);
-      }
-      fileIn.close();
+    // Retrieve query rectangle and store it along with the job
+    Rectangle queryRectangle = cla.getRectangle();
+    // Set the rectangle to be used in map job
+    conf.set(QUERY_SHAPE, queryRectangle.writeToString());
+    // Define the subset to be processed of input file
+    conf.set(SplitCalculator.QUERY_RANGE, queryRectangle.writeToString());
 
-      conf.set(TigerShapeRecordReader.SHAPE_CLASS, Rectangle.class.getName());
-      conf.setOutputFormat(TextOutputFormat.class);
+    conf.setOutputKeyClass(IntWritable.class);
+    conf.setOutputValueClass(TigerShape.class);
 
-      // All files except last one are input files
-      RQInputFormat.setInputPaths(conf, cla.getInputPaths());
-      
-      // Last argument is the output file
-      FileOutputFormat.setOutputPath(conf, cla.getOutputPath());
-
-      // Start the job
-      JobClient.runJob(conf);
+    // Check whether input file is RTree or heap
+    FileSystem fileSystem = cla.getInputPath().getFileSystem(conf);
+    FSDataInputStream fileIn = fileSystem.open(cla.getInputPath());
+    long fileMarker = fileIn.readLong();
+    if (fileMarker == RTreeGridRecordWriter.RTreeFileMarker) {
+      LOG.info("Searching RTree file");
+      conf.setMapperClass(RTreeMap.class);
+      conf.setInputFormat(RTreeInputFormat.class);
+    } else {
+      LOG.info("Searching regular file");
+      conf.setMapperClass(Map.class);
+      conf.setInputFormat(RQInputFormat.class);
     }
+    fileIn.close();
+
+    conf.set(TigerShapeRecordReader.SHAPE_CLASS, Rectangle.class.getName());
+    conf.setOutputFormat(TextOutputFormat.class);
+
+    // All files except last one are input files
+    RQInputFormat.setInputPaths(conf, cla.getInputPaths());
+
+    // Last argument is the output file
+    FileOutputFormat.setOutputPath(conf, cla.getOutputPath());
+
+    // Start the job
+    JobClient.runJob(conf);
+  }
 }
