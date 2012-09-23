@@ -10,8 +10,6 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.Seekable;
-import org.apache.hadoop.io.Writable;
-import org.apache.hadoop.io.WritableFactory;
 import org.apache.hadoop.io.compress.CodecPool;
 import org.apache.hadoop.io.compress.CompressionCodec;
 import org.apache.hadoop.io.compress.CompressionCodecFactory;
@@ -137,22 +135,16 @@ public class RTreeRecordReader  implements RecordReader<CellInfo, RTree<TigerSha
       final Class<Shape> shapeClass = (Class<Shape>)Class.forName(ShapeClassName);
 
       RTree<TigerShape> rtree = new RTree<TigerShape>();
-      rtree.setValueFactory(new WritableFactory() {
-        @Override
-        public Writable newInstance() {
-          try {
-            Shape shape = shapeClass.newInstance();
-            TigerShape tigerShape = tigerShapeClass.newInstance();
-            tigerShape.shape = shape;
-            return tigerShape;
-          } catch (InstantiationException e) {
-            e.printStackTrace();
-          } catch (IllegalAccessException e) {
-            e.printStackTrace();
-          }
-          throw new RuntimeException("Cannot instantiate an object");
-        }
-      });
+      try {
+        Shape shape = shapeClass.newInstance();
+        TigerShape tigerShape = tigerShapeClass.newInstance();
+        tigerShape.shape = shape;
+        rtree.setStockObject(tigerShape);
+      } catch (InstantiationException e) {
+        e.printStackTrace();
+      } catch (IllegalAccessException e) {
+        e.printStackTrace();
+      }
       return rtree;
     } catch (ClassNotFoundException e) {
       e.printStackTrace();

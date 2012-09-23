@@ -3,7 +3,9 @@ package edu.umn.cs.spatialHadoop.mapReduce;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.PrintStream;
 import java.util.Iterator;
+import java.util.Random;
 import java.util.Vector;
 
 import org.apache.commons.logging.Log;
@@ -24,6 +26,8 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Point;
+import org.apache.hadoop.spatial.Rectangle;
+import org.apache.hadoop.spatial.TigerShape;
 
 import edu.umn.cs.CommandLineArguments;
 import edu.umn.cs.spatialHadoop.PointWithK;
@@ -95,6 +99,32 @@ public class KNNMapReduce {
 
   }
 
+  public static void localKnn(JobConf conf, Path inputFile, Path outputFile, PointWithK queryPoint) throws IOException {
+    Random rand = new Random();
+    TigerShapeWithDistance[] knn = new TigerShapeWithDistance[queryPoint.k];
+    FileSystem fs = FileSystem.getLocal(conf);
+    long fileLength = fs.getFileStatus(inputFile).getLen();
+    PrintStream output = new PrintStream(fs.create(outputFile));
+    TigerShapeRecordReader reader = new TigerShapeRecordReader(conf, fs.open(inputFile), 0, fileLength);
+    LongWritable key = reader.createKey();
+    TigerShape value = reader.createValue();
+    while (reader.next(key, value)) {
+      double distance = value.getAvgDistanceTo(queryPoint);
+      int i = queryPoint.k - 1;
+      while (i >= 0 && (knn[i] == null || knn[i].distance > distance)) {
+        i--;
+      }
+      i++;
+      if (i < queryPoint.k) {
+        if (knn[i] != null) {
+          for (int j = queryPoint.k - 1; j > i; j--)
+            knn[j] = knn[j-1];
+        }
+        knn[i] = new TigerShapeWithDistance(value, distance);
+      }
+    }
+    output.close();
+  }
 	
 	/**
 	 * Entry point to the file.
@@ -106,10 +136,18 @@ public class KNNMapReduce {
 	 * @throws Exception
 	 */
 	public static void main(String[] args) throws Exception {
-    JobConf conf = new JobConf(KNNMapReduce.class);
+	  CommandLineArguments cla = new CommandLineArguments(args);
+	  JobConf conf = new JobConf(KNNMapReduce.class);
+	  
+    if (!FileSystem.get(conf).exists(cla.getInputPath()) &&
+        FileSystem.getLocal(conf).exists(cla.getInputPath())) {
+      conf.set(TigerShapeRecordReader.SHAPE_CLASS, Rectangle.class.getName());
+      // Run on a local file. No MapReduce
+      localKnn(conf, cla.getInputPath(), cla.getOutputPath(), cla.getPointWithK());
+     return;
+    }
+
     conf.setJobName("KNN");
-    
-    CommandLineArguments cla = new CommandLineArguments(args);
     
     // Retrieve query point and store it in the job
     TigerShapeWithDistance queryPoint = new TigerShapeWithDistance(0, cla.getPointWithK(), 0.0);
@@ -143,7 +181,7 @@ public class KNNMapReduce {
 
     if (gridInfo == null) {
       // Processing a heap file
-      Path outputPath = new Path(args[args.length - 1]);
+      Path outputPath = cla.getOutputPath();
       FileOutputFormat.setOutputPath(conf, outputPath);
       // Heap file is processed in one pass
       JobClient.runJob(conf);

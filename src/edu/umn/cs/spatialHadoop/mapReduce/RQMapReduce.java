@@ -1,11 +1,14 @@
 package edu.umn.cs.spatialHadoop.mapReduce;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapred.FileOutputFormat;
@@ -68,9 +71,24 @@ public class RQMapReduce {
         }
       };
       long t1 = System.currentTimeMillis();
-      int numResults = rtree.search(new long[] {querymbr.x, querymbr.y}, new long[] {querymbr.width, querymbr.height}, results);
-      LOG.info("RTree disk search elapsed: "+(System.currentTimeMillis() - t1)+" millis to find "+numResults+" results");
+      int numResults = rtree.search(querymbr, results);
     }
+  }
+  
+  public static void localRQ(JobConf conf, Path inputFile, Path outputFile, Rectangle query) throws IOException {
+    FileSystem fs = FileSystem.getLocal(conf);
+    long fileLength = fs.getFileStatus(inputFile).getLen();
+    PrintStream output = new PrintStream(fs.create(outputFile));
+    TigerShapeRecordReader reader = new TigerShapeRecordReader(conf, fs.open(inputFile), 0, fileLength);
+    LongWritable key = reader.createKey();
+    TigerShape value = reader.createValue();
+    while (reader.next(key, value)) {
+      if (value.isIntersected(query))
+      {
+        output.println(key+","+value);
+      }
+    }
+    output.close();
   }
 
 	/**
@@ -83,10 +101,19 @@ public class RQMapReduce {
 	 * @throws Exception
 	 */
   public static void main(String[] args) throws Exception {
-    JobConf conf = new JobConf(RQMapReduce.class);
-    conf.setJobName("BasicRangeQuery");
-
     CommandLineArguments cla = new CommandLineArguments(args);
+    JobConf conf = new JobConf(RQMapReduce.class);
+
+    if (!FileSystem.get(conf).exists(cla.getInputPath()) &&
+        FileSystem.getLocal(conf).exists(cla.getInputPath())) {
+      conf.set(TigerShapeRecordReader.SHAPE_CLASS, Rectangle.class.getName());
+      // Run on a local file. No MapReduce
+      localRQ(conf, cla.getInputPath(), cla.getOutputPath(), cla.getRectangle());
+     return;
+    }
+    System.out.println("mapreduce.tasktracker.map.tasks.maximum: "+conf.get("mapreduce.tasktracker.map.tasks.maximum"));
+
+    conf.setJobName("BasicRangeQuery");
 
     // Retrieve query rectangle and store it along with the job
     Rectangle queryRectangle = cla.getRectangle();

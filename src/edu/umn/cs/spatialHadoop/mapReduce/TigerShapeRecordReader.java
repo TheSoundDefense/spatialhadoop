@@ -1,5 +1,6 @@
 package edu.umn.cs.spatialHadoop.mapReduce;
 import java.io.IOException;
+import java.io.InputStream;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -35,8 +36,18 @@ public class TigerShapeRecordReader implements RecordReader<LongWritable, TigerS
 
   public TigerShapeRecordReader(Configuration job, FileSplit split)
       throws IOException {
+    LOG.info("Start parsing split: "+split);
+    Thread.dumpStack();
     lineRecordReader = new LineRecordReader(job, split);
     TigerShapeClassName = job.get(TIGER_SHAPE_CLASS, TigerShape.class.getName());
+    ShapeClassName = job.get(SHAPE_CLASS, Point.class.getName());
+  }
+  
+  public TigerShapeRecordReader(Configuration job, InputStream in, long offset,
+      long endOffset) {
+    lineRecordReader = new LineRecordReader(in, offset, endOffset, 8192);
+    TigerShapeClassName = job
+        .get(TIGER_SHAPE_CLASS, TigerShape.class.getName());
     ShapeClassName = job.get(SHAPE_CLASS, Point.class.getName());
   }
 
@@ -64,6 +75,7 @@ public class TigerShapeRecordReader implements RecordReader<LongWritable, TigerS
 	public boolean next(LongWritable key, TigerShape value) throws IOException {
 	  if (!lineRecordReader.next(key, subValue) || subValue.getLength() < 4) {
 	    // Stop on wrapped reader EOF or a very short line which indicates EOF too
+	    LOG.info("Finished parsing of split");
 	    return false;
 	  }
 	  // Convert to a regular string to be able to use split

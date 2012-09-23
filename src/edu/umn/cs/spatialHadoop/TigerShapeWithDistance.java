@@ -8,6 +8,7 @@ import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.TigerShape;
 
 public class TigerShapeWithDistance extends TigerShape {
+  
   // Distance is used for internal processing and should not be serialized to string to
   // be able to parse normal files
   public double distance;

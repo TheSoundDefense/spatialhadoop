@@ -295,6 +295,7 @@ public class HDFSBenchmark {
     System.out.println(" --sequential read the whole file sequentially");
     System.out.println(" --randomRead <chunk size> read random parts of the file");
     System.out.println(" --append <chunk size> for write");
+    System.out.println(" --totalSize <total file size> for write");
     System.out.println(" --local use local file system");
     System.out.println(" --hdfs --remote use remote or (HDFS) file system (both are equivalent)");
     System.out.println(" --shape <shape name> to process");

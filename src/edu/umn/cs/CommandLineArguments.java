@@ -1,5 +1,7 @@
 package edu.umn.cs;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.Vector;
 
 import org.apache.hadoop.fs.Path;
@@ -9,6 +11,7 @@ import org.apache.hadoop.spatial.Rectangle;
 import edu.umn.cs.spatialHadoop.PointWithK;
 
 public class CommandLineArguments {
+  private String[] args;
   private String[] inputFilenames;
   private String[] outputFilenames;
   private GridInfo gridInfo;
@@ -18,11 +21,28 @@ public class CommandLineArguments {
   private boolean pack;
   private boolean overwrite;
   
+  private static Set<String> Keys;
+  private static Set<String> Options;
+  
+  static {
+    Keys = new HashSet<String>();
+    Keys.add("grid"); Keys.add("g");
+    Keys.add("rectangle"); Keys.add("rect");
+    Keys.add("point"); Keys.add("pt");
+    Keys.add("size");
+    
+    Options = new HashSet<String>();
+    Options.add("-rtree");
+    Options.add("-pack");
+    Options.add("-overwrite");
+  }
+  
   public Rectangle getRectangle() {
     return rectangle;
   }
 
   public CommandLineArguments(String[] args) {
+    this.args = args;
     rtree = false;
     pack = false;
     Vector<String> paths = new Vector<String>();
@@ -115,5 +135,30 @@ public class CommandLineArguments {
   
   public boolean isOverwrite() {
     return overwrite;
+  }
+  
+  public String getFilename() {
+    for (String arg : args) {
+      String possibleKey = arg.split(":", 2)[0];
+      if (!Keys.contains(possibleKey) && !Options.contains(arg)) {
+        // Everything left over is a file
+        return arg;
+      }
+    }
+    return null;
+  }
+  
+  public Path getFilePath() {
+    String filename = getFilename();
+    return filename == null ? null : new Path(filename);
+  }
+
+  public long getSize() {
+    for (String arg : args) {
+      if (arg.startsWith("size:")) {
+        return Long.parseLong(arg.split(":")[1]);
+      }
+    }
+    return 0;
   }
 }

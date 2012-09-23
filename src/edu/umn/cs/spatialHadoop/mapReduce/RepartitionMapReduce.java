@@ -26,7 +26,6 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.RTree;
-import org.apache.hadoop.spatial.RTreeGridRecordWriter;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.TigerShape;
 import org.apache.hadoop.spatial.WriteGridFile;
@@ -70,28 +69,17 @@ public class RepartitionMapReduce {
   
   public static class Reduce extends MapReduceBase implements
   Reducer<CellInfo, TigerShape, CellInfo, Text> {
-    /**Maximum buffer size in bytes*/
-    private static final int BUFFER_LIMIT = 0x100000;
-    
-    /** New line marker */
-    private static final byte[] NEW_LINE = {'\n'};
-
     @Override
     public void reduce(CellInfo cellInfo, Iterator<TigerShape> values,
         OutputCollector<CellInfo, Text> output, Reporter reporter)
             throws IOException {
 
       // If writing to a grid file, concatenated in text
-      Text concatenatedText = new Text();
+      Text text = new Text();
       while (values.hasNext()) {
-        TigerShape nextShape = values.next();
-        nextShape.toText(concatenatedText);
-        if (concatenatedText.getLength() >= BUFFER_LIMIT || !values.hasNext()) {
-          output.collect(cellInfo, concatenatedText);
-          concatenatedText.clear();
-        } else {
-          concatenatedText.append(NEW_LINE, 0, NEW_LINE.length);
-        }
+        text.clear();
+        values.next().toText(text);
+        output.collect(cellInfo, text);
       }
     }
   }
@@ -108,17 +96,14 @@ public class RepartitionMapReduce {
 
       // Hold values and insert every chunk of RTREE_LIMIT shapes to
       // a single RTree and write to disk
-      List<Rectangle> keys = new Vector<Rectangle>();
       List<TigerShape> shapes = new Vector<TigerShape>();
       while (values.hasNext()) {
         TigerShape nextShape = (TigerShape) values.next().clone();
-        keys.add(nextShape.getMBR());
         shapes.add(nextShape);
-        if (keys.size() >= RTREE_LIMIT || !values.hasNext()) {
-          RTree<TigerShape> concatenatedRTree = new RTree<TigerShape>(
-              RTreeGridRecordWriter.RTREE_MAX_ENTRIES,
-              RTreeGridRecordWriter.RTREE_MIN_ENTRIES, 2);
-          concatenatedRTree.bulkLoad(keys, shapes);
+        if (shapes.size() >= RTREE_LIMIT || !values.hasNext()) {
+          RTree<TigerShape> concatenatedRTree = new RTree<TigerShape>();
+          concatenatedRTree.bulkLoad(
+              shapes.toArray(new TigerShape[shapes.size()]), RTREE_LIMIT);
           // Write data in current RTree
           ByteArrayOutputStream os = new ByteArrayOutputStream();
           DataOutputStream dos = new DataOutputStream(os);
@@ -126,7 +111,6 @@ public class RepartitionMapReduce {
           dos.close();
           BytesWritable buffer = new BytesWritable(os.toByteArray());
           output.collect(cellInfo, buffer);
-          keys.clear();
           shapes.clear();
         }
       }
@@ -149,7 +133,7 @@ public class RepartitionMapReduce {
           gridInfo.getAllCells();
 
     // Overwrite output file
-    if (inFileSystem.exists(outputPath)) {
+    if (inFileSystem.exists(outputPath) && overwrite) {
       // remove the file first
       inFileSystem.delete(outputPath, true);
     }

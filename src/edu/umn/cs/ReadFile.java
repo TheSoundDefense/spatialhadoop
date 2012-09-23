@@ -2,25 +2,22 @@ package edu.umn.cs;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
-import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.spatial.GridInfo;
 
 public class ReadFile {
 
   public static void main(String[] args) throws Exception {
     Configuration conf = new Configuration();
+    Path inFile = new Path(args[0]);
+    FileSystem fs = inFile.getFileSystem(conf);
     
-    // Get input file information (Grid information)
-    Path inputFile = new Path(args[0]);
-    FileStatus fileStatus = inputFile.getFileSystem(conf).getFileStatus(inputFile);
+    long length = fs.getFileStatus(inFile).getLen();
     
-    // Determine which blocks are needed
-    GridInfo gridInfo = fileStatus.getGridInfo();
-    System.out.println(gridInfo);
-    
-    for (BlockLocation blockLocation : inputFile.getFileSystem(conf).getFileBlockLocations(fileStatus, 0, fileStatus.getLen())) {
-      System.out.println(blockLocation.getCellInfo());
+    BlockLocation[] fileBlockLocations = fs.getFileBlockLocations(inFile, 0, length);
+    for (BlockLocation blk : fileBlockLocations) {
+      System.out.println(blk);
+      System.out.println(blk.getCellInfo());
     }
   }
 }

@@ -53,8 +53,7 @@ public class GridOutputFormat extends FileOutputFormat<CellInfo, Text> {
     String[] parts = encodedCells.split(";");
     CellInfo[] cellsInfo = new CellInfo[parts.length];
     for (int i = 0; i < parts.length; i++) {
-      cellsInfo[i] = new CellInfo();
-      cellsInfo[i].readFromString(parts[i]);
+      cellsInfo[i] = new CellInfo(parts[i]);
     }
     return cellsInfo;
   }
