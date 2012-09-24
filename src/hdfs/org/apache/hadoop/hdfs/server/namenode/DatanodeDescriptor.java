@@ -397,8 +397,8 @@ public class DatanodeDescriptor extends DatanodeInfo {
     Block iblk = new Block(); // a fixed new'ed block to be reused with index i
     Block oblk = new Block(); // for fixing genstamps
     for (int i = 0; i < newReport.getNumberOfBlocks(); ++i) {
-      iblk.set(newReport.getBlockId(i), newReport.getBlockLen(i), 
-               newReport.getBlockGenStamp(i));
+      iblk.set(newReport.getBlockId(i), newReport.getBlockLen(i),
+               newReport.getBlockGenStamp(i), newReport.getCellInfo(i));
       BlockInfo storedBlock = blocksMap.getStoredBlock(iblk);
       if(storedBlock == null) {
         // if the block with a WILDCARD generation stamp matches 
@@ -406,7 +406,7 @@ public class DatanodeDescriptor extends DatanodeInfo {
         // This block has a diferent generation stamp on the datanode 
         // because of a lease-recovery-attempt.
         oblk.set(newReport.getBlockId(i), newReport.getBlockLen(i),
-                 GenerationStamp.WILDCARD_STAMP);
+                 GenerationStamp.WILDCARD_STAMP, newReport.getCellInfo(i));
         storedBlock = blocksMap.getStoredBlock(oblk);
         if (storedBlock != null && storedBlock.getINode() != null &&
             (storedBlock.getGenerationStamp() <= iblk.getGenerationStamp() ||

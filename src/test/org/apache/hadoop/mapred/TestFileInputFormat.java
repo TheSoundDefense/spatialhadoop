@@ -89,7 +89,7 @@ public class TestFileInputFormat extends TestCase {
   throws IOException {
     // create a multi-block file on hdfs
     DataOutputStream out = fs.create(new Path(inDir, fileName), true, 4096, 
-                                     (short) 2, 512, null);
+                                     (short) 2, 512, null, null);
     for(int i=0; i < 1000; ++i) {
       out.writeChars("Hello\n");
     }

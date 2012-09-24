@@ -88,6 +88,7 @@ import org.apache.hadoop.security.authorize.RefreshAuthorizationPolicyProtocol;
 import org.apache.hadoop.security.authorize.ServiceAuthorizationManager;
 import org.apache.hadoop.security.token.SecretManager.InvalidToken;
 import org.apache.hadoop.security.token.Token;
+import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.util.StringUtils;
 
 /**********************************************************
@@ -604,9 +605,33 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
                              short replication,
                              long blockSize
                              ) throws IOException {
-    create(src,masked,clientName,overwrite,true,replication,blockSize);
+    create(src, masked, clientName, overwrite, replication, blockSize, null);
+  }
+  
+  @Deprecated
+  public void create(String src, 
+                     FsPermission masked,
+                             String clientName, 
+                             boolean overwrite,
+                             short replication,
+                             long blockSize,
+                             CellInfo cellInfo
+                             ) throws IOException {
+    create(src,masked,clientName,overwrite,true,replication,blockSize, cellInfo);
   }
 
+  public void create(String src, 
+      FsPermission masked,
+              String clientName, 
+              boolean overwrite,
+              boolean createParent,
+              short replication,
+              long blockSize
+              ) throws IOException {
+    create(src, masked, clientName, overwrite, createParent, replication,
+        blockSize, null);
+  }
+  
   /** {@inheritDoc} */
   public void create(String src, 
                      FsPermission masked,
@@ -614,7 +639,8 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
                              boolean overwrite,
                              boolean createParent,
                              short replication,
-                             long blockSize
+                             long blockSize,
+                             CellInfo cellInfo
                              ) throws IOException {
     String clientMachine = getClientMachine();
     if (stateChangeLog.isDebugEnabled()) {
@@ -675,11 +701,12 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
    */
   public LocatedBlock addBlock(String src, 
                                String clientName) throws IOException {
-    return addBlock(src, clientName, null);
+    return addBlock(src, clientName, null, null);
   }
 
   public LocatedBlock addBlock(String src,
                                String clientName,
+                               CellInfo cellInfo,
                                DatanodeInfo[] excludedNodes)
     throws IOException {
 
@@ -694,7 +721,7 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
     stateChangeLog.debug("*BLOCK* NameNode.addBlock: file "
                          +src+" for "+clientName);
     LocatedBlock locatedBlock = namesystem.getAdditionalBlock(
-      src, clientName, excludedNodeList);
+      src, clientName, cellInfo, excludedNodeList);
     if (locatedBlock != null)
       myMetrics.incrNumAddBlockOps();
     return locatedBlock;

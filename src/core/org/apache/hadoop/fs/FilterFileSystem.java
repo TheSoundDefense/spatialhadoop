@@ -25,6 +25,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.util.Progressable;
+import org.apache.hadoop.spatial.CellInfo;
+import org.apache.hadoop.spatial.GridInfo;
 
 /****************************************************************
  * A <code>FilterFileSystem</code> contains
@@ -118,9 +120,10 @@ public class FilterFileSystem extends FileSystem {
   @Override
   public FSDataOutputStream create(Path f, FsPermission permission,
       boolean overwrite, int bufferSize, short replication, long blockSize,
+      CellInfo cellInfo,
       Progressable progress) throws IOException {
     return fs.create(f, permission,
-        overwrite, bufferSize, replication, blockSize, progress);
+        overwrite, bufferSize, replication, blockSize, cellInfo, progress);
   }
 
   /**

@@ -45,6 +45,7 @@ import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.SecretManager.InvalidToken;
 import org.apache.hadoop.security.token.TokenRenewer;
+import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.util.*;
 
 import org.apache.commons.logging.*;
@@ -680,6 +681,18 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         replication, blockSize, progress, buffersize);
   }
 
+  public OutputStream create(String src, 
+      FsPermission permission,
+      boolean overwrite, 
+      boolean createParent,
+      short replication,
+      long blockSize,
+      Progressable progress,
+      int buffersize
+      ) throws IOException {
+    return create(src, permission, overwrite, createParent, replication,
+        blockSize, null, progress, buffersize);
+  }
   /**
    * Create a new dfs file with the specified block replication 
    * with write-progress reporting and return an output stream for writing
@@ -701,6 +714,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
                              boolean createParent,
                              short replication,
                              long blockSize,
+                             CellInfo cellInfo,
                              Progressable progress,
                              int buffersize
                              ) throws IOException {
@@ -711,7 +725,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     FsPermission masked = permission.applyUMask(FsPermission.getUMask(conf));
     LOG.debug(src + ": masked=" + masked);
     OutputStream result = new DFSOutputStream(src, masked,
-        overwrite, createParent, replication, blockSize, progress, buffersize,
+        overwrite, createParent, replication, blockSize, cellInfo, progress, buffersize,
         conf.getInt("io.bytes.per.checksum", 512));
     leasechecker.put(src, result);
     return result;
@@ -2624,6 +2638,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     private long initialFileSize = 0; // at time of file open
     private Progressable progress;
     private short blockReplication; // replication factor of file
+    private CellInfo nextCellInfo;
 
     Token<BlockTokenIdentifier> getAccessToken() {
       return accessToken;
@@ -3188,6 +3203,14 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       response.start();
       return false; // do not sleep, continue processing
     }
+    
+    /**
+     * Set the grid cell of the next block.
+     * Cell for next block should be assigned before block is created.
+     */
+    public void setNextBlockCell(CellInfo cellInfo) {
+      this.nextCellInfo = (CellInfo) cellInfo.clone();
+    }
 
     private void isClosed() throws IOException {
       if (closed && lastException != null) {
@@ -3233,12 +3256,18 @@ public class DFSClient implements FSConstants, java.io.Closeable {
                                               bytesPerChecksum);
     }
 
+    DFSOutputStream(String src, FsPermission masked, boolean overwrite,
+        boolean createParent, short replication, long blockSize, Progressable progress,
+        int buffersize, int bytesPerChecksum) throws IOException {
+      this(src, masked, overwrite, createParent, replication, blockSize, null,
+          progress, buffersize, bytesPerChecksum);
+    }
     /**
      * Create a new output stream to the given DataNode.
      * @see ClientProtocol#create(String, FsPermission, String, boolean, short, long)
      */
     DFSOutputStream(String src, FsPermission masked, boolean overwrite,
-        boolean createParent, short replication, long blockSize, Progressable progress,
+        boolean createParent, short replication, long blockSize, CellInfo cellInfo, Progressable progress,
         int buffersize, int bytesPerChecksum) throws IOException {
       this(src, blockSize, progress, bytesPerChecksum, replication);
 
@@ -3507,7 +3536,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         while (true) {
           try {
             if (serverSupportsHdfs630) {
-              return namenode.addBlock(src, clientName, excludedNodes);
+              return namenode.addBlock(src, clientName, nextCellInfo, excludedNodes);
             } else {
               return namenode.addBlock(src, clientName);
             }

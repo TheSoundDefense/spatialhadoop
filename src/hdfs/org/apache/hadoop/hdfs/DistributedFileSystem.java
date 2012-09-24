@@ -41,6 +41,7 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.SecretManager.InvalidToken;
+import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.util.Progressable;
 
 
@@ -176,13 +177,17 @@ public class DistributedFileSystem extends FileSystem {
   public FSDataOutputStream create(Path f, FsPermission permission,
     boolean overwrite,
     int bufferSize, short replication, long blockSize,
+    CellInfo cellInfo,
     Progressable progress) throws IOException {
 
     statistics.incrementWriteOps(1);
-    return new FSDataOutputStream
+    FSDataOutputStream fsdos = new FSDataOutputStream
        (dfs.create(getPathName(f), permission,
-                   overwrite, true, replication, blockSize, progress, bufferSize),
+                   overwrite, true, replication, blockSize, cellInfo, progress, bufferSize),
         statistics);
+    if (cellInfo != null)
+      ((DFSOutputStream)fsdos.getWrappedStream()).setNextBlockCell(cellInfo);
+    return fsdos;
   }
 
   /**
@@ -193,11 +198,11 @@ public class DistributedFileSystem extends FileSystem {
   public FSDataOutputStream createNonRecursive(Path f, FsPermission permission,
       boolean overwrite,
       int bufferSize, short replication, long blockSize, 
-      Progressable progress) throws IOException {
+      CellInfo cellInfo, Progressable progress) throws IOException {
 
     return new FSDataOutputStream
         (dfs.create(getPathName(f), permission, 
-                    overwrite, false, replication, blockSize, progress, bufferSize), 
+                    overwrite, false, replication, blockSize, cellInfo, progress, bufferSize), 
          statistics);
   }
 
@@ -250,7 +255,7 @@ public class DistributedFileSystem extends FileSystem {
   
   private FileStatus makeQualified(HdfsFileStatus f, Path parent) {
     return new FileStatus(f.getLen(), f.isDir(), f.getReplication(),
-        f.getBlockSize(), f.getModificationTime(),
+        f.getBlockSize(), f.getGridInfo(), f.getModificationTime(),
         f.getAccessTime(),
         f.getPermission(), f.getOwner(), f.getGroup(),
         f.getFullPath(parent).makeQualified(this)); // fully-qualify path

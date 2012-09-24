@@ -93,8 +93,8 @@ public class TestKosmosFileSystem extends TestCase {
 
         kosmosFileSystem.mkdirs(subDir1);
 
-        FSDataOutputStream s1 = kosmosFileSystem.create(file1, true, 4096, (short) 1, (long) 4096, null);
-        FSDataOutputStream s2 = kosmosFileSystem.create(file2, true, 4096, (short) 1, (long) 4096, null);
+        FSDataOutputStream s1 = kosmosFileSystem.create(file1, true, 4096, (short) 1, (long) 4096, null, null);
+        FSDataOutputStream s2 = kosmosFileSystem.create(file2, true, 4096, (short) 1, (long) 4096, null, null);
 
         s1.close();
         s2.close();
@@ -126,7 +126,7 @@ public class TestKosmosFileSystem extends TestCase {
 
         kosmosFileSystem.mkdirs(subDir1);
 
-        FSDataOutputStream s1 = kosmosFileSystem.create(file1, true, 4096, (short) 1, (long) 4096, null);
+        FSDataOutputStream s1 = kosmosFileSystem.create(file1, true, 4096, (short) 1, (long) 4096, null, null);
 
         int bufsz = 4096;
         byte[] data = new byte[bufsz];

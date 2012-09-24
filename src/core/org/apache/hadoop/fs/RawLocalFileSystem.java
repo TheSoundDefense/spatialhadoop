@@ -26,6 +26,7 @@ import java.util.*;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.permission.*;
 import org.apache.hadoop.io.nativeio.NativeIO;
+import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.util.Progressable;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.Shell;
@@ -260,9 +261,10 @@ public class RawLocalFileSystem extends FileSystem {
   @Override
   public FSDataOutputStream create(Path f, FsPermission permission,
       boolean overwrite, int bufferSize, short replication, long blockSize,
+      CellInfo cellInfo,
       Progressable progress) throws IOException {
     FSDataOutputStream out = create(f,
-        overwrite, bufferSize, replication, blockSize, progress);
+        overwrite, bufferSize, replication, blockSize, cellInfo, progress);
     setPermission(f, permission);
     return out;
   }

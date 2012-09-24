@@ -24,6 +24,7 @@ import java.io.IOException;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
+import org.apache.hadoop.spatial.GridInfo;
 
 /** Interface that represents the client side information for a file.
  */
@@ -34,6 +35,7 @@ public class FileStatus implements Writable, Comparable {
   private boolean isdir;
   private short block_replication;
   private long blocksize;
+  private GridInfo gridInfo;
   private long modification_time;
   private long access_time;
   private FsPermission permission;
@@ -50,14 +52,37 @@ public class FileStatus implements Writable, Comparable {
          0, null, null, null, path);
   }
   
+  /**
+   * Similar to previous one but we add GridInfo.
+   * @param length
+   * @param isdir
+   * @param block_replication
+   * @param blocksize
+   * @param modification_time
+   * @param access_time
+   * @param permission
+   * @param owner
+   * @param group
+   * @param path
+   */
   public FileStatus(long length, boolean isdir, int block_replication,
-                    long blocksize, long modification_time, long access_time,
+      long blocksize, long modification_time, long access_time,
+      FsPermission permission, String owner, String group, 
+      Path path) {
+    this(length, isdir, block_replication, blocksize, null,
+        modification_time, access_time, permission, owner, group, path);
+  }
+
+  public FileStatus(long length, boolean isdir, int block_replication,
+                    long blocksize, GridInfo gridInfo,
+                    long modification_time, long access_time,
                     FsPermission permission, String owner, String group, 
                     Path path) {
     this.length = length;
     this.isdir = isdir;
     this.block_replication = (short)block_replication;
     this.blocksize = blocksize;
+    this.gridInfo = gridInfo;
     this.modification_time = modification_time;
     this.access_time = access_time;
     this.permission = (permission == null) ? 
@@ -186,6 +211,12 @@ public class FileStatus implements Writable, Comparable {
     out.writeBoolean(isdir);
     out.writeShort(block_replication);
     out.writeLong(blocksize);
+    if (gridInfo == null) {
+      out.writeBoolean(false);
+    } else {
+      out.writeBoolean(true);
+      gridInfo.write(out);
+    }
     out.writeLong(modification_time);
     out.writeLong(access_time);
     permission.write(out);
@@ -200,6 +231,12 @@ public class FileStatus implements Writable, Comparable {
     this.isdir = in.readBoolean();
     this.block_replication = in.readShort();
     blocksize = in.readLong();
+    if (in.readBoolean()) {
+      gridInfo = new GridInfo();
+      gridInfo.readFields(in);
+    } else {
+      gridInfo = null;
+    }
     modification_time = in.readLong();
     access_time = in.readLong();
     permission.readFields(in);
@@ -248,5 +285,9 @@ public class FileStatus implements Writable, Comparable {
    */
   public int hashCode() {
     return getPath().hashCode();
+  }
+   
+  public GridInfo getGridInfo() {
+    return gridInfo;
   }
 }

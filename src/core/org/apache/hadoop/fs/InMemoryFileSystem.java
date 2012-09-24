@@ -26,6 +26,7 @@ import java.util.*;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.io.DataInputBuffer;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.util.Progressable;
 
 /** An implementation of the in-memory filesystem. This implementation assumes
@@ -187,7 +188,8 @@ public class InMemoryFileSystem extends ChecksumFileSystem {
      */
     public FSDataOutputStream create(Path f, FsPermission permission,
                                      boolean overwrite, int bufferSize,
-                                     short replication, long blockSize, Progressable progress)
+                                     short replication, long blockSize,
+                                     CellInfo cellInfo, Progressable progress)
       throws IOException {
       synchronized (this) {
         if (exists(f) && !overwrite) {

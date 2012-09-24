@@ -20,6 +20,7 @@ package org.apache.hadoop.fs;
 import org.apache.hadoop.io.*;
 
 import java.io.*;
+import org.apache.hadoop.spatial.CellInfo;
 
 /*
  * A BlockLocation lists hosts, offset and length
@@ -41,6 +42,7 @@ public class BlockLocation implements Writable {
   private String[] topologyPaths; // full path name in network topology
   private long offset;  //offset of the of the block in the file
   private long length;
+  private CellInfo cellInfo; // Location of grid cell associated with this block
 
   /**
    * Default Constructor
@@ -54,6 +56,11 @@ public class BlockLocation implements Writable {
    */
   public BlockLocation(String[] names, String[] hosts, long offset, 
                        long length) {
+    this(names, hosts, offset, length, null);
+  }
+
+  public BlockLocation(String[] names, String[] hosts, long offset,
+      long length, CellInfo cellInfo) {
     if (names == null) {
       this.names = new String[0];
     } else {
@@ -67,6 +74,7 @@ public class BlockLocation implements Writable {
     this.offset = offset;
     this.length = length;
     this.topologyPaths = new String[0];
+    this.setCellInfo(cellInfo);
   }
 
   /**
@@ -74,7 +82,12 @@ public class BlockLocation implements Writable {
    */
   public BlockLocation(String[] names, String[] hosts, String[] topologyPaths,
                        long offset, long length) {
-    this(names, hosts, offset, length);
+    this(names, hosts, topologyPaths, offset, length, null);
+  }
+
+  public BlockLocation(String[] names, String[] hosts, String[] topologyPaths,
+      long offset, long length, CellInfo cellInfo) {
+    this(names, hosts, offset, length, cellInfo);
     if (topologyPaths == null) {
       this.topologyPaths = new String[0];
     } else {
@@ -183,6 +196,13 @@ public class BlockLocation implements Writable {
   public void write(DataOutput out) throws IOException {
     out.writeLong(offset);
     out.writeLong(length);
+    // Write cell info
+    if (cellInfo == null) {
+      out.writeBoolean(false);
+    } else {
+      out.writeBoolean(true);
+      cellInfo.write(out);
+    }
     out.writeInt(names.length);
     for (int i=0; i < names.length; i++) {
       Text name = new Text(names[i]);
@@ -206,6 +226,15 @@ public class BlockLocation implements Writable {
   public void readFields(DataInput in) throws IOException {
     this.offset = in.readLong();
     this.length = in.readLong();
+    // Read cell info
+    if (in.readBoolean()) {
+      if (this.cellInfo == null)
+        this.cellInfo = new CellInfo(in);
+      else
+        this.cellInfo.readFields(in);
+    } else {
+      this.cellInfo = null;
+    }
     int numNames = in.readInt();
     this.names = new String[numNames];
     for (int i = 0; i < numNames; i++) {
@@ -237,5 +266,13 @@ public class BlockLocation implements Writable {
       result.append(h);
     }
     return result.toString();
+  }
+
+  public void setCellInfo(CellInfo cellInfo) {
+    this.cellInfo = cellInfo;
+  }
+
+  public CellInfo getCellInfo() {
+    return cellInfo;
   }
 }

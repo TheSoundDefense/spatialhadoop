@@ -31,6 +31,7 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.security.KerberosInfo;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenInfo;
+import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenSelector;
 
@@ -83,6 +84,15 @@ public interface ClientProtocol extends VersionedProtocol {
                                           long offset,
                                           long length) throws IOException;
 
+  public void create(String src, 
+      FsPermission masked,
+              String clientName, 
+              boolean overwrite, 
+              boolean createParent,
+              short replication,
+              long blockSize
+              ) throws IOException;
+  
   /**
    * Create a new file entry in the namespace.
    * <p>
@@ -120,7 +130,8 @@ public interface ClientProtocol extends VersionedProtocol {
                              boolean overwrite, 
                              boolean createParent,
                              short replication,
-                             long blockSize
+                             long blockSize,
+                             CellInfo cellInfo
                              ) throws IOException;
 
   /**
@@ -134,6 +145,17 @@ public interface ClientProtocol extends VersionedProtocol {
                              short replication,
                              long blockSize
                              ) throws IOException;
+  
+  public void create(String src, 
+                    FsPermission masked,
+                            String clientName, 
+                            boolean overwrite, 
+                            short replication,
+                            long blockSize,
+                            CellInfo cellInfo
+                            ) throws IOException;
+
+  
   /**
    * Append to the end of the file. 
    * @param src path of the file being created.
@@ -228,6 +250,7 @@ public interface ClientProtocol extends VersionedProtocol {
    * @return LocatedBlock allocated block information.
    */
   public LocatedBlock addBlock(String src, String clientName,
+                               CellInfo cellInfo,
                                DatanodeInfo[] excludedNodes) throws IOException;
 
   /**

@@ -44,6 +44,7 @@ import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
+import org.apache.hadoop.spatial.CellInfo;
 
 /****************************************************************
  * An abstract base class for a fairly generic filesystem.  It
@@ -436,6 +437,19 @@ public abstract class FileSystem extends Configured implements Closeable {
   }
 
   /**
+    * Opens an FSDataOutputStream to a spatial file where blocks are assigned
+    * to the given CellInfo
+    * Files are overwritten by default.
+    */
+   public FSDataOutputStream create(Path f, CellInfo cellInfo)
+       throws IOException {
+     return create(f, FsPermission.getDefault(), true,
+         getConf().getInt("io.file.buffer.size", 4096), getDefaultReplication(),
+         getDefaultBlockSize(), cellInfo,
+         (Progressable) null);
+   }
+   
+   /**
    * Opens an FSDataOutputStream at the indicated Path.
    */
   public FSDataOutputStream create(Path f, boolean overwrite)
@@ -447,6 +461,18 @@ public abstract class FileSystem extends Configured implements Closeable {
   }
 
   /**
+    * Opens an FSDataOutputStream to a spatial file at the indicated Path.
+    */
+   public FSDataOutputStream create(Path f, boolean overwrite, CellInfo cellInfo)
+     throws IOException {
+     return create(f, overwrite, 
+                   getConf().getInt("io.file.buffer.size", 4096),
+                   getDefaultReplication(),
+                   getDefaultBlockSize(),
+                   cellInfo);
+   }
+ 
+   /**
    * Create an FSDataOutputStream at the indicated Path with write-progress
    * reporting.
    * Files are overwritten by default.
@@ -533,10 +559,52 @@ public abstract class FileSystem extends Configured implements Closeable {
                                    short replication,
                                    long blockSize
                                    ) throws IOException {
-    return create(f, overwrite, bufferSize, replication, blockSize, null);
+    return create(f, overwrite, bufferSize, replication, blockSize, (Progressable)null);
+  }
+
+
+  /**
+   * Opens an FSDataOutputStream to a spatial file at the indicated Path.
+   * @param f the file name to open
+   * @param overwrite if a file with this name already exists, then if true,
+   *   the file will be overwritten, and if false an error will be thrown.
+   * @param bufferSize the size of the buffer to be used.
+   * @param replication required block replication for the file.
+   * @param GridInfo information about the grid 
+   */
+  public FSDataOutputStream create(Path f, 
+      boolean overwrite,
+      int bufferSize,
+      short replication,
+      long blockSize,
+      CellInfo cellInfo
+      ) throws IOException {
+    return create(f, overwrite, bufferSize, replication, blockSize, cellInfo,
+        (Progressable)null);
   }
 
   /**
+    * Opens an FSDataOutputStream to a spatial file at the indicated Path with write-progress
+    * reporting.
+    * @param f the file name to open
+    * @param overwrite if a file with this name already exists, then if true,
+    *   the file will be overwritten, and if false an error will be thrown.
+    * @param bufferSize the size of the buffer to be used.
+    * @param replication required block replication for the file. 
+    */
+   public FSDataOutputStream create(Path f,
+                                             boolean overwrite,
+                                             int bufferSize,
+                                             short replication,
+                                             long blockSize,
+                                             CellInfo cellInfo,
+                                             Progressable progress
+                                             ) throws IOException {
+     return this.create(f, FsPermission.getDefault(), overwrite, bufferSize,
+         replication, blockSize, cellInfo, progress);
+   }
+ 
+   /**
    * Opens an FSDataOutputStream at the indicated Path with write-progress
    * reporting.
    * @param f the file name to open
@@ -570,12 +638,38 @@ public abstract class FileSystem extends Configured implements Closeable {
    * @throws IOException
    * @see #setPermission(Path, FsPermission)
    */
-  public abstract FSDataOutputStream create(Path f,
+  public FSDataOutputStream create(Path f,
       FsPermission permission,
       boolean overwrite,
       int bufferSize,
       short replication,
       long blockSize,
+      Progressable progress) throws IOException {
+    return this.create(f, permission, overwrite, bufferSize, replication,
+        blockSize, null, progress);
+  }
+
+  /**
+   * Opens an FSDataOutputStream at the indicated Path with write-progress
+   * reporting.
+   * @param f the file name to open
+   * @param permission
+   * @param overwrite if a file with this name already exists, then if true,
+   *   the file will be overwritten, and if false an error will be thrown.
+   * @param bufferSize the size of the buffer to be used.
+   * @param replication required block replication for the file.
+   * @param blockSize
+   * @param progress
+   * @throws IOException
+   * @see #setPermission(Path, FsPermission)
+   */
+  abstract public FSDataOutputStream create(Path f,
+      FsPermission permission,
+      boolean overwrite,
+      int bufferSize,
+      short replication,
+      long blockSize,
+      CellInfo cellInfo,
       Progressable progress) throws IOException;
 
   /**
@@ -623,6 +717,15 @@ public abstract class FileSystem extends Configured implements Closeable {
       boolean overwrite,
       int bufferSize, short replication, long blockSize,
       Progressable progress) throws IOException {
+    throw new IOException("createNonRecursive unsupported for this filesystem "
+        + this.getClass());
+  }
+
+  @Deprecated
+  public FSDataOutputStream createNonRecursive(Path f, FsPermission permission,
+      boolean overwrite,
+      int bufferSize, short replication, long blockSize,
+      CellInfo cellInfo, Progressable progress) throws IOException {
     throw new IOException("createNonRecursive unsupported for this filesystem "
         + this.getClass());
   }
@@ -1242,6 +1345,31 @@ public abstract class FileSystem extends Configured implements Closeable {
   public void completeLocalOutput(Path fsOutputFile, Path tmpLocalFile)
     throws IOException {
     moveFromLocalFile(tmpLocalFile, fsOutputFile);
+  }
+
+  /**
+   * move blocks from srcs to trg
+   * and delete srcs afterwards
+   * all blocks should be the same size
+   * @param trg existing file to append to
+   * @param psrcs list of files (same block size, same replication)
+   * @throws IOException
+   */
+  public void concat(Path trg, Path [] psrcs) throws IOException {
+    FSDataOutputStream outputStream = append(trg);
+    byte[] buffer = new byte[getConf().getInt("io.file.buffer.size", 4096)];
+
+    for (Path src : psrcs) {
+      FSDataInputStream inputStream = open(src);
+
+      int read;
+      while ((read = inputStream.read(buffer)) > 0) {
+        outputStream.write(buffer, 0, read);
+      }
+
+      inputStream.close();
+    }
+    outputStream.close();
   }
 
   /**

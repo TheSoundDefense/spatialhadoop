@@ -36,6 +36,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.util.Progressable;
+import org.apache.hadoop.spatial.CellInfo;
 
 /**
  * <p>
@@ -194,6 +195,7 @@ public class FTPFileSystem extends FileSystem {
   @Override
   public FSDataOutputStream create(Path file, FsPermission permission,
       boolean overwrite, int bufferSize, short replication, long blockSize,
+      CellInfo cellInfo,
       Progressable progress) throws IOException {
     final FTPClient client = connect();
     Path workDir = new Path(client.printWorkingDirectory());

@@ -33,6 +33,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.util.Progressable;
 import org.apache.hadoop.fs.BlockLocation;
+import org.apache.hadoop.spatial.CellInfo;
 
 /**
  * A FileSystem backed by KFS.
@@ -173,7 +174,7 @@ public class KosmosFileSystem extends FileSystem {
 
     public FSDataOutputStream create(Path file, FsPermission permission,
                                      boolean overwrite, int bufferSize,
-				     short replication, long blockSize, Progressable progress)
+				     short replication, long blockSize, CellInfo cellInfo, Progressable progress)
 	throws IOException {
 
         if (exists(file)) {

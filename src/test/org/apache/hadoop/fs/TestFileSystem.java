@@ -64,6 +64,7 @@ import org.apache.hadoop.security.NetUtilsTestResolver;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
+import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.util.Progressable;
 import org.junit.Test;
 
@@ -991,6 +992,7 @@ public class TestFileSystem extends TestCase {
     @Override
     public FSDataOutputStream create(Path f, FsPermission permission,
         boolean overwrite, int bufferSize, short replication, long blockSize,
+        CellInfo cellInfo,
         Progressable progress) throws IOException {
       throw new IOException("not supposed to be here");
     }

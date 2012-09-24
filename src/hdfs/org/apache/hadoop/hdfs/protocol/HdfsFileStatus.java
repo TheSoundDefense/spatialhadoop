@@ -28,6 +28,7 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.WritableFactories;
 import org.apache.hadoop.io.WritableFactory;
+import org.apache.hadoop.spatial.GridInfo;
 
 /** Interface that represents the over the wire information for a file.
  */
@@ -45,6 +46,7 @@ public class HdfsFileStatus implements Writable {
   private boolean isdir;
   private short block_replication;
   private long blocksize;
+  private GridInfo gridInfo;
   private long modification_time;
   private long access_time;
   private FsPermission permission;
@@ -75,10 +77,31 @@ public class HdfsFileStatus implements Writable {
                     long blocksize, long modification_time, long access_time,
                     FsPermission permission, String owner, String group, 
                     byte[] path) {
+    this(length, isdir, block_replication, blocksize, null, modification_time,
+        access_time, permission, owner, group, path);
+  }
+  /**
+   * Constructor
+   * @param length the number of bytes the file has
+   * @param isdir if the path is a directory
+   * @param block_replication the replication factor
+   * @param blocksize the block size
+   * @param modification_time modification time
+   * @param access_time access time
+   * @param permission permission
+   * @param owner the owner of the path
+   * @param group the group of the path
+   * @param path the local name in java UTF8 encoding the same as that in-memory
+   */
+  public HdfsFileStatus(long length, boolean isdir, int block_replication,
+                    long blocksize, GridInfo gridInfo, long modification_time, long access_time,
+                    FsPermission permission, String owner, String group, 
+                    byte[] path) {
     this.length = length;
     this.isdir = isdir;
     this.block_replication = (short)block_replication;
     this.blocksize = blocksize;
+    this.gridInfo = gridInfo;
     this.modification_time = modification_time;
     this.access_time = access_time;
     this.permission = (permission == null) ? 
@@ -225,6 +248,12 @@ public class HdfsFileStatus implements Writable {
     out.writeBoolean(isdir);
     out.writeShort(block_replication);
     out.writeLong(blocksize);
+    if (this.gridInfo == null) {
+      out.writeBoolean(false);
+    } else {
+      out.writeBoolean(true);
+      this.gridInfo.write(out);
+    }
     out.writeLong(modification_time);
     out.writeLong(access_time);
     permission.write(out);
@@ -244,10 +273,20 @@ public class HdfsFileStatus implements Writable {
     this.isdir = in.readBoolean();
     this.block_replication = in.readShort();
     blocksize = in.readLong();
+    if (in.readBoolean()) {
+      this.gridInfo = new GridInfo();
+      this.gridInfo.readFields(in);
+    } else {
+      this.gridInfo = null;
+    }
     modification_time = in.readLong();
     access_time = in.readLong();
     permission.readFields(in);
     owner = Text.readString(in);
     group = Text.readString(in);
+  }
+
+  public GridInfo getGridInfo() {
+    return this.gridInfo;
   }
 }

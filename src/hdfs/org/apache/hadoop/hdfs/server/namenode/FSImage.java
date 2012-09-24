@@ -926,7 +926,7 @@ public class FSImage extends Storage {
             blocks[j] = new Block();
             if (-14 < imgVersion) {
               blocks[j].set(in.readLong(), in.readLong(), 
-                            Block.GRANDFATHER_GENERATION_STAMP);
+                            Block.GRANDFATHER_GENERATION_STAMP, null);
             } else {
               blocks[j].readFields(in);
             }

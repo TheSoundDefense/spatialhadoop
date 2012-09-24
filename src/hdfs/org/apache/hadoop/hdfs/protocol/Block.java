@@ -21,6 +21,7 @@ import java.io.*;
 
 import org.apache.hadoop.hdfs.server.common.GenerationStamp;
 import org.apache.hadoop.io.*;
+import org.apache.hadoop.spatial.CellInfo;
 
 /**************************************************
  * A Block is a Hadoop FS primitive, identified by a 
@@ -60,28 +61,38 @@ public class Block implements Writable, Comparable<Block> {
   private long blockId;
   private long numBytes;
   private long generationStamp;
+  /**
+   * Info of the cell associated with this block.
+   * Set to <code>null</code> when the block is for non-spatial file. 
+   */
+  private CellInfo cellInfo;
 
-  public Block() {this(0, 0, 0);}
+  public Block() {this(0, 0, 0, null);}
 
-  public Block(final long blkid, final long len, final long generationStamp) {
-    set(blkid, len, generationStamp);
+  public Block(final long blkid, final long len, final long generationStamp, CellInfo cellInfo) {
+    set(blkid, len, generationStamp, cellInfo);
   }
 
-  public Block(final long blkid) {this(blkid, 0, GenerationStamp.WILDCARD_STAMP);}
+  public Block(final long blkid, final long len, final long generationStamp) {
+    set(blkid, len, generationStamp, null);
+  }
 
-  public Block(Block blk) {this(blk.blockId, blk.numBytes, blk.generationStamp);}
+  public Block(final long blkid) {this(blkid, 0, GenerationStamp.WILDCARD_STAMP, null);}
+
+  public Block(Block blk) {this(blk.blockId, blk.numBytes, blk.generationStamp, blk.cellInfo);}
 
   /**
    * Find the blockid from the given filename
    */
   public Block(File f, long len, long genstamp) {
-    this(filename2id(f.getName()), len, genstamp);
+    this(filename2id(f.getName()), len, genstamp, null);
   }
 
-  public void set(long blkid, long len, long genStamp) {
+  public void set(long blkid, long len, long genStamp, CellInfo cellInfo) {
     this.blockId = blkid;
     this.numBytes = len;
     this.generationStamp = genStamp;
+    this.cellInfo = cellInfo;
   }
   /**
    */
@@ -129,12 +140,26 @@ public class Block implements Writable, Comparable<Block> {
     out.writeLong(blockId);
     out.writeLong(numBytes);
     out.writeLong(generationStamp);
+    if (cellInfo == null) {
+      out.writeBoolean(false);
+    } else {
+      out.writeBoolean(true);
+      cellInfo.write(out);
+    }
   }
 
   public void readFields(DataInput in) throws IOException {
     this.blockId = in.readLong();
     this.numBytes = in.readLong();
     this.generationStamp = in.readLong();
+    if (in.readBoolean()) {
+      if (this.cellInfo == null)
+        this.cellInfo = new CellInfo(in);
+      else
+        this.cellInfo.readFields(in);
+    } else {
+      this.cellInfo = null;
+    }
     if (numBytes < 0) {
       throw new IOException("Unexpected block size: " + numBytes);
     }
@@ -181,5 +206,13 @@ public class Block implements Writable, Comparable<Block> {
   public int hashCode() {
     //GenerationStamp is IRRELEVANT and should not be used here
     return 37 * 17 + (int) (blockId^(blockId>>>32));
+  }
+
+  public CellInfo getCellInfo() {
+    return cellInfo;
+  }
+
+  public void setCellInfo(CellInfo cellInfo) {
+    this.cellInfo = cellInfo;
   }
 }

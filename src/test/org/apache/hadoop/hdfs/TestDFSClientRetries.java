@@ -37,8 +37,6 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdfs.DFSClient.DFSInputStream;
 import org.apache.hadoop.hdfs.protocol.*;
 import org.apache.hadoop.hdfs.protocol.FSConstants.UpgradeAction;
-import org.apache.hadoop.hdfs.protocol.Block;
-import org.apache.hadoop.hdfs.protocol.ClientDatanodeProtocol;
 
 import org.apache.hadoop.hdfs.server.common.*;
 import org.apache.hadoop.hdfs.server.datanode.TestInterDatanodeProtocol;
@@ -50,6 +48,7 @@ import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.SecretManager.InvalidToken;
+import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.ipc.Client;
 import org.apache.hadoop.ipc.RPC;
 import org.apache.hadoop.ipc.Server;
@@ -205,11 +204,12 @@ public class TestDFSClientRetries extends TestCase {
     public LocatedBlock addBlock(String src, String clientName)
     throws IOException
     {
-      return addBlock(src, clientName, null);
+      return addBlock(src, clientName, null, null);
     }
 
 
     public LocatedBlock addBlock(String src, String clientName,
+                                 CellInfo cellInfo,
                                  DatanodeInfo[] excludedNode)
       throws IOException {
       num_calls++;
@@ -228,9 +228,11 @@ public class TestDFSClientRetries extends TestCase {
     public LocatedBlocks  getBlockLocations(String src, long offset, long length) throws IOException { return null; }
 
     @Deprecated
+    public void create(String src, FsPermission masked, String clientName, boolean overwrite, short replication, long blockSize, CellInfo cellInfo) throws IOException {}
     public void create(String src, FsPermission masked, String clientName, boolean overwrite, short replication, long blockSize) throws IOException {}
 
     public void create(String src, FsPermission masked, String clientName, boolean overwrite, boolean createparent, short replication, long blockSize) throws IOException {}
+    public void create(String src, FsPermission masked, String clientName, boolean overwrite, boolean createparent, short replication, long blockSize, CellInfo cellInfo) throws IOException {}
 
     public LocatedBlock append(String src, String clientName) throws IOException { return null; }
 

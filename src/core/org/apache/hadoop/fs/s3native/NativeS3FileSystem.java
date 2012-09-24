@@ -52,6 +52,7 @@ import org.apache.hadoop.fs.s3.S3Exception;
 import org.apache.hadoop.io.retry.RetryPolicies;
 import org.apache.hadoop.io.retry.RetryPolicy;
 import org.apache.hadoop.io.retry.RetryProxy;
+import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.util.Progressable;
 
 /**
@@ -269,6 +270,7 @@ public class NativeS3FileSystem extends FileSystem {
   @Override
   public FSDataOutputStream create(Path f, FsPermission permission,
       boolean overwrite, int bufferSize, short replication, long blockSize,
+      CellInfo cellInfo,
       Progressable progress) throws IOException {
 
     if (exists(f) && !overwrite) {

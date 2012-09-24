@@ -40,6 +40,9 @@ import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.WritableComparable;
 import org.apache.hadoop.ipc.RPC;
 import org.apache.hadoop.ipc.RemoteException;
+import org.apache.hadoop.spatial.GridInfo;
+import org.apache.hadoop.spatial.Shape;
+import org.apache.hadoop.spatial.WriteGridFile;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
@@ -60,6 +63,7 @@ public class FsShell extends Configured implements Tool {
   }
   static final String SETREP_SHORT_USAGE="-setrep [-R] [-w] <rep> <path/file>";
   static final String GET_SHORT_USAGE = "-get [-ignoreCrc] [-crc] <src> <localdst>";
+  static final String WRITEGRIDFILE_SHORT_USAGE = "-writeGridFile [-pack] [-rtree] <grid info> <src> <localdst> [shape]";
   static final String COPYTOLOCAL_SHORT_USAGE = GET_SHORT_USAGE.replace(
       "-get", "-copyToLocal");
   static final String TAIL_USAGE="-tail [-f] <file>";
@@ -198,6 +202,59 @@ public class FsShell extends Configured implements Tool {
         File f = dstIsDir? new File(dst, p.getName()): dst;
         copyToLocal(srcFS, p, f, copyCrc);
       }
+    }
+  }
+     
+  void writeGridFile(String[]argv, int pos) throws IOException {
+    CommandFormat cf = new CommandFormat("writeGridFile", 2, 4, "pack", "rtree", "overwrite");
+
+    String gridstr = null;
+    String srcstr = null;
+    String dststr = null;
+    String shapestr = "Rectangle";
+    boolean pack, rtree, overwrite;
+    Class<Shape> shapeClass;
+    try {
+      List<String> parameters = cf.parse(argv, pos);
+      int i = 0;
+      if (parameters.get(i).indexOf(':') != -1) {
+        gridstr = parameters.get(i++);
+        gridstr = gridstr.substring(gridstr.indexOf(':')+1);
+      }
+      srcstr = parameters.get(i++);
+      dststr = parameters.get(i++);
+      if (parameters.size() > i) {
+        shapestr = parameters.get(i++);
+      }
+      String shapeClassName = Shape.class.getName().replace("Shape", shapestr);
+      shapeClass = (Class<Shape>) Class.forName(shapeClassName);
+      pack = cf.getOpt("pack");
+      rtree = cf.getOpt("rtree");
+      overwrite = cf.getOpt("overwrite");
+    }
+    catch(IllegalArgumentException iae) {
+      System.err.println("Usage: java FsShell " + WRITEGRIDFILE_SHORT_USAGE);
+      throw iae;
+    } catch (ClassNotFoundException e) {
+      throw new IllegalArgumentException("Illegal shape name: "+shapestr);
+    }
+
+    GridInfo gridInfo = null;
+    if (gridstr != null) {
+      gridInfo = new GridInfo();
+      gridInfo.readFromString(gridstr);
+    }
+    Path srcPath = new Path(srcstr);
+    Path dstPath = new Path(dststr);
+    FileSystem fileSystem = dstPath.getFileSystem(getConf());
+
+    try {
+      WriteGridFile.writeGridFile(FileSystem.getLocal(getConf()), srcPath,
+          fileSystem, dstPath, gridInfo, shapeClass, pack, rtree, overwrite);
+    } catch (InstantiationException e) {
+      throw new RuntimeException("Connot instantiate an object of class "+shapeClass.getName());
+    } catch (IllegalAccessException e) {
+      throw new RuntimeException("Connot instantiate an object of class "+shapeClass.getName());
     }
   }
 
@@ -1372,6 +1429,8 @@ public class FsShell extends Configured implements Tool {
     String copyToLocal = COPYTOLOCAL_SHORT_USAGE
                          + ":  Identical to the -get command.\n";
 
+    String writeGridFile = WRITEGRIDFILE_SHORT_USAGE;
+         
     String moveToLocal = "-moveToLocal <src> <localdst>:  Not implemented yet \n";
         
     String mkdir = "-mkdir <path>: \tCreate a directory in specified location. \n";
@@ -1465,6 +1524,8 @@ public class FsShell extends Configured implements Tool {
       System.out.println(getmerge);
     } else if ("copyToLocal".equals(cmd)) {
       System.out.println(copyToLocal);
+    } else if ("writeGridFile".equals(cmd)) {
+      System.out.println(writeGridFile);
     } else if ("moveToLocal".equals(cmd)) {
       System.out.println(moveToLocal);
     } else if ("cat".equals(cmd)) {
@@ -1644,6 +1705,8 @@ public class FsShell extends Configured implements Tool {
       System.err.println("Usage: java FsShell [" + GET_SHORT_USAGE + "]"); 
     } else if ("-copyToLocal".equals(cmd)) {
       System.err.println("Usage: java FsShell [" + COPYTOLOCAL_SHORT_USAGE+ "]"); 
+    } else if ("-writeGridFile".equals(cmd)) {
+      System.err.println("Usage: java FsShell [" + WRITEGRIDFILE_SHORT_USAGE+ "]"); 
     } else if ("-moveToLocal".equals(cmd)) {
       System.err.println("Usage: java FsShell" + 
                          " [" + cmd + " [-crc] <src> <localdst>]");
@@ -1675,6 +1738,7 @@ public class FsShell extends Configured implements Tool {
       System.err.println("           [-put <localsrc> ... <dst>]");
       System.err.println("           [-copyFromLocal <localsrc> ... <dst>]");
       System.err.println("           [-moveFromLocal <localsrc> ... <dst>]");
+      System.err.println("           [-writeGridFile [-pack] <grid info> <localsrc> <dst> [shape]]");
       System.err.println("           [" + GET_SHORT_USAGE + "]");
       System.err.println("           [-getmerge <src> <localdst> [addnl]]");
       System.err.println("           [-cat <src>]");
@@ -1725,6 +1789,11 @@ public class FsShell extends Configured implements Tool {
         printUsage(cmd);
         return exitCode;
       }
+    } else if ("-writeGridFile".equals(cmd)) {
+      if (argv.length < 3) {
+        printUsage(cmd);
+        return exitCode;
+      }
     } else if ("-mv".equals(cmd) || "-cp".equals(cmd)) {
       if (argv.length < 3) {
         printUsage(cmd);
@@ -1765,6 +1834,8 @@ public class FsShell extends Configured implements Tool {
         for (int j=0 ; i < argv.length-1 ;) 
           srcs[j++] = new Path(argv[i++]);
         moveFromLocal(srcs, argv[i++]);
+      } else if ("-writeGridFile".equals(cmd)) {
+        writeGridFile(argv, i);
       } else if ("-get".equals(cmd) || "-copyToLocal".equals(cmd)) {
         copyToLocal(argv, i);
       } else if ("-getmerge".equals(cmd)) {
@@ -1847,7 +1918,8 @@ public class FsShell extends Configured implements Tool {
       }
     } catch (IllegalArgumentException arge) {
       exitCode = -1;
-      System.err.println(cmd.substring(1) + ": " + arge.getLocalizedMessage());
+      System.err.println(cmd.substring(1) + " (1): " + arge.getLocalizedMessage());
+      arge.printStackTrace();
       printUsage(cmd);
     } catch (RemoteException e) {
       //

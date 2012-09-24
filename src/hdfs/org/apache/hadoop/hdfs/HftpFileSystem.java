@@ -60,6 +60,7 @@ import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
 import org.apache.hadoop.security.token.TokenRenewer;
 import org.apache.hadoop.security.token.delegation.AbstractDelegationTokenSelector;
+import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.util.Progressable;
 import org.xml.sax.Attributes;
 import org.xml.sax.InputSource;
@@ -525,6 +526,7 @@ public class HftpFileSystem extends FileSystem
   public FSDataOutputStream create(Path f, FsPermission permission,
                                    boolean overwrite, int bufferSize,
                                    short replication, long blockSize,
+                                   CellInfo cellInfo,
                                    Progressable progress) throws IOException {
     throw new IOException("Not supported");
   }

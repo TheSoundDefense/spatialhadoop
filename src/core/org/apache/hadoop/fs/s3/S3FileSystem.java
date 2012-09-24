@@ -38,6 +38,7 @@ import org.apache.hadoop.fs.s3native.NativeS3FileSystem;
 import org.apache.hadoop.io.retry.RetryPolicies;
 import org.apache.hadoop.io.retry.RetryPolicy;
 import org.apache.hadoop.io.retry.RetryProxy;
+import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.util.Progressable;
 
 /**
@@ -207,7 +208,7 @@ public class S3FileSystem extends FileSystem {
   @Override
   public FSDataOutputStream create(Path file, FsPermission permission,
       boolean overwrite, int bufferSize,
-      short replication, long blockSize, Progressable progress)
+      short replication, long blockSize, CellInfo cellInfo, Progressable progress)
     throws IOException {
 
     INode inode = store.retrieveINode(makeAbsolute(file));

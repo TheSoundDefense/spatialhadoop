@@ -127,6 +127,7 @@ import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.VersionInfo;
 import org.mortbay.util.ajax.JSON;
+import org.apache.hadoop.spatial.CellInfo;
 
 /***************************************************
  * FSNamesystem does the actual bookkeeping work for the
@@ -1505,7 +1506,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
   public LocatedBlock getAdditionalBlock(String src, 
                                          String clientName
                                          ) throws IOException {
-    return getAdditionalBlock(src, clientName, null);
+    return getAdditionalBlock(src, clientName, null, null);
   }
 
   /**
@@ -1518,9 +1519,12 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
    * Make sure the previous blocks have been reported by datanodes and
    * are replicated.  Will return an empty 2-elt array if we want the
    * client to "try again later".
+   * 
+   * @param cellInfo represents the location of this block in the file grid. 
    */
   public LocatedBlock getAdditionalBlock(String src, 
                                          String clientName,
+                                         CellInfo cellInfo,
                                          List<Node> excludedNodes
                                          ) throws IOException {
     long fileLength, blockSize;
@@ -1576,7 +1580,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
       }
 
       // allocate new block record block locations in INode.
-      newBlock = allocateBlock(src, pathINodes);
+      newBlock = allocateBlock(src, pathINodes, cellInfo);
       pendingFile.setTargets(targets);
       
       for (DatanodeDescriptor dn : targets) {
@@ -1584,6 +1588,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
       }      
     }
         
+    // TODO eldawy: Do we need to pass CellInfo to LocatedBlock constructor?
     // Create next block
     LocatedBlock b = new LocatedBlock(newBlock, targets, fileLength);
     if (isAccessTokenEnabled) {
@@ -1724,13 +1729,15 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
    * @param src path to the file
    * @param inodes INode representing each of the components of src. 
    *        <code>inodes[inodes.length-1]</code> is the INode for the file.
+   * @param cellInfo location of this block in the file.
    */
-  private Block allocateBlock(String src, INode[] inodes) throws IOException {
+  private Block allocateBlock(String src, INode[] inodes, CellInfo cellInfo) throws IOException {
     Block b = new Block(FSNamesystem.randBlockId.nextLong(), 0, 0); 
     while(isValidBlock(b)) {
       b.setBlockId(FSNamesystem.randBlockId.nextLong());
     }
     b.setGenerationStamp(getGenerationStamp());
+    b.setCellInfo(cellInfo);
     b = dir.addBlock(src, inodes, b);
     NameNode.stateChangeLog.info("BLOCK* NameSystem.allocateBlock: "
                                  +src+ ". "+b);
@@ -2257,7 +2264,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
     }
     else {
       // update last block, construct newblockinfo and add it to the blocks map
-      lastblock.set(lastblock.getBlockId(), newlength, newgenerationstamp);
+      lastblock.set(lastblock.getBlockId(), newlength, newgenerationstamp, lastblock.getCellInfo());
       final BlockInfo newblockinfo = blocksMap.addINode(lastblock, pendingFile);
 
       // find the DatanodeDescriptor objects
@@ -3403,7 +3410,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
 
     for (int i = 0; i < blocksBeingWritten.getNumberOfBlocks(); i++) {
       block.set(blocksBeingWritten.getBlockId(i), blocksBeingWritten
-          .getBlockLen(i), blocksBeingWritten.getBlockGenStamp(i));
+          .getBlockLen(i), blocksBeingWritten.getBlockGenStamp(i), blocksBeingWritten.getCellInfo(i));
 
       BlockInfo storedBlock = blocksMap.getStoredBlockWithoutMatchingGS(block);
 

@@ -17,6 +17,8 @@
  */
 package org.apache.hadoop.hdfs.protocol;
 
+import org.apache.hadoop.spatial.CellInfo;
+
 /**
  * This class provides an interface for accessing list of blocks that
  * has been implemented as long[].
@@ -26,10 +28,12 @@ package org.apache.hadoop.hdfs.protocol;
  */
 public class BlockListAsLongs {
   /**
-   * A block as 3 longs
+   * A block as 6 longs
    *   block-id and block length and generation stamp
+   *   Followed by CellId and MBR of the block in case of spatial block.
+   *   For a non-spatial block, it can be filled with -1's
    */
-  private static final int LONGS_PER_BLOCK = 3;
+  private static final int LONGS_PER_BLOCK = 8;
   
   private static int index2BlockId(int index) {
     return index*LONGS_PER_BLOCK;
@@ -39,6 +43,21 @@ public class BlockListAsLongs {
   }
   private static int index2BlockGenStamp(int index) {
     return (index*LONGS_PER_BLOCK) + 2;
+  }
+  private static int index2BlockCellId(int index) {
+    return (index*LONGS_PER_BLOCK) + 3;
+  }
+  private static int index2BlockX(int index) {
+    return (index*LONGS_PER_BLOCK) + 4;
+  }
+  private static int index2BlockY(int index) {
+    return (index*LONGS_PER_BLOCK) + 5;
+  }
+  private static int index2BlockWidth(int index) {
+    return (index*LONGS_PER_BLOCK) + 6;
+  }
+  private static int index2BlockHeight(int index) {
+    return (index*LONGS_PER_BLOCK) + 7;
   }
   
   private long[] blockList;
@@ -113,6 +132,19 @@ public class BlockListAsLongs {
   public long getBlockGenStamp(final int index)  {
     return blockList[index2BlockGenStamp(index)];
   }
+
+  public CellInfo getCellInfo(final int index)  {
+    if (blockList[index2BlockCellId(index)] == -1)
+      return null;
+    else
+      return new CellInfo(
+          blockList[index2BlockCellId(index)],
+          blockList[index2BlockX(index)],
+          blockList[index2BlockY(index)],
+          blockList[index2BlockWidth(index)],
+          blockList[index2BlockHeight(index)]
+      );
+  }
   
   /**
    * Set the indexTh block
@@ -123,5 +155,14 @@ public class BlockListAsLongs {
     blockList[index2BlockId(index)] = b.getBlockId();
     blockList[index2BlockLen(index)] = b.getNumBytes();
     blockList[index2BlockGenStamp(index)] = b.getGenerationStamp();
+    if (b.getCellInfo() != null) {
+      blockList[index2BlockCellId(index)] = b.getCellInfo().cellId;
+      blockList[index2BlockX(index)] = b.getCellInfo().x;
+      blockList[index2BlockY(index)] = b.getCellInfo().y;
+      blockList[index2BlockWidth(index)] = b.getCellInfo().width;
+      blockList[index2BlockHeight(index)] = b.getCellInfo().height;
+    } else {
+      blockList[index2BlockCellId(index)] = -1;
+    }
   }
 }

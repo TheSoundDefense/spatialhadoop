@@ -1876,7 +1876,7 @@ public class DataNode extends Configured
     // file at the same time.
     synchronized (ongoingRecovery) {
       Block tmp = new Block();
-      tmp.set(block.getBlockId(), block.getNumBytes(), GenerationStamp.WILDCARD_STAMP);
+      tmp.set(block.getBlockId(), block.getNumBytes(), GenerationStamp.WILDCARD_STAMP, block.getCellInfo());
       if (ongoingRecovery.get(tmp) != null) {
         String msg = "Block " + block + " is already being recovered, " +
                      " ignoring this request to recover it.";
