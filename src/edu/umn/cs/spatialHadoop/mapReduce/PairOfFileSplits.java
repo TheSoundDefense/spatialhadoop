@@ -5,6 +5,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.util.HashSet;
 
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.InputSplit;
 
@@ -13,8 +14,8 @@ public class PairOfFileSplits implements InputSplit {
   public FileSplit fileSplit2;
 
   public PairOfFileSplits() {
-    fileSplit1 = new FileSplit(new org.apache.hadoop.mapreduce.lib.input.FileSplit());
-    fileSplit2 = new FileSplit(new org.apache.hadoop.mapreduce.lib.input.FileSplit());
+    fileSplit1 = new FileSplit(new Path(""), 0, 0, new String[] {});
+    fileSplit2 = new FileSplit(new Path(""), 0, 0, new String[] {});
   }
   
   public PairOfFileSplits(FileSplit fileSplit1, FileSplit fileSplit2) {

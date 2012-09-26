@@ -14,8 +14,6 @@ import org.apache.hadoop.io.compress.CodecPool;
 import org.apache.hadoop.io.compress.CompressionCodec;
 import org.apache.hadoop.io.compress.CompressionCodecFactory;
 import org.apache.hadoop.io.compress.Decompressor;
-import org.apache.hadoop.io.compress.SplitCompressionInputStream;
-import org.apache.hadoop.io.compress.SplittableCompressionCodec;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.spatial.CellInfo;
@@ -58,37 +56,30 @@ public class RTreeRecordReader  implements RecordReader<CellInfo, RTree<TigerSha
     
     start = split.getStart();
     end = start + split.getLength();
-    this.file = split.getPath();
+    final Path file = split.getPath();
     compressionCodecs = new CompressionCodecFactory(job);
-    codec = compressionCodecs.getCodec(file);
+    final CompressionCodec codec = compressionCodecs.getCodec(file);
 
     // open the file and seek to the start of the split
-    this.fs = file.getFileSystem(job);
-    fileIn = fs.open(file);
-    if (isCompressedInput()) {
-      decompressor = CodecPool.getDecompressor(codec);
-      if (codec instanceof SplittableCompressionCodec) {
-        final SplitCompressionInputStream cIn =
-          ((SplittableCompressionCodec)codec).createInputStream(
-            fileIn, decompressor, start, end,
-            SplittableCompressionCodec.READ_MODE.BYBLOCK);
-        fileIn = new FSDataInputStream(cIn);
-        start = cIn.getAdjustedStart();
-        end = cIn.getAdjustedEnd();
-        filePosition = cIn; // take pos from compressed stream
-      } else {
-        fileIn = new FSDataInputStream(codec.createInputStream(fileIn, decompressor));
-        filePosition = fileIn;
-      }
+    FileSystem fs = file.getFileSystem(job);
+    fileIn = fs.open(split.getPath());
+    boolean skipFirstLine = false;
+    if (codec != null) {
+      fileIn = new FSDataInputStream(codec.createInputStream(fileIn));
+      end = Long.MAX_VALUE;
     } else {
-      fileIn.seek(start);
-      filePosition = fileIn;
+      if (start != 0) {
+        skipFirstLine = true;
+        --start;
+        fileIn.seek(start);
+      }
     }
+    this.filePosition = fileIn;
     
     // If this is not the first split, we always throw away first record
     // because we always (except the last split) read one extra line in
     // next() method.
-    if (start != 0) {
+    if (skipFirstLine) {
       // TODO skip until the beginning of the next RTree (how to know this?)
     }
 
@@ -114,7 +105,8 @@ public class RTreeRecordReader  implements RecordReader<CellInfo, RTree<TigerSha
     value.readFields(fileIn);
     this.pos = fileIn.getPos();
     long len = this.pos - start;
-    BlockLocation[] blockLocations = fs.getFileBlockLocations(file, start, len);
+    BlockLocation[] blockLocations =
+        fs.getFileBlockLocations(fs.getFileStatus(file), start, len);
     CellInfo cellInfo = blockLocations[0].getCellInfo();
     if (cellInfo != null)
       key.set(cellInfo.x, cellInfo.y, cellInfo.width, cellInfo.height);

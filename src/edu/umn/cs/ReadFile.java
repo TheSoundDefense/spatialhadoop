@@ -14,7 +14,7 @@ public class ReadFile {
     
     long length = fs.getFileStatus(inFile).getLen();
     
-    BlockLocation[] fileBlockLocations = fs.getFileBlockLocations(inFile, 0, length);
+    BlockLocation[] fileBlockLocations = fs.getFileBlockLocations(fs.getFileStatus(inFile), 0, length);
     for (BlockLocation blk : fileBlockLocations) {
       System.out.println(blk);
       System.out.println(blk.getCellInfo());

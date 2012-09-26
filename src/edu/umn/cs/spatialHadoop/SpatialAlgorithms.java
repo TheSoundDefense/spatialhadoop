@@ -1,6 +1,5 @@
 package edu.umn.cs.spatialHadoop;
 
-import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -8,21 +7,9 @@ import java.util.TreeSet;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.fs.FSDataInputStream;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.compress.CodecPool;
-import org.apache.hadoop.io.compress.CompressionCodec;
-import org.apache.hadoop.io.compress.CompressionCodecFactory;
-import org.apache.hadoop.io.compress.Decompressor;
-import org.apache.hadoop.io.compress.SplitCompressionInputStream;
-import org.apache.hadoop.io.compress.SplittableCompressionCodec;
-import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.TigerShape;
-
-import edu.umn.cs.spatialHadoop.mapReduce.KNNMapReduce;
 
 
 /**
@@ -112,48 +99,5 @@ public class SpatialAlgorithms {
         j++;
       }
     }
-	}
-
-	public static int[][] readHistogram(JobConf job,String histogramFilename,
-			int columns, int rows) throws IOException {
-		final Path file = new Path(histogramFilename);
-	    CompressionCodecFactory compressionCodecs = new CompressionCodecFactory(job);
-	    CompressionCodec codec = compressionCodecs.getCodec(file);
-	    
-	    // open the file and seek to the start of the split
-	    final FileSystem fs = file.getFileSystem(job);
-	    FSDataInputStream fileIn = fs.open(file);
-
-	    DataInputStream in;
-	    
-		long start = 0;
-
-		if (codec != null) {
-			Decompressor decompressor = CodecPool.getDecompressor(codec);
-			if (codec instanceof SplittableCompressionCodec) {
-				final SplitCompressionInputStream cIn =
-					((SplittableCompressionCodec)codec).createInputStream(
-							fileIn, decompressor, 0, file.getFileSystem(job).getFileStatus(file).getLen(),
-							SplittableCompressionCodec.READ_MODE.BYBLOCK);
-				in = new DataInputStream(cIn);
-				start = cIn.getAdjustedStart();
-				long end = cIn.getAdjustedEnd();
-			} else {
-				in = new DataInputStream(codec.createInputStream(fileIn, decompressor));
-			}
-		} else {
-			fileIn.seek(start);
-			in = fileIn;
-		}
-
-		int[][] histogram = new int[rows][columns];
-		for (int i = 0; i < rows; i++) {
-			for (int j = 0; j < columns; j++) {
-				histogram[i][j] = in.readInt();
-			}
-		}
-		
-		in.close();
-	    return histogram;
 	}
 }

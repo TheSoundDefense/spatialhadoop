@@ -74,8 +74,7 @@ public class SplitCalculator {
 
 		Vector<FileRange> ranges = new Vector<FileRange>();
 		// Retrieve a list of all input files
-		String dirs = conf.get(org.apache.hadoop.mapreduce.lib.input.
-				FileInputFormat.INPUT_DIR, "");
+		String dirs = conf.get("mapred.input.dir", "");
 		String [] list = StringUtils.split(dirs);
 		Path[] inputPaths = new Path[list.length];
 		for (int i = 0; i < list.length; i++) {
@@ -89,7 +88,7 @@ public class SplitCalculator {
 			// Retrieve grid info for this file
 			GridInfo gridInfo = fs.getFileStatus(path).getGridInfo();
 			// Check each block
-			BlockLocation[] blockLocations = fs.getFileBlockLocations(path, 0, fileLength);
+			BlockLocation[] blockLocations = fs.getFileBlockLocations(fs.getFileStatus(path), 0, fileLength);
 			for (BlockLocation blockLocation : blockLocations) {
 				CellInfo cellInfo = blockLocation.getCellInfo();
 				// 2- Check if block holds a grid cell in query range
@@ -121,7 +120,7 @@ public class SplitCalculator {
     double requiredDistance = queryPoint.distance;
     LOG.info("Matching blocks withing a distance of "+requiredDistance+" of the point: "+queryPoint);
 	  long fileLength = fileSystem.getFileStatus(filePath).getLen();
-	  BlockLocation[] blockLocations = fileSystem.getFileBlockLocations(filePath, 0, fileLength);
+	  BlockLocation[] blockLocations = fileSystem.getFileBlockLocations(fileSystem.getFileStatus(filePath), 0, fileLength);
 	  for (BlockLocation blockLocation : blockLocations) {
 	    CellInfo blockMBR = blockLocation.getCellInfo();
 	    if (blockMBR == null) {
@@ -161,8 +160,7 @@ public class SplitCalculator {
 
 		Vector<FileRange> ranges = new Vector<FileRange>();
 		// Retrieve a list of all input files
-		String dirs = conf.get(org.apache.hadoop.mapreduce.lib.input.
-				FileInputFormat.INPUT_DIR, "");
+		String dirs = conf.get("mapred.input.dir", "");
 		String [] list = StringUtils.split(dirs);
 		Path[] inputPaths = new Path[list.length];
 		for (int i = 0; i < list.length; i++) {
