@@ -43,8 +43,9 @@ public class WriteGridFile {
       gridInfo.getAllCells();
 
     // Prepare grid file writer
-    TigerShapeRecordWriter rrw = rtree ? new RTreeGridRecordWriter(outFileSystem, outputPath, gridInfo, cells):
-      new GridRecordWriter(outFileSystem, outputPath, gridInfo, cells, overwrite);
+    TigerShapeRecordWriter rrw = rtree ?
+        new RTreeGridRecordWriter(outFileSystem, outputPath, cells):
+        new GridRecordWriter(outFileSystem, outputPath, cells, overwrite);
 
     // Open input file
     LineReader reader = new LineReader(inFileSystem.open(inputPath));

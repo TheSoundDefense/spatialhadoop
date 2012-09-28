@@ -29,11 +29,8 @@ public class RTreeGridRecordWriter implements TigerShapeRecordWriter {
   private final Path outFile;
   private final FileSystem fileSystem;
   
-  private final GridInfo gridInfo;
-
-  public RTreeGridRecordWriter(FileSystem fileSystem, Path outFile, GridInfo gridInfo, CellInfo[] cells) throws IOException {
+  public RTreeGridRecordWriter(FileSystem fileSystem, Path outFile, CellInfo[] cells) throws IOException {
     LOG.info("Writing to RTrees");
-    this.gridInfo = gridInfo;
     this.fileSystem = fileSystem;
     this.outFile = outFile;
     this.cells = cells;
@@ -231,5 +228,10 @@ public class RTreeGridRecordWriter implements TigerShapeRecordWriter {
       cellStream = fileSystem.append(cellFilePath);
     }
     return cellStream;
+  }
+
+  @Override
+  public void closeCell(CellInfo cellInfo) throws IOException {
+    throw new RuntimeException("Not implemented RTreeGridRecordWriter#closeCell");
   }
 }

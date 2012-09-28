@@ -63,4 +63,11 @@ public interface TigerShapeRecordWriter extends Closeable {
    * @throws IOException
    */
   public void write(CellInfo cellInfo, BytesWritable buffer) throws IOException;
+  
+  /**
+   * Closes the given cell by flushing its buffer and closing the file.
+   * We should not write any more data to this cell once closed.
+   * @param cellInfo
+   */
+  public void closeCell(CellInfo cellInfo) throws IOException;
 }
