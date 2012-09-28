@@ -55,10 +55,8 @@ public class RandomSpatialGenerator {
     GridInfo gridInfo = new GridInfo(mbr.x, mbr.y, mbr.width, mbr.height, 0, 0);
     gridInfo.calculateCellDimensions(totalSize, outFS.getDefaultBlockSize());
     TigerShapeRecordWriter recordWriter = rtree ?
-        new RTreeGridRecordWriter(outFS, outFilePath, gridInfo,
-            gridInfo.getAllCells())
-        : new GridRecordWriter(outFS, outFilePath,
-        gridInfo, gridInfo.getAllCells(), true);
+        new RTreeGridRecordWriter(outFS, outFilePath, gridInfo.getAllCells())
+        : new GridRecordWriter(outFS, outFilePath, gridInfo.getAllCells(), true);
 
     long generatedSize = 0;
     Rectangle randomRectangle = new Rectangle();

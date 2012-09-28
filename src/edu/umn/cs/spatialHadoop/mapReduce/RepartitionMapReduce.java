@@ -28,6 +28,7 @@ import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.TigerShape;
+import org.apache.hadoop.spatial.TigerShapeRecordWriter;
 import org.apache.hadoop.spatial.WriteGridFile;
 
 import edu.umn.cs.CommandLineArguments;
@@ -43,8 +44,9 @@ public class RepartitionMapReduce {
   private static CellInfo[] cellInfos;
   
   public static void setCellInfos(CellInfo[] cellInfos) {
-    for (int i = 0; i < cellInfos.length; i++) {
-      LOG.info(String.format("Cell #%03d: %s", i, cellInfos.toString()));
+    LOG.info("Mapping according to "+cellInfos.length+" cells");
+    for (CellInfo cellInfo : cellInfos) {
+      LOG.info("Mapping according to cell "+cellInfo);
     }
     RepartitionMapReduce.cellInfos = cellInfos;
   }
@@ -81,6 +83,8 @@ public class RepartitionMapReduce {
         values.next().toText(text);
         output.collect(cellInfo, text);
       }
+      // Close this cell as we will not write any more data to it
+      output.collect(cellInfo, null);
     }
   }
   
@@ -88,6 +92,7 @@ public class RepartitionMapReduce {
   Reducer<CellInfo, TigerShape, CellInfo, BytesWritable> {
     /**Maximum number of entries per RTree*/
     private static final int RTREE_LIMIT = 10000;
+    private static final int RTREE_DEGREE = 5;
 
     @Override
     public void reduce(CellInfo cellInfo, Iterator<TigerShape> values,
@@ -103,7 +108,7 @@ public class RepartitionMapReduce {
         if (shapes.size() >= RTREE_LIMIT || !values.hasNext()) {
           RTree<TigerShape> concatenatedRTree = new RTree<TigerShape>();
           concatenatedRTree.bulkLoad(
-              shapes.toArray(new TigerShape[shapes.size()]), RTREE_LIMIT);
+              shapes.toArray(new TigerShape[shapes.size()]), RTREE_DEGREE);
           // Write data in current RTree
           ByteArrayOutputStream os = new ByteArrayOutputStream();
           DataOutputStream dos = new DataOutputStream(os);
@@ -123,19 +128,20 @@ public class RepartitionMapReduce {
     
     FileSystem inFileSystem = inputFile.getFileSystem(conf);
     FileSystem outFileSystem = outputPath.getFileSystem(conf);
+    long outputBlockSize = outFileSystem.getDefaultBlockSize();
 
     if (gridInfo == null)
       gridInfo = WriteGridFile.getGridInfo(inFileSystem, inputFile, outFileSystem);
     if (gridInfo.cellWidth == 0 || rtree)
-      gridInfo.calculateCellDimensions(inFileSystem.getFileStatus(inputFile).getLen() * (rtree? 4 : 1), inFileSystem.getDefaultBlockSize());
+      gridInfo.calculateCellDimensions(inFileSystem.getFileStatus(inputFile).getLen() * (rtree? 4 : 1), outputBlockSize);
     CellInfo[] cellsInfo = pack ?
         WriteGridFile.packInRectangles(inFileSystem, inputFile, outFileSystem, gridInfo) :
           gridInfo.getAllCells();
 
     // Overwrite output file
-    if (inFileSystem.exists(outputPath) && overwrite) {
-      // remove the file first
-      inFileSystem.delete(outputPath, true);
+    if (inFileSystem.exists(outputPath) && !overwrite) {
+      throw new RuntimeException("Output file '" + outputPath
+          + "' already exists and overwrite flag is not set");
     }
 
     RepartitionInputFormat.setInputPaths(conf, inputFile);
@@ -158,19 +164,29 @@ public class RepartitionMapReduce {
 
     JobClient.runJob(conf);
     
-    // Rename output file to required name
-    // Check that results are correct
+    // Combine all output files into one file as we do with grid files
+    Vector<Path> pathsToConcat = new Vector<Path>();
     FileStatus[] resultFiles = inFileSystem.listStatus(outputPath);
-    for (FileStatus resultFile : resultFiles) {
-      if (resultFile.getLen() > 0) {
-        // TODO whoever created this tempppp folder is responsible for deleting it
-        Path temp = new Path("/tempppp");
-        inFileSystem.rename(resultFile.getPath(), temp);
-        
-        inFileSystem.delete(outputPath, true);
-        
-        inFileSystem.rename(temp, outputPath);
+    for (int i = 0; i < resultFiles.length; i++) {
+      FileStatus resultFile = resultFiles[i];
+      if (resultFile.getLen() > 0 &&
+          resultFile.getLen() % resultFile.getBlockSize() == 0) {
+        Path partFile = new Path(outputPath.toUri().getPath()+"_"+i);
+        outFileSystem.rename(resultFile.getPath(), partFile);
+        LOG.info("Rename "+resultFile.getPath()+" -> "+partFile);
+        pathsToConcat.add(partFile);
       }
+    }
+    
+    LOG.info("Concatenating: "+pathsToConcat+" into "+outFileSystem);
+    if (outFileSystem.exists(outputPath))
+      outFileSystem.delete(outputPath, true);
+    if (pathsToConcat.size() == 1) {
+      outFileSystem.rename(pathsToConcat.firstElement(), outputPath);
+    } else {
+      outFileSystem.create(outputPath, overwrite).close();
+      outFileSystem.concat(outputPath,
+          pathsToConcat.toArray(new Path[pathsToConcat.size()]));
     }
   }
 	

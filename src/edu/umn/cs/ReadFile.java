@@ -17,7 +17,10 @@ public class ReadFile {
     BlockLocation[] fileBlockLocations = fs.getFileBlockLocations(fs.getFileStatus(inFile), 0, length);
     for (BlockLocation blk : fileBlockLocations) {
       System.out.println(blk);
-      System.out.println(blk.getCellInfo());
+      if (blk.getCellInfo() != null)
+        System.out.println(blk.getCellInfo());
+      else
+        System.out.println("Heap block");
     }
   }
 }

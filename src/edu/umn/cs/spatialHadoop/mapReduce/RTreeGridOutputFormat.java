@@ -31,7 +31,7 @@ public class RTreeGridOutputFormat extends FileOutputFormat<CellInfo, BytesWrita
     GridInfo gridInfo = new GridInfo();
     gridInfo.readFromString(job.get(GridOutputFormat.OUTPUT_GRID));
     CellInfo[] cellsInfo = GridOutputFormat.decodeCells(job.get(GridOutputFormat.OUTPUT_CELLS));
-    return new RTreeGridRecordWriter(fileSystem, outFile, gridInfo, cellsInfo);
+    return new RTreeGridRecordWriter(fileSystem, outFile, cellsInfo);
   }
 
 }

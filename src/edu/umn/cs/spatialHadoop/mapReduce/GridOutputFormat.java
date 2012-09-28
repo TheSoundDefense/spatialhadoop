@@ -36,7 +36,7 @@ public class GridOutputFormat extends FileOutputFormat<CellInfo, Text> {
     gridInfo.readFromString(job.get(OUTPUT_GRID));
     CellInfo[] cellsInfo = decodeCells(job.get(OUTPUT_CELLS));
     boolean overwrite = job.getBoolean(OVERWRITE, false);
-    return new GridRecordWriter(fileSystem, outFile, gridInfo, cellsInfo, overwrite);
+    return new GridRecordWriter(fileSystem, outFile, cellsInfo, overwrite);
   }
   
   public static String encodeCells(CellInfo[] cellsInfo) {
