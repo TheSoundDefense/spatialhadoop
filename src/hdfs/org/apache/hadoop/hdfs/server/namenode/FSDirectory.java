@@ -585,7 +585,78 @@ class FSDirectory implements FSConstants, Closeable {
       }
     }
   }
-    
+
+  /**
+   * 
+   * @param target
+   * @param srcs
+   * @throws IOException
+   */
+  public void concatInternal(String target, String [] srcs) throws IOException{
+    synchronized(rootDir) {
+      // actual move
+      waitForReady();
+
+      unprotectedConcat(target, srcs);
+      // do the commit
+      fsImage.getEditLog().logConcat(target, srcs, FSNamesystem.now());
+    }
+  }
+
+  /**
+   * Concat all the blocks from srcs to trg
+   * and delete the srcs files
+   * @param trg target file to move the blocks to
+   * @param srcs list of file to move the blocks from
+   * Must be public because also called from EditLogs
+   * NOTE: - it does not update quota (not needed for concat)
+   */
+  public void unprotectedConcat(String target, String [] srcs) throws IOException {
+    if (NameNode.stateChangeLog.isDebugEnabled()) {
+      NameNode.stateChangeLog.debug("DIR* FSNamesystem.concat to "+target);
+    }
+    // do the move
+
+    INode [] trgINodes =  getExistingPathINodes(target);
+    INodeFile trgInode = (INodeFile) trgINodes[trgINodes.length-1];
+
+    INodeFile [] allSrcInodes = new INodeFile[srcs.length];
+    int i = 0;
+    int totalBlocks = 0;
+    for(String src : srcs) {
+      INodeFile srcInode = getFileINode(src);
+      allSrcInodes[i++] = srcInode;
+      totalBlocks += srcInode.blocks.length;  
+    }
+    trgInode.appendBlocks(allSrcInodes, totalBlocks); // copy the blocks
+
+
+    // now delete all the srcs
+    int count = 0;
+    for(String src: srcs) {
+      src = normalizePath(src);
+
+      INode[] inodes =  rootDir.getExistingPathINodes(src);
+      INodeFile nodeToRemove = (INodeFile)inodes[inodes.length-1];
+      if(nodeToRemove==null)
+        continue; // nothing to do
+
+      // now remove the blocks from this inode (they are already moved to another)
+      nodeToRemove.blocks = null;
+
+      int pos = inodes.length - 1;
+      // remove from the tree
+      ((INodeDirectory)inodes[pos-1]).removeChild(inodes[pos]);
+      count ++;
+    }
+
+    long now = FSNamesystem.now();
+    trgINodes[trgINodes.length-1].setModificationTime(now);
+    trgINodes[trgINodes.length-2].setModificationTime(now);
+    // update quota on the parent directory (0 files added)
+    unprotectedUpdateCount(trgINodes, trgINodes.length-1, - count, 0);
+  }
+
   /**
    * Remove the file from management, return blocks
    */
@@ -885,6 +956,24 @@ class FSDirectory implements FSConstants, Closeable {
       updateCount(inodes, numOfINodes, nsDelta, dsDelta, false);
     } catch (QuotaExceededException e) {
       NameNode.LOG.warn("FSDirectory.updateCountNoQuotaCheck - unexpected ", e);
+    }
+  }
+  
+  /**
+   * updates quota without verification
+   * callers responsibility is to make sure quota is not exceeded
+   * @param inodes
+   * @param numOfINodes
+   * @param nsDelta
+   * @param dsDelta
+   */
+  void unprotectedUpdateCount(INode[] inodes, int numOfINodes, 
+      long nsDelta, long dsDelta) {
+    for(int i=0; i < numOfINodes; i++) {
+      if (inodes[i].isQuotaSet()) { // a directory with quota
+        INodeDirectoryWithQuota node =(INodeDirectoryWithQuota)inodes[i]; 
+        node.unprotectedUpdateNumItemsInTree(nsDelta, dsDelta);
+      }
     }
   }
   

@@ -51,12 +51,9 @@ public interface ClientProtocol extends VersionedProtocol {
    * Compared to the previous version the following changes have been introduced:
    * (Only the latest change is reflected.
    * The log of historical changes can be retrieved from the svn).
-   * 61: Serialized format of BlockTokenIdentifier changed to contain
-   *     multiple blocks within a single BlockTokenIdentifier 
-   *     
-   *     (bumped to 61 to bring in line with trunk)
+   * 62: adding concat() API
    */
-  public static final long versionID = 61L;
+  public static final long versionID = 62L;
   
   ///////////////////////////////////////
   // File contents
@@ -289,6 +286,17 @@ public interface ClientProtocol extends VersionedProtocol {
    *                                any quota restriction
    */
   public boolean rename(String src, String dst) throws IOException;
+
+  /**
+   * moves blocks from srcs to trg and delete srcs
+   * 
+   * @param trg existing file
+   * @param srcs - list of existing files (same block size, same replication)
+   * @throws IOException if some arguments are invalid
+   * @throws QuotaExceededException if the rename would violate 
+   *                                any quota restriction
+   */
+  public void concat(String trg, String [] srcs) throws IOException;
 
   /**
    * Delete the given file or directory from the file system.

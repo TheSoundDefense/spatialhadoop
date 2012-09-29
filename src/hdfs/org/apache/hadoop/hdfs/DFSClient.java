@@ -805,6 +805,21 @@ public class DFSClient implements FSConstants, java.io.Closeable {
                                      DSQuotaExceededException.class);
     }
   }
+  
+  /**
+   * Move blocks from src to trg and delete src
+   * See {@link ClientProtocol#concat(String, String [])}. 
+   */
+  public void concat(String trg, String [] srcs) throws IOException {
+    checkOpen();
+    try {
+      namenode.concat(trg, srcs);
+    } catch(RemoteException re) {
+      throw re.unwrapRemoteException(AccessControlException.class,
+          NSQuotaExceededException.class,
+          DSQuotaExceededException.class);
+    }
+  }
 
   /**
    * Rename file or directory.
@@ -3270,6 +3285,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         boolean createParent, short replication, long blockSize, CellInfo cellInfo, Progressable progress,
         int buffersize, int bytesPerChecksum) throws IOException {
       this(src, blockSize, progress, bytesPerChecksum, replication);
+      this.nextCellInfo = cellInfo;
 
       computePacketChunkSize(writePacketSize, bytesPerChecksum);
 

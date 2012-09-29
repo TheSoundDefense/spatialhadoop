@@ -247,6 +247,9 @@ public class TestDFSClientRetries extends TestCase {
     public boolean complete(String src, String clientName) throws IOException { return false; }
 
     public void reportBadBlocks(LocatedBlock[] blocks) throws IOException {}
+    
+    @Override
+    public void concat(String trg, String[] srcs) throws IOException { }
 
     public boolean rename(String src, String dst) throws IOException { return false; }
 
