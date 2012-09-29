@@ -67,11 +67,11 @@ public class RandomSpatialGenerator {
     long t1 = System.currentTimeMillis();
     while (true) {
       // Generate a random rectangle
-      randomRectangle.x = Math.abs(random.nextLong() % mbr.width) + mbr.x;
-      randomRectangle.y = Math.abs(random.nextLong() % mbr.height) + mbr.y;
-      randomRectangle.width = Math.min(Math.abs(random.nextLong() % 100) + 1,
+      randomRectangle.x = Math.abs(random.nextLong()) % mbr.width + mbr.x;
+      randomRectangle.y = Math.abs(random.nextLong()) % mbr.height + mbr.y;
+      randomRectangle.width = Math.min(Math.abs(random.nextLong()) % 100,
           mbr.width + mbr.x - randomRectangle.x);
-      randomRectangle.height = Math.min(Math.abs(random.nextLong() % 100) + 1,
+      randomRectangle.height = Math.min(Math.abs(random.nextLong()) % 100,
           mbr.height + mbr.y - randomRectangle.y);
       randomShape.id++; // The ID doesn't need to be random but unique
       
@@ -117,11 +117,11 @@ public class RandomSpatialGenerator {
     long t1 = System.currentTimeMillis();
     while (true) {
       // Generate a random rectangle
-      randomRectangle.x = random.nextLong() % mbr.width + mbr.x;
-      randomRectangle.y = random.nextLong() % mbr.height + mbr.y;
-      randomRectangle.width = Math.min(random.nextLong() % 100,
+      randomRectangle.x = Math.abs(random.nextLong()) % mbr.width + mbr.x;
+      randomRectangle.y = Math.abs(random.nextLong()) % mbr.height + mbr.y;
+      randomRectangle.width = Math.min(Math.abs(random.nextLong()) % 100,
           mbr.width + mbr.x - randomRectangle.x);
-      randomRectangle.height = Math.min(random.nextLong() % 100,
+      randomRectangle.height = Math.min(Math.abs(random.nextLong()) % 100,
           mbr.height + mbr.y - randomRectangle.y);
       randomShape.id++; // The ID doesn't need to be random but unique
       
