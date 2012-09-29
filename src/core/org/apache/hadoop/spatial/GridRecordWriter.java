@@ -238,9 +238,13 @@ public class GridRecordWriter implements TigerShapeRecordWriter {
       fileSystem.rename(pathsToConcat.firstElement(), outFile);
     } else {
       if (!pathsToConcat.isEmpty()) {
-        fileSystem.create(outFile, true).close();
+        // Concat requires the target file to be a non-empty file with the same
+        // block size as source files
+        Path target = pathsToConcat.lastElement();
+        pathsToConcat.remove(pathsToConcat.size()-1);
         Path[] paths = pathsToConcat.toArray(new Path[pathsToConcat.size()]);
-        fileSystem.concat(outFile, paths);
+        fileSystem.concat(target, paths);
+        fileSystem.rename(target, outFile);
       }
       LOG.info("Concatenated files into: "+outFile);
     }
