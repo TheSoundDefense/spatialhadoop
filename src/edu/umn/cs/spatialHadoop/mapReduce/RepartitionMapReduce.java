@@ -178,15 +178,17 @@ public class RepartitionMapReduce {
       }
     }
     
-    LOG.info("Concatenating: "+pathsToConcat+" into "+outFileSystem);
+    LOG.info("Concatenating: "+pathsToConcat+" into "+outputPath);
     if (outFileSystem.exists(outputPath))
       outFileSystem.delete(outputPath, true);
     if (pathsToConcat.size() == 1) {
       outFileSystem.rename(pathsToConcat.firstElement(), outputPath);
-    } else {
-      outFileSystem.create(outputPath, overwrite).close();
-      outFileSystem.concat(outputPath,
+    } else if (!pathsToConcat.isEmpty()) {
+      Path target = pathsToConcat.lastElement();
+      pathsToConcat.remove(pathsToConcat.size()-1);
+      outFileSystem.concat(target,
           pathsToConcat.toArray(new Path[pathsToConcat.size()]));
+      outFileSystem.rename(target, outputPath);
     }
   }
 	
