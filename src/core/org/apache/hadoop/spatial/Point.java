@@ -160,10 +160,13 @@ public class Point extends AbstractShape implements Writable, Cloneable {
   public void fromText(Text text) {
     final byte[] buffer = text.getBytes();
     int comma = 0;
-    while (buffer[comma] != ',')
+    int start = comma;
+    while (comma < text.getLength() && buffer[comma] != ',')
       comma++;
-    x = TextSerializerHelper.deserializeLong(buffer, 0, comma++);
-    y = TextSerializerHelper.deserializeLong(buffer, comma,
-        text.getLength() - comma);
+    x = TextSerializerHelper.deserializeLong(buffer, start, (comma++ - start));
+    start = comma;
+    while (comma < text.getLength() && buffer[comma] != ',')
+      comma++;
+    y = TextSerializerHelper.deserializeLong(buffer, start, (comma++ - start));
   }
 }

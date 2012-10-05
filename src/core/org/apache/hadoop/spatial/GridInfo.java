@@ -11,13 +11,15 @@ import org.apache.hadoop.io.Writable;
 
 /**
  * Stores grid information that can be used with spatial files.
+ * The grid is uniform which means all cells have the same width and the same
+ * height.
  * @author aseldawy
  *
  */
 public class GridInfo implements Writable, TextSerializable {
   public long xOrigin, yOrigin;
   public long gridWidth, gridHeight;
-  public long cellWidth, cellHeight;
+  public int columns, rows;
 
   public GridInfo() {
   }
@@ -28,8 +30,8 @@ public class GridInfo implements Writable, TextSerializable {
     this.yOrigin = yOrigin;
     this.gridWidth = gridWidth;
     this.gridHeight = gridHeight;
-    this.cellWidth = cellWidth;
-    this.cellHeight = cellHeight;
+    this.columns = (int) Math.ceil((float)gridWidth / cellWidth);
+    this.rows = (int) Math.ceil((float)gridHeight / cellHeight);
   }
 
   @Override
@@ -38,8 +40,8 @@ public class GridInfo implements Writable, TextSerializable {
     out.writeLong(yOrigin);
     out.writeLong(gridWidth);
     out.writeLong(gridHeight);
-    out.writeLong(cellWidth);
-    out.writeLong(cellHeight);
+    out.writeInt(columns);
+    out.writeInt(rows);
   }
 
   @Override
@@ -48,22 +50,32 @@ public class GridInfo implements Writable, TextSerializable {
     yOrigin = in.readLong();
     gridWidth = in.readLong();
     gridHeight = in.readLong();
-    cellWidth = in.readLong();
-    cellHeight = in.readLong();
+    columns = in.readInt();
+    rows = in.readInt();
   }
 
   @Override
   public String toString() {
     return "grid: "+xOrigin+","+yOrigin+","+(xOrigin+gridWidth)+","+
-    (yOrigin+gridHeight)+", cell: "+cellWidth+","+cellHeight+"("+getGridColumns()+"x"+getGridRows()+")";
+    (yOrigin+gridHeight)+", " +
+    "cell: "+getAverageCellWidth()+","+getAverageCellHeight()+
+    "("+columns+"x"+rows+")";
   }
   
+  public long getAverageCellHeight() {
+    return gridHeight / rows;
+  }
+
+  public long getAverageCellWidth() {
+    return gridWidth / columns;
+  }
+
   @Override
   public boolean equals(Object obj) {
     GridInfo gi = (GridInfo) obj;
     return this.xOrigin == gi.xOrigin && this.yOrigin == gi.yOrigin
         && this.gridWidth == gi.gridWidth && this.gridHeight == gi.gridHeight
-        && this.cellWidth == gi.cellWidth && this.cellHeight == gi.cellHeight;
+        && this.columns == gi.columns && this.rows == gi.rows;
   }
   
   /**
@@ -89,8 +101,8 @@ public class GridInfo implements Writable, TextSerializable {
         yOrigin < 0 ? "-" : "", Math.abs(yOrigin),
             gridWidth < 0 ? "-" : "", Math.abs(gridWidth),
                 gridHeight < 0 ? "-" : "", Math.abs(gridHeight),
-                    cellWidth < 0 ? "-" : "", Math.abs(cellWidth),
-                        cellHeight < 0 ? "-" : "", Math.abs(cellHeight));
+                  columns < 0 ? "-" : "", Math.abs(columns),
+                    rows < 0 ? "-" : "", Math.abs(rows));
   }
   
   public void readFromString(String string) {
@@ -100,17 +112,9 @@ public class GridInfo implements Writable, TextSerializable {
     this.gridWidth = Long.parseLong(parts[2], 16);
     this.gridHeight = Long.parseLong(parts[3], 16);
     if (parts.length > 4) {
-      this.cellWidth = Long.parseLong(parts[4], 16);
-      this.cellHeight = Long.parseLong(parts[5], 16);
+      this.columns = Integer.parseInt(parts[4], 16);
+      this.rows = Integer.parseInt(parts[5], 16);
     }
-  }
-  
-  public int getGridColumns() {
-    return (int) Math.ceil((double)gridWidth / cellWidth);
-  }
-  
-  public int getGridRows() {
-    return (int) Math.ceil((double)gridHeight / cellHeight);
   }
   
   public void calculateCellDimensions(long totalFileSize, long blockSize) {
@@ -133,8 +137,8 @@ public class GridInfo implements Writable, TextSerializable {
         gridRows++;
       }
     }
-    cellWidth = (long)Math.ceil((double)gridWidth / gridCols);
-    cellHeight = (long)Math.ceil((double)gridHeight / gridRows);
+    columns = gridCols;
+    rows = gridRows;
   }
 
   @Override
@@ -154,14 +158,20 @@ public class GridInfo implements Writable, TextSerializable {
 
   public CellInfo[] getAllCells() {
     int cellIndex = 0;
-    CellInfo[] cells = new CellInfo[getGridColumns() * getGridRows()];
-    for (int col = 0; col < getGridColumns(); col++) {
-      for (int row = 0; row < getGridRows(); row++) {
-        cells[cellIndex] = new CellInfo(cellIndex, xOrigin + gridWidth * col / getGridColumns(),
-            yOrigin + gridHeight * row / getGridRows(),
-            cellWidth, cellHeight);
+    CellInfo[] cells = new CellInfo[columns * rows];
+    long x1 = xOrigin;
+    for (int col = 0; col < columns; col++) {
+      long x2 = xOrigin + gridWidth * (col+1) / columns;
+      
+      long y1 = yOrigin;
+      for (int row = 0; row < rows; row++) {
+        long y2 = yOrigin + gridHeight * (row+1) / rows;
+        cells[cellIndex] = new CellInfo(cellIndex, x1, y1, x2 - x1, y2 - y1);
         cellIndex++;
+        
+        y1 = y2;
       }
+      x1 = x2;
     }
     return cells;
   }

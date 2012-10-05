@@ -126,7 +126,7 @@ public class WriteGridFile {
       gridInfo = new GridInfo(mbr.x, mbr.y, mbr.width, mbr.height, 0, 0);
       LOG.info("GridInfo: "+gridInfo);
     }
-    if (gridInfo.cellWidth == 0) {
+    if (gridInfo.columns == 0) {
       gridInfo.calculateCellDimensions(inFileSystem.getFileStatus(path).getLen(), outFileSystem.getDefaultBlockSize());
       LOG.info("GridInfo: "+gridInfo);
     }
