@@ -13,6 +13,7 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.BytesWritable;
+import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.FileOutputFormat;
@@ -28,7 +29,6 @@ import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.TigerShape;
-import org.apache.hadoop.spatial.TigerShapeRecordWriter;
 import org.apache.hadoop.spatial.WriteGridFile;
 
 import edu.umn.cs.CommandLineArguments;
@@ -53,29 +53,35 @@ public class RepartitionMapReduce {
   
   public static class Map extends MapReduceBase
   implements
-  Mapper<LongWritable, TigerShape, CellInfo, TigerShape> {
+  Mapper<LongWritable, TigerShape, IntWritable, TigerShape> {
 
+    static IntWritable cellId = new IntWritable();
     public void map(
         LongWritable id,
         TigerShape shape,
-        OutputCollector<CellInfo, TigerShape> output,
+        OutputCollector<IntWritable, TigerShape> output,
         Reporter reporter) throws IOException {
 
       for (int cellIndex = 0; cellIndex < cellInfos.length; cellIndex++) {
         if (cellInfos[cellIndex].isIntersected(shape)) {
-          output.collect(cellInfos[cellIndex], shape);
+          cellId.set((int)cellInfos[cellIndex].cellId);
+          output.collect(cellId, shape);
         }
       }
     }
   }
   
   public static class Reduce extends MapReduceBase implements
-  Reducer<CellInfo, TigerShape, CellInfo, Text> {
+  Reducer<IntWritable, TigerShape, CellInfo, Text> {
     @Override
-    public void reduce(CellInfo cellInfo, Iterator<TigerShape> values,
+    public void reduce(IntWritable cellId, Iterator<TigerShape> values,
         OutputCollector<CellInfo, Text> output, Reporter reporter)
             throws IOException {
-
+      CellInfo cellInfo = null;
+      for (CellInfo _cellInfo : cellInfos) {
+        if (_cellInfo.cellId == cellId.get())
+          cellInfo = _cellInfo;
+      }
       // If writing to a grid file, concatenated in text
       Text text = new Text();
       while (values.hasNext()) {
@@ -132,7 +138,7 @@ public class RepartitionMapReduce {
 
     if (gridInfo == null)
       gridInfo = WriteGridFile.getGridInfo(inFileSystem, inputFile, outFileSystem);
-    if (gridInfo.cellWidth == 0 || rtree)
+    if (gridInfo.columns == 0 || rtree)
       gridInfo.calculateCellDimensions(inFileSystem.getFileStatus(inputFile).getLen() * (rtree? 4 : 1), outputBlockSize);
     CellInfo[] cellsInfo = pack ?
         WriteGridFile.packInRectangles(inFileSystem, inputFile, outFileSystem, gridInfo) :
@@ -146,7 +152,7 @@ public class RepartitionMapReduce {
 
     RepartitionInputFormat.setInputPaths(conf, inputFile);
     conf.setInputFormat(RepartitionInputFormat.class);
-    conf.setOutputKeyClass(CellInfo.class);
+    conf.setOutputKeyClass(IntWritable.class);
     conf.setOutputValueClass(TigerShape.class);
 
     conf.setMapperClass(Map.class);
@@ -158,6 +164,7 @@ public class RepartitionMapReduce {
 
     FileOutputFormat.setOutputPath(conf,outputPath);
     conf.setOutputFormat(rtree ? RTreeGridOutputFormat.class : GridOutputFormat.class);
+    conf.setOutputFormat(rtree ? RPRTreeGridOutputFormat.class : RPGridOutputFormat.class);
     conf.set(GridOutputFormat.OUTPUT_GRID, gridInfo.writeToString());
     conf.set(GridOutputFormat.OUTPUT_CELLS, GridOutputFormat.encodeCells(cellsInfo));
     conf.setBoolean(GridOutputFormat.OVERWRITE, overwrite);

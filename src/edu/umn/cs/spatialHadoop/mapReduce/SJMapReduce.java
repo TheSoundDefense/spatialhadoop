@@ -130,7 +130,7 @@ public class SJMapReduce {
     LOG.info("SJ mbrOfAllFiles: "+mbrOfAllFiles);
 
     // Invalidate any grid info that is not complete or does not contain MBR of all files
-    if (gridInfo != null && gridInfo.cellWidth == 0)
+    if (gridInfo != null && gridInfo.columns == 0)
       gridInfo = null;
     if (gridInfo != null && !gridInfo.getMBR().contains(mbrOfAllFiles))
       gridInfo = null;
