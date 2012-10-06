@@ -1,18 +1,22 @@
-package edu.umn.cs.spatialHadoop.mapReduce;
+package edu.umn.cs.spatialHadoop.operations;
 import java.io.IOException;
 import java.io.InputStream;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.LineRecordReader;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.spatial.Point;
+import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.TigerShape;
+import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.spatialHadoop.TigerShapeWithIndex;
 
@@ -32,6 +36,8 @@ public class TigerShapeRecordReader implements RecordReader<LongWritable, TigerS
   private static String ShapeClassName;
   private RecordReader<LongWritable, Text> lineRecordReader;
   private Text subValue;
+  private String tigerShapeClassName;
+  private String shapeClassName;
   private int index;
 
   public TigerShapeRecordReader(Configuration job, FileSplit split)
@@ -101,19 +107,32 @@ public class TigerShapeRecordReader implements RecordReader<LongWritable, TigerS
     return lineRecordReader.createKey();
   }
 
+  public void setTigerShapeClassName(String tigerShapeClassName) {
+    this.tigerShapeClassName = tigerShapeClassName;
+  }
+
+  public void setShapeClassName(String shapeClassName) {
+    this.shapeClassName = shapeClassName;
+  }
+  
   @Override
   public TigerShape createValue() {
     subValue = lineRecordReader.createValue();
     TigerShape tigerShape;
+    if (tigerShapeClassName == null)
+      tigerShapeClassName = TigerShapeClassName;
+    if (shapeClassName == null)
+      shapeClassName = ShapeClassName;
+    
     try {
-      Class<TigerShape> tigerShapeClass = (Class<TigerShape>) Class.forName(TigerShapeClassName);
+      Class<TigerShape> tigerShapeClass = (Class<TigerShape>) Class.forName(tigerShapeClassName);
       tigerShape = tigerShapeClass.newInstance();
       // TODO find a cleaner way to set index
       if (tigerShape instanceof TigerShapeWithIndex) {
         ((TigerShapeWithIndex)tigerShape).index = index;
       }
       // Create a concrete shape class to be serialized
-      Class<Shape> shapeClass = (Class<Shape>)Class.forName(ShapeClassName);
+      Class<Shape> shapeClass = (Class<Shape>)Class.forName(shapeClassName);
       tigerShape.shape = shapeClass.newInstance();
     } catch (ClassNotFoundException e) {
       e.printStackTrace();
@@ -127,5 +146,57 @@ public class TigerShapeRecordReader implements RecordReader<LongWritable, TigerS
     }
     return tigerShape;
   }
+  
+  /**
+   * Counts number of records in a file
+   * @param conf
+   * @param fs
+   * @param path
+   * @return
+   * @throws IOException
+   */
+  public static long getRecordCount(FileSystem fs, Path path) throws IOException {
+    LineReader lineReader = new LineReader(fs.open(path));
+    long recordCount = 0;
+    Text line = new Text();
+    while (lineReader.readLine(line) > 0) {
+      recordCount++;
+    }
+    lineReader.close();
+    return recordCount;
+  }
 
+  /**
+   * Calculate minimum bounding rectangle of a file by opening it and reading every tuple.
+   * @param fileSystem
+   * @param path
+   * @return
+   * @throws IOException
+   */
+  private static Rectangle getFileMBR(Configuration conf, FileSystem fileSystem, Path path) throws IOException {
+    long fileSize = fileSystem.getFileStatus(path).getLen();
+    TigerShapeRecordReader recordReader = new TigerShapeRecordReader(
+        conf, fileSystem.open(path), 0, fileSize);
+    recordReader.setShapeClassName(Rectangle.class.getName());
+    LongWritable key = recordReader.createKey();
+    TigerShape value = recordReader.createValue();
+    
+    Rectangle rectangle = (Rectangle) value.shape;
+    
+    long x1 = Long.MAX_VALUE;
+    long x2 = Long.MIN_VALUE;
+    long y1 = Long.MAX_VALUE;
+    long y2 = Long.MIN_VALUE;
+    
+    while (recordReader.next(key, value)) {
+      if (rectangle.getX1() < x1) x1 = rectangle.getX1();
+      if (rectangle.getY1() < y1) y1 = rectangle.getY1();
+      if (rectangle.getX2() > x2) x2 = rectangle.getX2();
+      if (rectangle.getY2() > y2) y2 = rectangle.getY2();
+    }
+
+    recordReader.close();
+    return new Rectangle(x1, y1, x2 - x1 + 1, y2 - y1 + 1);
+  }
+ 
 }

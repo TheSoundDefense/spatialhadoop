@@ -17,7 +17,7 @@ import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.TigerShape;
 import org.apache.hadoop.spatial.TigerShapeRecordWriter;
 
-import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridRecordWriter;
+import edu.umn.cs.spatialHadoop.operations.RTreeGridRecordWriter;
 
 public class RandomSpatialGenerator {
   static byte[] NEW_LINE;

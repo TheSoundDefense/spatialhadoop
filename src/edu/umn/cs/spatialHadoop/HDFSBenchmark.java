@@ -24,10 +24,10 @@ import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.TigerShape;
 import org.apache.hadoop.util.LineReader;
 
-import edu.umn.cs.spatialHadoop.mapReduce.RQInputFormat;
-import edu.umn.cs.spatialHadoop.mapReduce.RQMapReduce;
-import edu.umn.cs.spatialHadoop.mapReduce.SplitCalculator;
-import edu.umn.cs.spatialHadoop.mapReduce.TigerShapeRecordReader;
+import edu.umn.cs.spatialHadoop.operations.RQInputFormat;
+import edu.umn.cs.spatialHadoop.operations.RQMapReduce;
+import edu.umn.cs.spatialHadoop.operations.SplitCalculator;
+import edu.umn.cs.spatialHadoop.operations.TigerShapeRecordReader;
 
 public class HDFSBenchmark {
 

@@ -14,7 +14,7 @@ import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.TigerShape;
 
-import edu.umn.cs.spatialHadoop.mapReduce.TigerShapeRecordReader;
+import edu.umn.cs.spatialHadoop.operations.TigerShapeRecordReader;
 
 public class TX {
 

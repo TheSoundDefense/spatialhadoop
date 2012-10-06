@@ -1,4 +1,4 @@
-package edu.umn.cs.spatialHadoop.mapReduce;
+package edu.umn.cs.spatialHadoop.operations;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -138,8 +138,24 @@ public class RepartitionMapReduce {
 
     if (gridInfo == null)
       gridInfo = WriteGridFile.getGridInfo(inFileSystem, inputFile, outFileSystem);
-    if (gridInfo.columns == 0 || rtree)
-      gridInfo.calculateCellDimensions(inFileSystem.getFileStatus(inputFile).getLen() * (rtree? 4 : 1), outputBlockSize);
+    if (gridInfo.columns == 0 || rtree) {
+      final double ReplicationOverhead = 0.001;
+      // Recalculate grid dimensions
+      if (!rtree) {
+        long source_file_size = inFileSystem.getFileStatus(inputFile).getLen();
+        long dest_file_size = (long) (source_file_size * (1.0 + ReplicationOverhead));
+        gridInfo.calculateCellDimensions(dest_file_size, outputBlockSize);
+      } else {
+        long source_record_count = 
+            TigerShapeRecordReader.getRecordCount(inFileSystem, inputFile);
+        long dest_recourd_count = 
+            (long)(source_record_count* (1.0 + ReplicationOverhead));
+        int records_per_block = RTree.getBlockCapacity(outputBlockSize, 5, 42);
+        int num_cells = 
+            (int) Math.ceil((float)dest_recourd_count / records_per_block);
+        gridInfo.calculateCellDimensions(num_cells);
+      }
+    }
     CellInfo[] cellsInfo = pack ?
         WriteGridFile.packInRectangles(inFileSystem, inputFile, outFileSystem, gridInfo) :
           gridInfo.getAllCells();

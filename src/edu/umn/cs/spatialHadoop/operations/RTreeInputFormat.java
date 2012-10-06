@@ -1,35 +1,30 @@
-package edu.umn.cs.spatialHadoop.mapReduce;
+package edu.umn.cs.spatialHadoop.operations;
 import java.io.IOException;
 import java.util.Vector;
 
-import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.spatial.CellInfo;
+import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.TigerShape;
 
 import edu.umn.cs.FileRange;
 
 
-
 /**
- * Reads and parses a file that contains records of type Rectangle.
- * Records are assumed to be fixed size and of the format
- * <id>,<left>,<top>,<right>,<bottom>
- * When a record of all zeros is encountered, it is assumed to be the end of file.
- * This means, no more records are processed after a zero-record.
- * Records are read one be one.
- * @author aseldawy
+ * Reads a file stored as a list of RTrees
+ * @author eldawy
  *
  */
-public class RQInputFormat extends FileInputFormat<LongWritable, TigerShape> {
+public class RTreeInputFormat extends FileInputFormat<CellInfo, RTree<TigerShape>> {
 
 	@Override
-	public RecordReader<LongWritable, TigerShape> getRecordReader(InputSplit split,
+	public RecordReader<CellInfo, RTree<TigerShape>> getRecordReader(InputSplit split,
 			JobConf job, Reporter reporter) throws IOException {
 		// TODO move this part to another code that gets processed once for each mapper
 		// Set QueryRange in the mapper class
@@ -38,7 +33,7 @@ public class RQInputFormat extends FileInputFormat<LongWritable, TigerShape> {
 		RQMapReduce.queryShape.readFromString(queryRangeStr);
 		// Create record reader
 	    reporter.setStatus(split.toString());
-		return new TigerShapeRecordReader(job, (FileSplit)split);
+		return new RTreeRecordReader(job, (FileSplit)split);
 	}
 	
 	@Override

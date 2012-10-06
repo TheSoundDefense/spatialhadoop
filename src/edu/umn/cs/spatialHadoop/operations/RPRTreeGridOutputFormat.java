@@ -1,4 +1,4 @@
-package edu.umn.cs.spatialHadoop.mapReduce;
+package edu.umn.cs.spatialHadoop.operations;
 
 public class RPRTreeGridOutputFormat extends RTreeGridOutputFormat {
 

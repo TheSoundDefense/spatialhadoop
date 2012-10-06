@@ -1,4 +1,4 @@
-package edu.umn.cs.spatialHadoop.mapReduce;
+package edu.umn.cs.spatialHadoop.operations;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
