@@ -22,10 +22,10 @@ public final class TextSerializerHelper {
    * @param t
    * @param appendComma
    */
-  public static void serializeLong(long i, Text t, boolean appendComma) {
+  public static void serializeLong(long i, Text t, char toAppend) {
     int charPos = 64;
-    if (appendComma) {
-      buffer[--charPos] = ',';
+    if (toAppend != '\0') {
+      buffer[--charPos] = (byte)toAppend;
     }
     final int shift = 4;
     final int radix = 1 << shift;

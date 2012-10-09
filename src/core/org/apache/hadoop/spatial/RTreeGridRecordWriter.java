@@ -1,9 +1,10 @@
 package org.apache.hadoop.spatial;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Vector;
 
 import org.apache.commons.logging.Log;
@@ -14,29 +15,38 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.Writable;
 
 public class RTreeGridRecordWriter implements TigerShapeRecordWriter {
   public static final Log LOG = LogFactory.getLog(RTreeGridRecordWriter.class);
+  
+  /**The default RTree degree used for local indexing*/
+  public static final String RTREE_DEGREE = "spatialHadoop.storage.RTreeDegree";
+  
   public static final long RTreeFileMarker = -0x0123456;
-  public static final int RTREE_MAX_ENTRIES = 200;
-
-  /**Maximum number of entries per RTree. Affects memory usage.*/
-  private static final int RTREE_LIMIT = 600000;
 
   /**An output stream for each grid cell*/
   private CellInfo[] cells;
-  private List<TigerShape>[] cellShapes;
+  private Vector<TigerShape>[] cellShapes;
+  private FSDataOutputStream[] cellStreams;
   private final Path outFile;
   private final FileSystem fileSystem;
+  private final int rtreeDegree;
+  private final long rtreeLimit;
   
+  @SuppressWarnings("unchecked")
   public RTreeGridRecordWriter(FileSystem fileSystem, Path outFile, CellInfo[] cells) throws IOException {
     LOG.info("Writing to RTrees");
     this.fileSystem = fileSystem;
     this.outFile = outFile;
     this.cells = cells;
+    this.rtreeDegree = fileSystem.getConf().getInt(RTREE_DEGREE, 5);
+    this.rtreeLimit = RTree.getBlockCapacity(fileSystem.getDefaultBlockSize()-8,
+        rtreeDegree, calculateRecordSize(TigerShape.class));
 
-    // Prepare arrays that hold streams
-    cellShapes = new List[cells.length];
+    // Prepare arrays that hold records before building the RTree
+    cellShapes = new Vector[cells.length];
+    cellStreams = new FSDataOutputStream[cells.length];
 
     for (CellInfo cell : cells ) {
       LOG.info("Partitioning according to cell: " + cell);
@@ -45,6 +55,31 @@ public class RTreeGridRecordWriter implements TigerShapeRecordWriter {
     for (int cellIndex = 0; cellIndex < cells.length; cellIndex++) {
       cellShapes[cellIndex] = new Vector<TigerShape>();
     }
+  }
+  
+  /**
+   * Calculates number of bytes needed to serialize an instance of the given
+   * class. It writes a dummy object to a ByteArrayOutputStreams and calculates
+   * number of bytes reserved by this stream.
+   * @param klass
+   * @return
+   */
+  public static int calculateRecordSize(Class<? extends Writable> klass) {
+    int size = -1;
+    try {
+      ByteArrayOutputStream bout = new ByteArrayOutputStream();
+      DataOutputStream out = new DataOutputStream(bout);
+      klass.newInstance().write(out);
+      out.close();
+      size = bout.toByteArray().length;
+    } catch (IOException e) {
+      e.printStackTrace();
+    } catch (InstantiationException e) {
+      e.printStackTrace();
+    } catch (IllegalAccessException e) {
+      e.printStackTrace();
+    }
+    return size;
   }
 
   /**
@@ -98,9 +133,12 @@ public class RTreeGridRecordWriter implements TigerShapeRecordWriter {
    * @throws IOException
    */
   private synchronized void writeToCell(int cellIndex, TigerShape shape) throws IOException {
+    if (shape == null) {
+      closeCell(cells[cellIndex]);
+      return;
+    }
     cellShapes[cellIndex].add((TigerShape) shape.clone());
-
-    if (cellShapes[cellIndex].size() >= RTREE_LIMIT) {
+    if (cellShapes[cellIndex].size() >= rtreeLimit) {
       flushCell(cellIndex);
     }
   }
@@ -135,45 +173,69 @@ public class RTreeGridRecordWriter implements TigerShapeRecordWriter {
    
     // Write all RTrees to files
     for (int cellIndex = 0; cellIndex < cells.length; cellIndex++) {
-      flushCell(cellIndex);
-      finalizeCell(cellIndex);
+      if (cellShapes[cellIndex] != null && !cellShapes[cellIndex].isEmpty()) {
+        flushCell(cellIndex);
+        finalizeCell(cellIndex);
+      }
       
       Path cellPath = getCellFilePath(cellIndex);
       if (fileSystem.exists(cellPath))
         pathsToConcat.add(cellPath);
     }
 
-    if (!pathsToConcat.isEmpty()) {
-      // Concatenate all files into the first file
-      Path firstFile = pathsToConcat.remove(0);
-
+    LOG.info("Closing... Merging "+pathsToConcat.size());
+    if (pathsToConcat.size() == 1) {
+      fileSystem.rename(pathsToConcat.firstElement(), outFile);
+    } else {
       if (!pathsToConcat.isEmpty()) {
+        // Concat requires the target file to be a non-empty file with the same
+        // block size as source files
+        Path target = pathsToConcat.lastElement();
+        pathsToConcat.remove(pathsToConcat.size()-1);
         Path[] paths = pathsToConcat.toArray(new Path[pathsToConcat.size()]);
-        fileSystem.concat(firstFile, paths);
+        fileSystem.concat(target, paths);
+        fileSystem.rename(target, outFile);
       }
-      // Rename file to original required filename
-      fileSystem.rename(firstFile, outFile);
+      LOG.info("Concatenated files into: "+outFile);
     }
+    LOG.info("Final file size: "+fileSystem.getFileStatus(outFile).getLen());
   }
   
   private void flushCell(int cellIndex) throws IOException {
     LOG.info(this+"Writing the RTree at cell #"+cellIndex);
-    // Create a buffer filled with zeros
-    byte[] buffer = new byte[fileSystem.getConf().getInt("io.file.buffer.size", 1024 * 1024)];
-    Arrays.fill(buffer, (byte)0);
 
     if (cellShapes[cellIndex].size() > 0) {
-      FSDataOutputStream dos = getCellStream(cellIndex);
-      dos.writeLong(RTreeFileMarker);
+      FSDataOutputStream cellStream = getCellStream(cellIndex);
+      cellStream.writeLong(RTreeFileMarker);
       RTree<TigerShape> rtree = new RTree<TigerShape>();
-      rtree.bulkLoad(cellShapes[cellIndex].
-          toArray(new TigerShape[cellShapes[cellIndex].size()]),
-          RTREE_MAX_ENTRIES);
-      LOG.info("Writing RTree to disk");
-      rtree.write(dos);
+      TigerShape[] shapes = new TigerShape[cellShapes[cellIndex].size()];
+      cellShapes[cellIndex].toArray(shapes);
       cellShapes[cellIndex].clear();
-      dos.close();
-      
+      rtree.bulkLoad(shapes, rtreeDegree);
+      shapes = null;
+      LOG.info("Writing RTree to disk");
+      rtree.write(cellStream);
+
+      // Stuff the file with bytes to make a complete block
+      long blockSize = fileSystem.getDefaultBlockSize();
+      long cellSize = cellStream.getPos();
+      LOG.info("Current size: "+cellSize);
+      // Stuff all open streams with empty lines until each one is 64 MB
+      long remainingBytes = (blockSize - cellSize % blockSize) % blockSize;
+      LOG.info("Stuffing file " + cellIndex +  " with new lines: " + remainingBytes);
+      // Create a buffer filled with zeros
+      byte[] buffer = new byte[fileSystem.getConf().getInt("io.file.buffer.size", 1024 * 1024)];
+      Arrays.fill(buffer, (byte)0);
+      // Write some bytes so that remainingBytes is multiple of buffer.length
+      cellStream.write(buffer, 0, (int)(remainingBytes % buffer.length));
+      remainingBytes -= remainingBytes % buffer.length;
+      // Write chunks of size buffer.length
+      while (remainingBytes > 0) {
+        cellStream.write(buffer);
+        remainingBytes -= buffer.length;
+      }
+      buffer = null;
+
       LOG.info("Actual size: "+fileSystem.getFileStatus(getCellFilePath(cellIndex)).getLen());
     }
   }
@@ -218,20 +280,23 @@ public class RTreeGridRecordWriter implements TigerShapeRecordWriter {
   }
   
   private FSDataOutputStream getCellStream(int cellIndex) throws IOException {
-    Path cellFilePath = getCellFilePath(cellIndex);
-    FSDataOutputStream cellStream;
-    if (!fileSystem.exists(cellFilePath)) {
-      // Create new file
-      cellStream = fileSystem.create(cellFilePath, cells[cellIndex]);
-    } else {
-      // Append to existing file
-      cellStream = fileSystem.append(cellFilePath);
+    if (cellStreams[cellIndex] == null) {
+      Path cellFilePath = getCellFilePath(cellIndex);
+      if (!fileSystem.exists(cellFilePath)) {
+        // Create new file
+        cellStreams[cellIndex] = fileSystem.create(cellFilePath, cells[cellIndex]);
+      } else {
+        // Append to existing file
+        cellStreams[cellIndex] = fileSystem.append(cellFilePath);
+      }
     }
-    return cellStream;
+    return cellStreams[cellIndex];
   }
 
   @Override
   public void closeCell(CellInfo cellInfo) throws IOException {
-    throw new RuntimeException("Not implemented RTreeGridRecordWriter#closeCell");
+    int cellIndex = locateCell(cellInfo);
+    flushCell(cellIndex);
+    finalizeCell(cellIndex);
   }
 }

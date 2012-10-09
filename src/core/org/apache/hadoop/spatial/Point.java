@@ -152,8 +152,8 @@ public class Point extends AbstractShape implements Writable, Cloneable {
 
   @Override
   public void toText(Text text) {
-    TextSerializerHelper.serializeLong(x, text, true);
-    TextSerializerHelper.serializeLong(y, text, false);
+    TextSerializerHelper.serializeLong(x, text, ',');
+    TextSerializerHelper.serializeLong(y, text, '\0');
   }
   
   @Override

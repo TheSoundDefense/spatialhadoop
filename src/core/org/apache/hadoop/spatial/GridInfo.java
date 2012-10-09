@@ -120,8 +120,6 @@ public class GridInfo implements Writable, TextSerializable {
   public void calculateCellDimensions(long totalFileSize, long blockSize) {
     // An empirical number for the expected overhead in grid file due to
     // replication
-    final double GridOverhead = 0.001;
-    totalFileSize += totalFileSize * GridOverhead;
     int numBlocks = (int) Math.ceil((double)totalFileSize / blockSize);
     calculateCellDimensions(numBlocks);
   }

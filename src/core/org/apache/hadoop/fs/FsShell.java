@@ -22,10 +22,11 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.text.DecimalFormat;
-import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.TimeZone;
 import java.util.zip.GZIPInputStream;
 
 import org.apache.hadoop.conf.Configuration;
@@ -41,12 +42,12 @@ import org.apache.hadoop.io.WritableComparable;
 import org.apache.hadoop.ipc.RPC;
 import org.apache.hadoop.ipc.RemoteException;
 import org.apache.hadoop.spatial.GridInfo;
-import org.apache.hadoop.spatial.Shape;
+import org.apache.hadoop.spatial.TigerShape;
 import org.apache.hadoop.spatial.WriteGridFile;
 import org.apache.hadoop.util.ReflectionUtils;
+import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
-import org.apache.hadoop.util.StringUtils;
 
 /** Provide command line access to a FileSystem. */
 public class FsShell extends Configured implements Tool {
@@ -211,33 +212,18 @@ public class FsShell extends Configured implements Tool {
     String gridstr = null;
     String srcstr = null;
     String dststr = null;
-    String shapestr = "Rectangle";
     boolean pack, rtree, overwrite;
-    Class<Shape> shapeClass;
-    try {
-      List<String> parameters = cf.parse(argv, pos);
-      int i = 0;
-      if (parameters.get(i).indexOf(':') != -1) {
-        gridstr = parameters.get(i++);
-        gridstr = gridstr.substring(gridstr.indexOf(':')+1);
-      }
-      srcstr = parameters.get(i++);
-      dststr = parameters.get(i++);
-      if (parameters.size() > i) {
-        shapestr = parameters.get(i++);
-      }
-      String shapeClassName = Shape.class.getName().replace("Shape", shapestr);
-      shapeClass = (Class<Shape>) Class.forName(shapeClassName);
-      pack = cf.getOpt("pack");
-      rtree = cf.getOpt("rtree");
-      overwrite = cf.getOpt("overwrite");
+    List<String> parameters = cf.parse(argv, pos);
+    int i = 0;
+    if (parameters.get(i).indexOf(':') != -1) {
+      gridstr = parameters.get(i++);
+      gridstr = gridstr.substring(gridstr.indexOf(':')+1);
     }
-    catch(IllegalArgumentException iae) {
-      System.err.println("Usage: java FsShell " + WRITEGRIDFILE_SHORT_USAGE);
-      throw iae;
-    } catch (ClassNotFoundException e) {
-      throw new IllegalArgumentException("Illegal shape name: "+shapestr);
-    }
+    srcstr = parameters.get(i++);
+    dststr = parameters.get(i++);
+    pack = cf.getOpt("pack");
+    rtree = cf.getOpt("rtree");
+    overwrite = cf.getOpt("overwrite");
 
     GridInfo gridInfo = null;
     if (gridstr != null) {
@@ -248,14 +234,8 @@ public class FsShell extends Configured implements Tool {
     Path dstPath = new Path(dststr);
     FileSystem fileSystem = dstPath.getFileSystem(getConf());
 
-    try {
-      WriteGridFile.writeGridFile(FileSystem.getLocal(getConf()), srcPath,
-          fileSystem, dstPath, gridInfo, shapeClass, pack, rtree, overwrite);
-    } catch (InstantiationException e) {
-      throw new RuntimeException("Connot instantiate an object of class "+shapeClass.getName());
-    } catch (IllegalAccessException e) {
-      throw new RuntimeException("Connot instantiate an object of class "+shapeClass.getName());
-    }
+    WriteGridFile.writeGridFile(FileSystem.getLocal(getConf()), srcPath,
+        fileSystem, dstPath, gridInfo, new TigerShape(), pack, rtree, overwrite);
   }
 
   /**

@@ -1,7 +1,6 @@
 package org.apache.hadoop.spatial;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.DataOutput;
@@ -15,6 +14,7 @@ import java.util.Random;
 import java.util.Stack;
 import java.util.Vector;
 
+import org.apache.commons.io.output.NullOutputStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -23,6 +23,8 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.util.IndexedSortable;
 import org.apache.hadoop.util.QuickSort;
+
+import com.sun.xml.internal.messaging.saaj.packaging.mime.util.LineInputStream;
 
 /**
  * An RTree loaded in bulk and never changed after that. It cannot by
@@ -38,7 +40,7 @@ public class RTree<T extends Shape> implements Writable {
    * @author eldawy
    *
    */
-  class Node extends Rectangle {
+  static class Node extends Rectangle {
     // Children of each node could be either other nodes or elements
     Vector<Shape> children;
     // When we read elements from disk and we want to delay parsing values,
@@ -47,9 +49,6 @@ public class RTree<T extends Shape> implements Writable {
     // in children list
     byte[] elementData;
     boolean leaf;
-    
-    private Node() {
-    }
     
     Node(boolean leaf) {
       this.leaf = leaf;
@@ -250,18 +249,12 @@ public class RTree<T extends Shape> implements Writable {
   
   @Override
   public void write(DataOutput out) throws IOException {
-    // Create a separate stream for node (structure) and elements (data)
-    ByteArrayOutputStream nodeStream;
-    FSDataOutputStream tempNodeOut = new FSDataOutputStream(
-        nodeStream = new ByteArrayOutputStream(), null);
-
-    ByteArrayOutputStream dataStream;
     FSDataOutputStream tempDataOut = new FSDataOutputStream(
-        dataStream = new ByteArrayOutputStream(), null);
+        new NullOutputStream(), null);
     
     // A list of nodes to be written do disk. Nodes are written in their
     // level-order traversal
-    Queue<Node> toBeVisited = new LinkedList<Node>();
+    Queue<Node> toBeWritten = new LinkedList<Node>();
     long offsetOfFirstElement = 0;
     
     int nodeCount;
@@ -275,39 +268,34 @@ public class RTree<T extends Shape> implements Writable {
       if (nodeCount != getNodeCount())
         throw new RuntimeException("Node count "+nodeCount+" != "+getNodeCount());
       
-      // Write tree header
-      tempNodeOut.writeInt(height);
-      tempNodeOut.writeInt(degree);
-      tempNodeOut.writeInt(getElementCount());
-      
       offsetOfFirstElement = TreeHeaderSize +
           NodeSize * nodeCount;
       
       // Start writing elements from the root
-      toBeVisited.add(root);
+      toBeWritten.add(root);
     } else {
       height = 0;
       nodeCount = 0;
       degree = 0;
       offsetOfFirstElement = 4;
-      tempNodeOut.writeInt(height); // 0 height indicates an empty tree 
     }
+
+    // Stores non leaves in level order traversal to be able 
+    Vector<Node> nonLeavesInLevelOrderTraversal = new Vector<Node>();
     // Map each node to the offset of first child on disk.
     // For leaves, the first child is a direct child to the node
     // For non leaves, this offset is equal to the offset of first child for
     // its left most child node
     Map<Node, Integer> offsetOfFirstChild = new HashMap<Node, Integer>();
-    // Nodes that need to be written to disk
-    Vector<Node> toBeWritten = new Vector<Node>();
-    while (!toBeVisited.isEmpty()) {
+    while (!toBeWritten.isEmpty()) {
       // Get next element to be visited
-      Node n = toBeVisited.poll();
-      toBeWritten.add(n);
-
+      Node n = toBeWritten.poll();
+      
       if (!n.leaf) {
+        nonLeavesInLevelOrderTraversal.add(n);
         // Serialize all child nodes
         for (Shape child : n.children) {
-          toBeVisited.add((Node)child);
+          toBeWritten.add((Node)child);
         }
       } else {
         // For leaves. Record the offset of the first element in this node
@@ -319,47 +307,57 @@ public class RTree<T extends Shape> implements Writable {
         }
       }
     }
-    
-    System.out.println("Going to write "+toBeWritten.size()+" nodes");
-
-    if (toBeWritten.size() != nodeCount)
-      throw new RuntimeException("Some nodes will not be written");
-    
-    // Calculate offsetOfFirstChild for all nodes (non leaf nodes)
-    for (int i = toBeWritten.size() - 1; i >= 0; i--) {
-      Node n = toBeWritten.elementAt(i);
-      if (!n.leaf) {
-        offsetOfFirstChild.put(n, offsetOfFirstChild.get(n.children.firstElement()));
-      }
-    }
-
-    // Write nodes
-    for (Node n : toBeWritten) {
-      // Write offset of first child
-      tempNodeOut.writeInt(offsetOfFirstChild.get(n));
-      n.write(tempNodeOut);
-    }
-    // Make sure our precalculations were correct
-    if (tempNodeOut.getPos() != offsetOfFirstElement)
-      throw new RuntimeException("Actual pos: "+tempNodeOut.getPos()+" != Expected post "+offsetOfFirstElement);
-    
-    long treeSize = tempNodeOut.getPos() + tempDataOut.getPos();
-    tempNodeOut.close();
+    // No longer need this temp data out
     tempDataOut.close();
     
-    // Really write to the output stream
-    out.writeLong(treeSize);
-    out.write(nodeStream.toByteArray());
-    out.write(dataStream.toByteArray());
+    // Calculate offset of first child for all nodes
+    for (int i = nonLeavesInLevelOrderTraversal.size() - 1; i >= 0; i--) {
+      Node n = nonLeavesInLevelOrderTraversal.elementAt(i);
+      offsetOfFirstChild.put(n, offsetOfFirstChild.get(n.children.firstElement()));
+    }
+    nonLeavesInLevelOrderTraversal = null;
+
+    if (root != null)
+      toBeWritten.add(root);
+    
+    int treeSize = (int) (offsetOfFirstElement + tempDataOut.getPos());
+
+    // Actually write data to output
+    // Write tree header
+    out.writeInt(treeSize);
+    out.writeInt(height);
+    out.writeInt(degree);
+    out.writeInt(getElementCount());
+    
+    Vector<Node> leaves = new Vector<Node>();
+    while (!toBeWritten.isEmpty()) {
+      Node n = toBeWritten.poll();
+      out.writeInt(offsetOfFirstChild.get(n));
+      n.write(out);
+      if (!n.leaf) {
+        // Serialize all child nodes
+        for (Shape child : n.children) {
+          toBeWritten.add((Node)child);
+        }
+      } else {
+        leaves.add(n);
+      }
+    }
+    for (Node leaf : leaves) {
+      // Write elements to data out
+      for (Shape s : leaf.children) {
+        s.write(out);
+      }
+    }
   }
 
   @Override
   public void readFields(DataInput in) throws IOException {
-    long treeSize = in.readLong();
+    int treeSize = in.readInt();
     if (treeSize == 0) {
       serializedTree = null;
     } else {
-      serializedTree = new byte[(int) treeSize];
+      serializedTree = new byte[treeSize];
       in.readFully(serializedTree);
     }
     root = null;
@@ -508,7 +506,27 @@ public class RTree<T extends Shape> implements Writable {
     return resultSize;
   }
   
-  protected int searchDisk(Rectangle query, ResultCollector<T> results) {
+  /**
+   * Given a block size, record size and a required tree degree, this function
+   * calculates the maximum number of records that can be stored in this
+   * block taking into consideration the overhead needed by node structure.
+   * @param blockSize
+   * @param degree
+   * @param recordSize
+   * @return
+   */
+  public static int getBlockCapacity(long blockSize, int degree, int recordSize) {
+    double a = (double)NodeSize / (degree - 1);
+    double ratio = (blockSize + a) / (recordSize + a);
+    double break_even_height = Math.log(ratio) / Math.log(degree);
+    double h_min = Math.floor(break_even_height);
+    double capacity1 = Math.floor(Math.pow(degree, h_min));
+    double structure_size = 4 + TreeHeaderSize + a * (capacity1 * degree - 1);
+    double capacity2 = Math.floor((blockSize - structure_size) / recordSize);
+    return Math.max((int)capacity1, (int)capacity2);
+  }
+  
+  protected int searchDisk(Rectangle query, ResultCollector<T> output) {
     int resultSize = 0;
 
     // Check for an empty tree
@@ -527,6 +545,9 @@ public class RTree<T extends Shape> implements Writable {
       int leafNodeCount = (int) Math.pow(degree, height - 1);
       int nonLeafNodeCount = nodeCount - leafNodeCount;
       /*int elementCount =*/ in.readInt();
+      
+      in.reset();
+      in.skip(TreeHeaderSize);
 
       Queue<Integer> toBeSearched = new LinkedList<Integer>();
       toBeSearched.add(0);
@@ -536,7 +557,6 @@ public class RTree<T extends Shape> implements Writable {
       while (!toBeSearched.isEmpty()) {
         int searchNumber = toBeSearched.poll();
         int mbrsToTest = searchNumber == 0 ? 1 : degree;
-
 
         if (searchNumber < nodeCount) {
           long nodeOffset = TreeHeaderSize + NodeSize * searchNumber;
@@ -571,8 +591,8 @@ public class RTree<T extends Shape> implements Writable {
             stockObject.readFields(in);
             if (stockObject.isIntersected(query)) {
               resultSize++;
-              if (results != null)
-                results.add(stockObject);
+              if (output != null)
+                output.add(stockObject);
             }
           }
         }
@@ -598,33 +618,36 @@ public class RTree<T extends Shape> implements Writable {
   }
   
   public static void main(String[] args) throws IOException {
+    LineInputStream lis = new LineInputStream(System.in);
     long t1, t2;
     Configuration conf = new Configuration();
     FileSystem fs = FileSystem.getLocal(conf);
     Path testfile = new Path("test.rtree");
     Random random = new Random();
     // Test the size of RTree serialization
-    final int R = 1000000; // Total number of records
-    final int d = 5; // degree fan out
-    final int recordSize = 42;
+    final int degree = 11; // degree fan out
+    final int record_size = 40;
+    // Total number of records
+    final int record_count = getBlockCapacity(64*1024*1024, degree, record_size);
+    System.out.println("Generating "+record_count+" records");
+    
     Rectangle mbr = new Rectangle(0, 0, 10000, 10000);
     final Rectangle query = new Rectangle(mbr.x, mbr.y, 100, 100);
     
     RTree<TigerShape> rtree = new RTree<TigerShape>();
-    TigerShape[] values = new TigerShape[R];
-    
+    TigerShape[] values = new TigerShape[record_count];
     t1 = System.currentTimeMillis();
-    for (int i = 0; i < R; i++) {
-      Rectangle r = new Rectangle();
-      TigerShape s = new TigerShape(r, i);
+    for (int i = 0; i < record_count; i++) {
+      TigerShape s = new TigerShape();
       
       // Generate a random rectangle
-      r.x = Math.abs(random.nextLong() % mbr.width) + mbr.x;
-      r.y = Math.abs(random.nextLong() % mbr.height) + mbr.y;
-      r.width = Math.min(Math.abs(random.nextLong() % 100) + 1,
-          mbr.width + mbr.x - r.x);
-      r.height = Math.min(Math.abs(random.nextLong() % 100) + 1,
-          mbr.height + mbr.y - r.y);
+      s.x = Math.abs(random.nextLong() % mbr.width) + mbr.x;
+      s.y = Math.abs(random.nextLong() % mbr.height) + mbr.y;
+      s.width = Math.min(Math.abs(random.nextLong() % 100) + 1,
+          mbr.width + mbr.x - s.x);
+      s.height = Math.min(Math.abs(random.nextLong() % 100) + 1,
+          mbr.height + mbr.y - s.y);
+      s.id = i;
 
       values[i] = s;
     }
@@ -632,8 +655,9 @@ public class RTree<T extends Shape> implements Writable {
     System.out.println("Generated rectangles in: "+(t2-t1)+" millis");
     
     t1 = System.currentTimeMillis();
-    rtree.bulkLoad(values, d);
+    rtree.bulkLoad(values, degree);
     t2 = System.currentTimeMillis();
+    values = null;
     System.out.println("Time for bulk loading: "+(t2-t1)+" millis");
 
     // Write to disk
@@ -645,26 +669,30 @@ public class RTree<T extends Shape> implements Writable {
     System.out.println("Time for disk write: "+(t2-t1)+" millis");
     
     int resultCount = rtree.search(query, null);
-    int height = (int)Math.ceil(Math.log(R)/Math.log(d)); // Number of nodes
-    long N = (long) ((Math.pow(d, height) - 1) / (d - 1));
+    int height = (int)Math.ceil(Math.log(record_count)/Math.log(degree)); // Number of nodes
+    long N = (long) ((Math.pow(degree, height) - 1) / (degree - 1));
 
-    System.out.println("Selectivity: "+resultCount+" ("+((double)resultCount/R)+")");
+    System.out.println("Selectivity: "+resultCount+" ("+((double)resultCount/record_count)+")");
     System.out.println("Expected node count: " + N + " Vs actua node count: " + rtree.getNodeCount());
     System.out.println("Expected RTree height: " + height + " Vs Actual RTree height: " + rtree.getTreeHeight());
 
-    long expectedSize = TreeHeaderSize + R*recordSize + N*NodeSize;
+    long expectedSize = 4 + TreeHeaderSize + record_count*record_size + N*NodeSize;
     long actualSize = new File("test.rtree").length();
     System.out.println("Expected size: "+expectedSize+" Vs Actual size: "+actualSize);
     System.out.println("Overhead than expected: "+ 
         ((actualSize-expectedSize) * 100/expectedSize) + "%");
-    if (R > 0)
+    if (record_count > 0)
       System.out.println("Total overhead (increase in size): "+ 
-          (100*actualSize/(recordSize*R))+"%");
+          (100*actualSize/(record_size*record_count))+"%");
+
+    // No longer need this tree. Free up memory
+    values = null;
+    rtree = null;
 
     t1 = System.currentTimeMillis();
     // Calculate total time for reading and parsing the tree
     RTree<TigerShape> rtree2 = new RTree<TigerShape>();
-    rtree2.setStockObject(new TigerShape(new Rectangle(), 1));
+    rtree2.setStockObject(new TigerShape());
     
     FSDataInputStream datain = fs.open(testfile);
     rtree2.readFields(datain);
@@ -678,6 +706,6 @@ public class RTree<T extends Shape> implements Writable {
     resultCount = rtree2.search(query, null);
     t2 = System.currentTimeMillis();
     System.out.println("Time for a small query: "+(t2-t1)+" millis");
-    System.out.println("Selectivity: "+resultCount+" ("+((double)resultCount/R)+")");
+    System.out.println("Selectivity: "+resultCount+" ("+((double)resultCount/record_count)+")");
   }
 }

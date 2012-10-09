@@ -20,22 +20,26 @@ public class WriteGridFile {
 
   /**
    * Writes a grid file to HDFS.
+   * 
    * @param inFileSystem
    * @param inputPath
    * @param outFileSystem
    * @param outputPath
    * @param gridInfo
    * @param shapeClass
-   * @param pack - set to <code>true</code> to pack grid cells in a distribution-aware manner
-   * @param rtree - set to <code>true</code> to store each grid cell as rtree
+   * @param pack
+   *          - set to <code>true</code> to pack grid cells in a
+   *          distribution-aware manner
+   * @param rtree
+   *          - set to <code>true</code> to store each grid cell as rtree
    * @throws IOException
    * @throws InstantiationException
    * @throws IllegalAccessException
    */
   public static void writeGridFile(FileSystem inFileSystem, Path inputPath,
-      FileSystem outFileSystem, Path outputPath,
-      GridInfo gridInfo, Class<Shape> shapeClass, boolean pack, boolean rtree, boolean overwrite)
-      throws IOException, InstantiationException, IllegalAccessException {
+      FileSystem outFileSystem, Path outputPath, GridInfo gridInfo,
+      TigerShape shape, boolean pack, boolean rtree, boolean overwrite)
+      throws IOException {
     gridInfo = calculateGridInfo(inFileSystem, inputPath, outFileSystem, gridInfo);
     if (rtree)
       gridInfo.calculateCellDimensions(inFileSystem.getFileStatus(inputPath).getLen() * 4, outFileSystem.getDefaultBlockSize());
@@ -50,7 +54,6 @@ public class WriteGridFile {
     // Open input file
     LineReader reader = new LineReader(inFileSystem.open(inputPath));
 
-    TigerShape shape = new TigerShape(shapeClass.newInstance(), 0);
     LongWritable dummyId = new LongWritable();
     Text line = new Text();
     while (reader.readLine(line) > 0) {
@@ -165,8 +168,7 @@ public class WriteGridFile {
       inTotalSize += inputSize[fileIndex];
     }
 
-    Rectangle rectangle = new Rectangle();
-    TigerShape shape = new TigerShape(rectangle, 0);
+    TigerShape shape = new TigerShape();
 
     List<Point> samplePoints = new ArrayList<Point>();
 
@@ -219,7 +221,7 @@ public class WriteGridFile {
         continue;
       shape.readFromString(new String(readLine, 0, readLineIndex));
 
-      samplePoints.add(rectangle.getCenterPoint());
+      samplePoints.add(shape.getCenterPoint());
       totalBytesToSample -= readLineIndex;
     }
     

@@ -3,7 +3,6 @@ package org.apache.hadoop.spatial;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.io.OutputStream;
 
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.TextSerializerHelper;
@@ -439,10 +438,10 @@ public class Rectangle extends AbstractShape {
 
   @Override
   public void toText(Text text) {
-    TextSerializerHelper.serializeLong(x, text, true);
-    TextSerializerHelper.serializeLong(y, text, true);
-    TextSerializerHelper.serializeLong(width, text, true);
-    TextSerializerHelper.serializeLong(height, text, false);
+    TextSerializerHelper.serializeLong(x, text, ',');
+    TextSerializerHelper.serializeLong(y, text, ',');
+    TextSerializerHelper.serializeLong(width, text, ',');
+    TextSerializerHelper.serializeLong(height, text, '\0');
   }
 
 }
