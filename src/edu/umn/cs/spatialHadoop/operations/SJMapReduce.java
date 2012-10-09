@@ -29,6 +29,7 @@ import org.apache.hadoop.spatial.WriteGridFile;
 import edu.umn.cs.CommandLineArguments;
 import edu.umn.cs.spatialHadoop.SpatialAlgorithms;
 import edu.umn.cs.spatialHadoop.TigerShapeWithIndex;
+import edu.umn.cs.spatialHadoop.mapReduce.GridOutputFormat;
 
 
 /**

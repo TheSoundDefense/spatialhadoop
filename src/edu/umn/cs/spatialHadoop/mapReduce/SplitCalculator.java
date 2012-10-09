@@ -1,4 +1,4 @@
-package edu.umn.cs.spatialHadoop.operations;
+package edu.umn.cs.spatialHadoop.mapReduce;
 
 import java.io.IOException;
 import java.util.Vector;
@@ -9,16 +9,14 @@ import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.FileSplit;
+import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.spatial.CellInfo;
-import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.util.StringUtils;
 
 import edu.umn.cs.FileRange;
-import edu.umn.cs.spatialHadoop.PointWithK;
-import edu.umn.cs.spatialHadoop.TigerShapeWithDistance;
 
 public class SplitCalculator {
   public static final Log LOG = LogFactory.getLog(SplitCalculator.class);
@@ -54,6 +52,20 @@ public class SplitCalculator {
 		LOG.info("Processing the whole file");
 		return null;
 	}
+	
+	public static InputSplit[] filterSplits(JobConf job, InputSplit[] splits)
+	    throws IOException {
+	  Vector<FileRange> fileRanges = calculateRanges(job);
+	  if (fileRanges == null)
+	    return splits;
+	  Vector<InputSplit> filteredSplits = new Vector<InputSplit>();
+    for (InputSplit split : splits) {
+      // Check if this input split is in the search space
+      if (SplitCalculator.isInputSplitInSearchSpace((FileSplit) split, fileRanges))
+        filteredSplits.add((FileSplit)split);
+    }
+    return filteredSplits.toArray(new FileSplit[filteredSplits.size()]);
+	}
 
 	/**
 	 * Calculate ranges in each input file that need to be processed.
@@ -65,7 +77,7 @@ public class SplitCalculator {
 	 * @return
 	 * @throws IOException 
 	 */
-	public static Vector<FileRange> RQCalculateRanges(JobConf conf) throws IOException {
+	private static Vector<FileRange> RQCalculateRanges(JobConf conf) throws IOException {
 		// Find query range. We assume there is only one query range for the job
 
 		Rectangle queryRange = new Rectangle();
@@ -85,8 +97,6 @@ public class SplitCalculator {
 		for (Path path : inputPaths) {
 			FileSystem fs = path.getFileSystem(conf);
 			Long fileLength = fs.getFileStatus(path).getLen();
-			// Retrieve grid info for this file
-			GridInfo gridInfo = fs.getFileStatus(path).getGridInfo();
 			// Check each block
 			BlockLocation[] blockLocations = fs.getFileBlockLocations(fs.getFileStatus(path), 0, fileLength);
 			for (BlockLocation blockLocation : blockLocations) {
@@ -115,10 +125,9 @@ public class SplitCalculator {
 	 * @param matchedBlocks
 	 * @throws IOException
 	 */
-  public static void KNNBlocksInRange(FileSystem fileSystem,
-      Path filePath, TigerShapeWithDistance queryPoint, Vector<BlockLocation> matchedBlocks) throws IOException {
-    double requiredDistance = queryPoint.distance;
-    LOG.info("Matching blocks withing a distance of "+requiredDistance+" of the point: "+queryPoint);
+  private static void KNNBlocksInRange(FileSystem fileSystem,
+      Path filePath, Point queryPoint, long distance,
+      Vector<BlockLocation> matchedBlocks) throws IOException {
 	  long fileLength = fileSystem.getFileStatus(filePath).getLen();
 	  BlockLocation[] blockLocations = fileSystem.getFileBlockLocations(fileSystem.getFileStatus(filePath), 0, fileLength);
 	  for (BlockLocation blockLocation : blockLocations) {
@@ -129,7 +138,7 @@ public class SplitCalculator {
 	    } else {
 	      double minDistanceToBlock = blockMBR.getMinDistanceTo(queryPoint);
 	      LOG.info("Minimum distance for block "+blockMBR+" is "+minDistanceToBlock);
-	      if (minDistanceToBlock <= requiredDistance) {
+	      if (minDistanceToBlock <= distance) {
 	        LOG.info("Block "+blockLocation.getCellInfo()+" matched with distance: "+minDistanceToBlock);
 	        matchedBlocks.add(blockLocation);
 	      }
@@ -155,8 +164,9 @@ public class SplitCalculator {
     long x = Long.parseLong(splits[0]);
     long y = Long.parseLong(splits[1]);
     long distance = Long.parseLong(splits[2]);
-		TigerShapeWithDistance queryPoint = new TigerShapeWithDistance(0, new Point(x,y), distance);
-    LOG.info("Restricting blocks according to the point: "+queryPoint);
+		Point queryPoint = new Point(x, y);
+    LOG.info("Restricting blocks according to the point: "+queryPoint+
+        ", distance: "+distance);
 
 		Vector<FileRange> ranges = new Vector<FileRange>();
 		// Retrieve a list of all input files
@@ -171,7 +181,7 @@ public class SplitCalculator {
 		for (Path path : inputPaths) {
 			FileSystem fs = path.getFileSystem(conf);
 			Vector<BlockLocation> blocksToBeProcessed = new Vector<BlockLocation>();
-			KNNBlocksInRange(fs, path, queryPoint, blocksToBeProcessed);
+			KNNBlocksInRange(fs, path, queryPoint, distance, blocksToBeProcessed);
 
 			for (BlockLocation blockLocation : blocksToBeProcessed) {
 			  LOG.info("Going to process the block at: "+blockLocation.getCellInfo());

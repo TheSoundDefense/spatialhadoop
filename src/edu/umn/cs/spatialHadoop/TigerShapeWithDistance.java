@@ -9,28 +9,28 @@ import org.apache.hadoop.spatial.TigerShape;
 
 public class TigerShapeWithDistance extends TigerShape {
   
-  // Distance is used for internal processing and should not be serialized to string to
-  // be able to parse normal files
+  /**
+   * Distance is used for internal processing and should not be serialized
+   * to string to be able to parse normal files
+   */
   public double distance;
 
   public TigerShapeWithDistance() {
-    
   }
   
-  public TigerShapeWithDistance(TigerShape tigerShape, double distance) {
-    super(tigerShape);
-    this.distance = distance;
+  TigerShapeWithDistance(TigerShapeWithDistance x) {
+    super(x);
+    this.distance = x.distance;
   }
   
-  public TigerShapeWithDistance(long id, Shape shape, double distance) {
-    this.id = id;
-    this.shape = shape;
+  public TigerShapeWithDistance(Shape shape, double distance) {
+    super(shape.getMBR(), 0);
     this.distance = distance;
   }
   
   @Override
-  public Object clone() {
-    return new TigerShapeWithDistance(id, (Shape) shape.clone(), distance);
+  public TigerShapeWithDistance clone() {
+    return new TigerShapeWithDistance(this);
   }
   
   @Override

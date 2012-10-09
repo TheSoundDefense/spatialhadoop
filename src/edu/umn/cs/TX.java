@@ -14,22 +14,21 @@ import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.TigerShape;
 
-import edu.umn.cs.spatialHadoop.operations.TigerShapeRecordReader;
+import edu.umn.cs.spatialHadoop.operations.ShapeRecordReader;
 
 public class TX {
 
   public static void main(String[] args) throws IOException {
     // Read all shapes in file
     Configuration conf = new Configuration();
-    conf.set(TigerShapeRecordReader.SHAPE_CLASS, Rectangle.class.getName());
     Path inputFile = new Path("/media/scratch/edges_merge.rects");
     Path outputFile = new Path("/home/eldawy/Desktop/tx.points");
     FileSystem fs = inputFile.getFileSystem(conf);
     long length = fs.getFileStatus(inputFile).getLen();
-    TigerShapeRecordReader reader = new TigerShapeRecordReader(conf,
-        fs.open(inputFile), 0, length);
+    ShapeRecordReader reader =
+        new ShapeRecordReader(fs.open(inputFile), 0, length);
     LongWritable shapeId = reader.createKey();
-    TigerShape shape = reader.createValue();
+    TigerShape shape = new TigerShape();
     Vector<Point> shapes = new Vector<Point>();
     long x1 = Long.MAX_VALUE;
     long y1 = Long.MAX_VALUE;

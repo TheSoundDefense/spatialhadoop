@@ -11,6 +11,8 @@ import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.TigerShape;
 
+import edu.umn.cs.spatialHadoop.mapReduce.GridOutputFormat;
+
 /**
  * Reads and parses a file that contains records of type Rectangle. Records are
  * assumed to be fixed size and of the format <id>,<left>,<top>,<right>,<bottom>

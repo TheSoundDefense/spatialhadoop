@@ -1,0 +1,169 @@
+package edu.umn.cs.spatialHadoop.operations;
+
+import java.io.IOException;
+import java.util.Iterator;
+
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.ByteWritable;
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapred.JobClient;
+import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.mapred.MapReduceBase;
+import org.apache.hadoop.mapred.Mapper;
+import org.apache.hadoop.mapred.OutputCollector;
+import org.apache.hadoop.mapred.Reducer;
+import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.spatial.Rectangle;
+import org.apache.hadoop.spatial.TigerShape;
+import org.apache.hadoop.util.LineReader;
+
+import edu.umn.cs.CommandLineArguments;
+import edu.umn.cs.spatialHadoop.mapReduce.STextOutputFormat;
+
+/**
+ * Finds the minimal bounding rectangle for a file.
+ * @author eldawy
+ *
+ */
+public class FileMBR {
+  private static final ByteWritable ONEB = new ByteWritable((byte)1);
+  private static final Rectangle MBR = new Rectangle();
+
+  public static class Map extends MapReduceBase implements
+      Mapper<LongWritable, TigerShape, ByteWritable, Rectangle> {
+    public void map(LongWritable shapeId, TigerShape shape,
+        OutputCollector<ByteWritable, Rectangle> output, Reporter reporter)
+        throws IOException {
+      Rectangle mbr = shape.getMBR();
+      MBR.set(mbr.x, mbr.y, mbr.width, mbr.height);
+      output.collect(ONEB, MBR);
+    }
+  }
+  
+  public static class Reduce extends MapReduceBase implements
+  Reducer<ByteWritable, Rectangle, ByteWritable, Rectangle> {
+    @Override
+    public void reduce(ByteWritable dummy, Iterator<Rectangle> values,
+        OutputCollector<ByteWritable, Rectangle> output, Reporter reporter)
+            throws IOException {
+      long x1 = Long.MAX_VALUE;
+      long y1 = Long.MAX_VALUE;
+      long x2 = Long.MIN_VALUE;
+      long y2 = Long.MIN_VALUE;
+      
+      while (values.hasNext()) {
+        Rectangle rect = values.next();
+        if (rect.getX1() < x1) x1 = rect.getX1();
+        if (rect.getY1() < y1) y1 = rect.getY1();
+        if (rect.getX2() > x2) x2 = rect.getX2();
+        if (rect.getY2() > y2) y2 = rect.getY2();
+      }
+      
+      output.collect(ONEB, new Rectangle(x1, y1, x2 - x1, y2 - y1));
+    }
+  }
+  
+  /**
+   * Counts the exact number of lines in a file by issuing a MapReduce job
+   * that does the thing
+   * @param conf
+   * @param fs
+   * @param file
+   * @return
+   * @throws IOException 
+   */
+  public static Rectangle fileMBRMapReduce(FileSystem fs, Path file) throws IOException {
+    JobConf job = new JobConf(FileMBR.class);
+    
+    Path outputPath = new Path(file.toUri().getPath()+".mbr");
+    FileSystem outFs = outputPath.getFileSystem(job);
+    outFs.delete(outputPath, true);
+    
+    job.setJobName("FileMBR");
+    job.setMapOutputKeyClass(ByteWritable.class);
+    job.setMapOutputValueClass(Rectangle.class);
+    
+    job.setMapperClass(Map.class);
+    job.setReducerClass(Reduce.class);
+    job.setCombinerClass(Reduce.class);
+    
+    job.setInputFormat(ShapeInputFormat.class);
+    job.set(ShapeRecordReader.SHAPE_CLASS, TigerShape.class.getName());
+    job.setOutputFormat(STextOutputFormat.class);
+    
+    ShapeInputFormat.setInputPaths(job, file);
+    STextOutputFormat.setOutputPath(job, outputPath);
+    
+    // Submit the job
+    JobClient.runJob(job);
+    
+    // Read job result
+    FileStatus[] results = outFs.listStatus(outputPath);
+    Rectangle mbr = new Rectangle();
+    for (FileStatus fileStatus : results) {
+      if (fileStatus.getLen() > 0 && fileStatus.getPath().getName().startsWith("part-")) {
+        LineReader lineReader = new LineReader(outFs.open(fileStatus.getPath()));
+        Text text = new Text();
+        if (lineReader.readLine(text) > 0) {
+          String str = text.toString();
+          String[] parts = str.split("\t");
+          mbr.readFromString(parts[1]);
+        }
+        lineReader.close();
+      }
+    }
+    
+    outFs.delete(outputPath, true);
+    
+    return mbr;
+  }
+  
+  /**
+   * Counts the exact number of lines in a file by opening the file and
+   * reading it line by line
+   * @param fs
+   * @param file
+   * @return
+   * @throws IOException
+   */
+  public static Rectangle fileMBRLocal(FileSystem fs, Path file) throws IOException {
+    long file_size = fs.getFileStatus(file).getLen();
+    ShapeRecordReader shapeReader =
+        new ShapeRecordReader(fs.open(file), 0, file_size);
+
+    long x1 = Long.MAX_VALUE;
+    long y1 = Long.MAX_VALUE;
+    long x2 = Long.MIN_VALUE;
+    long y2 = Long.MIN_VALUE;
+    
+    LongWritable key = shapeReader.createKey();
+    TigerShape value = new TigerShape();
+
+    while (shapeReader.next(key, value)) {
+      Rectangle rect = value.getMBR();
+      if (rect.getX1() < x1) x1 = rect.getX1();
+      if (rect.getY1() < y1) y1 = rect.getY1();
+      if (rect.getX2() > x2) x2 = rect.getX2();
+      if (rect.getY2() > y2) y2 = rect.getY2();
+    }
+    shapeReader.close();
+    return new Rectangle(x1, y1, x2-x1, y2-y1);
+  }
+  
+  /**
+   * @param args
+   * @throws IOException 
+   */
+  public static void main(String[] args) throws IOException {
+    CommandLineArguments cla = new CommandLineArguments(args);
+    JobConf conf = new JobConf(FileMBR.class);
+    Path inputFile = cla.getFilePath();
+    FileSystem fs = inputFile.getFileSystem(conf);
+    Rectangle mbr = fileMBRLocal(fs, inputFile);
+    System.out.println("MBR of records in file "+inputFile+" is "+mbr);
+  }
+
+}

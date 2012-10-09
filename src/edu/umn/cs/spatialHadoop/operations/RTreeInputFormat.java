@@ -14,6 +14,7 @@ import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.TigerShape;
 
 import edu.umn.cs.FileRange;
+import edu.umn.cs.spatialHadoop.mapReduce.SplitCalculator;
 
 
 /**

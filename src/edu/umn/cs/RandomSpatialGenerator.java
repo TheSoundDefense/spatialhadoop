@@ -59,20 +59,19 @@ public class RandomSpatialGenerator {
         : new GridRecordWriter(outFS, outFilePath, gridInfo.getAllCells(), true);
 
     long generatedSize = 0;
-    Rectangle randomRectangle = new Rectangle();
-    TigerShape randomShape = new TigerShape(randomRectangle, 0);
+    TigerShape randomShape = new TigerShape();
     Random random = new Random();
     Text text = new Text();
     
     long t1 = System.currentTimeMillis();
     while (true) {
       // Generate a random rectangle
-      randomRectangle.x = Math.abs(random.nextLong()) % mbr.width + mbr.x;
-      randomRectangle.y = Math.abs(random.nextLong()) % mbr.height + mbr.y;
-      randomRectangle.width = Math.min(Math.abs(random.nextLong()) % 100,
-          mbr.width + mbr.x - randomRectangle.x);
-      randomRectangle.height = Math.min(Math.abs(random.nextLong()) % 100,
-          mbr.height + mbr.y - randomRectangle.y);
+      randomShape.x = Math.abs(random.nextLong()) % mbr.width + mbr.x;
+      randomShape.y = Math.abs(random.nextLong()) % mbr.height + mbr.y;
+      randomShape.width = Math.min(Math.abs(random.nextLong()) % 100,
+          mbr.width + mbr.x - randomShape.x);
+      randomShape.height = Math.min(Math.abs(random.nextLong()) % 100,
+          mbr.height + mbr.y - randomShape.y);
       randomShape.id++; // The ID doesn't need to be random but unique
       
       // Serialize it to text first to make it easy count its size
@@ -109,20 +108,20 @@ public class RandomSpatialGenerator {
     else
       out = new BufferedOutputStream(outFS.create(outputFilePath, true));
     long generatedSize = 0;
-    Rectangle randomRectangle = new Rectangle();
-    TigerShape randomShape = new TigerShape(randomRectangle, 0);
+    TigerShape randomShape = new TigerShape();
+    randomShape.id = 0x1000000;
     Random random = new Random();
     Text text = new Text();
     
     long t1 = System.currentTimeMillis();
     while (true) {
       // Generate a random rectangle
-      randomRectangle.x = Math.abs(random.nextLong()) % mbr.width + mbr.x;
-      randomRectangle.y = Math.abs(random.nextLong()) % mbr.height + mbr.y;
-      randomRectangle.width = Math.min(Math.abs(random.nextLong()) % 100,
-          mbr.width + mbr.x - randomRectangle.x);
-      randomRectangle.height = Math.min(Math.abs(random.nextLong()) % 100,
-          mbr.height + mbr.y - randomRectangle.y);
+      randomShape.x = Math.abs(random.nextLong()) % mbr.width + mbr.x;
+      randomShape.y = Math.abs(random.nextLong()) % mbr.height + mbr.y;
+      randomShape.width = Math.min(Math.abs(random.nextLong()) % 100,
+          mbr.width + mbr.x - randomShape.x);
+      randomShape.height = Math.min(Math.abs(random.nextLong()) % 100,
+          mbr.height + mbr.y - randomShape.y);
       randomShape.id++; // The ID doesn't need to be random but unique
       
       // Serialize it to text first to make it easy count its size
@@ -140,6 +139,8 @@ public class RandomSpatialGenerator {
     // Cannot close standard output
     if (outFS != null && outputFilePath != null)
       out.close();
+    else
+      out.flush();
     long t3 = System.currentTimeMillis();
     System.out.println("Core time: "+(t2-t1)+" millis");
     System.out.println("Close time: "+(t3-t2)+" millis");
