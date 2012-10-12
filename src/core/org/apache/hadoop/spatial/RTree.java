@@ -15,6 +15,8 @@ import java.util.Stack;
 import java.util.Vector;
 
 import org.apache.commons.io.output.NullOutputStream;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -24,8 +26,6 @@ import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.util.IndexedSortable;
 import org.apache.hadoop.util.QuickSort;
 
-import com.sun.xml.internal.messaging.saaj.packaging.mime.util.LineInputStream;
-
 /**
  * An RTree loaded in bulk and never changed after that. It cannot by
  * dynamically manipulated by either insertion or deletion. It only works with
@@ -34,6 +34,8 @@ import com.sun.xml.internal.messaging.saaj.packaging.mime.util.LineInputStream;
  *
  */
 public class RTree<T extends Shape> implements Writable {
+  /**Logger*/
+  private static final Log LOG = LogFactory.getLog(RTree.class);
   
   /**
    * A node in the RTree
@@ -138,8 +140,8 @@ public class RTree<T extends Shape> implements Writable {
       int index2;
       // The direction in which we should split children
       int direction;
-      static final int DIRECTION_X = 0;
-      static final int DIRECTION_Y = 1;
+//      static final int DIRECTION_X = 0;
+//      static final int DIRECTION_Y = 1;
       
       /**
        * Creates a split struct which saves the state at some point. This split
@@ -261,6 +263,7 @@ public class RTree<T extends Shape> implements Writable {
     int height;
     int degree;
     if (root != null) {
+      LOG.info("Writing an RTree with root: "+root.getMBR());
       height = getTreeHeight();
       degree = root.children.size();
       nodeCount = degree == 1 && height == 1 ?
@@ -565,6 +568,7 @@ public class RTree<T extends Shape> implements Writable {
           
           for (int i = 0; i < mbrsToTest; i++) {
             mbr.readFields(in);
+            LOG.info("Comparing with the node: "+mbr);
             int lastOffset = (searchNumber+i) == nodeCount - 1 ?
                 serializedTree.length : in.readInt();
             if (mbr.isIntersected(query)) {
@@ -589,6 +593,7 @@ public class RTree<T extends Shape> implements Writable {
           // while (bytes read so far < total bytes that need to be read)
           while ((avail - in.available()) < (lastOffset - firstOffset)) {
             stockObject.readFields(in);
+            LOG.info("Comparing with the leaf object: "+stockObject);
             if (stockObject.isIntersected(query)) {
               resultSize++;
               if (output != null)
@@ -618,7 +623,6 @@ public class RTree<T extends Shape> implements Writable {
   }
   
   public static void main(String[] args) throws IOException {
-    LineInputStream lis = new LineInputStream(System.in);
     long t1, t2;
     Configuration conf = new Configuration();
     FileSystem fs = FileSystem.getLocal(conf);
@@ -627,8 +631,9 @@ public class RTree<T extends Shape> implements Writable {
     // Test the size of RTree serialization
     final int degree = 11; // degree fan out
     final int record_size = 40;
+    final int block_size = 32*1024*1024;
     // Total number of records
-    final int record_count = getBlockCapacity(64*1024*1024, degree, record_size);
+    final int record_count = getBlockCapacity(block_size, degree, record_size);
     System.out.println("Generating "+record_count+" records");
     
     Rectangle mbr = new Rectangle(0, 0, 10000, 10000);

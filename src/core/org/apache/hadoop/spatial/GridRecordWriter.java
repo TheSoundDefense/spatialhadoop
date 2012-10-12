@@ -11,17 +11,16 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 
-public class GridRecordWriter implements TigerShapeRecordWriter {
+public class GridRecordWriter implements ShapeRecordWriter {
   public static final Log LOG = LogFactory.getLog(GridRecordWriter.class);
   /**An output stream for each grid cell*/
-  private CellInfo[] cells;
-  private OutputStream[] cellStreams;
-  private final Path outFile;
-  private final FileSystem fileSystem;
+  protected CellInfo[] cells;
+  protected OutputStream[] cellStreams;
+  protected final Path outFile;
+  protected final FileSystem fileSystem;
   private Text text;
 
   /**
@@ -70,7 +69,8 @@ public class GridRecordWriter implements TigerShapeRecordWriter {
     text = new Text();
   }
   
-  public synchronized void write(LongWritable dummyId, TigerShape shape) throws IOException {
+  @Override
+  public synchronized void write(LongWritable dummyId, Shape shape) throws IOException {
     text.clear();
     shape.toText(text);
     write(dummyId, shape, text);
@@ -88,31 +88,61 @@ public class GridRecordWriter implements TigerShapeRecordWriter {
    * @param text
    * @throws IOException
    */
-  public synchronized void write(LongWritable dummyId, TigerShape shape, Text text) throws IOException {
+  @Override
+  public synchronized void write(LongWritable dummyId, Shape shape, Text text) throws IOException {
     // Write to all possible grid cells
     Rectangle mbr = shape.getMBR();
     for (int cellIndex = 0; cellIndex < cells.length; cellIndex++) {
       if (mbr.isIntersected(cells[cellIndex])) {
-        writeToCell(cellIndex, text);
+        writeInternal(cellIndex, shape, text);
       }
     }
   }
   
   /**
-   * A low level method to write a text to a specified cell.
-   * 
-   * @param cellIndex
-   * @param text
+   * Write the given shape to a specific cell. The shape is not replicated to any other cells.
+   * It's just written to the given cell. This is useful when shapes are already assigned
+   * and replicated to grid cells another way, e.g. from a map phase that partitions.
+   * @param cellInfo
+   * @param shape
    * @throws IOException
    */
-  private synchronized void writeToCell(int cellIndex, Text text) throws IOException {
+  @Override
+  public synchronized void write(CellInfo cellInfo, Shape shape) throws IOException {
+    if (shape == null) {
+      closeCell(locateCell(cellInfo));
+      return;
+    }
+    text.clear();
+    shape.toText(text);
+    write(cellInfo, shape, text);
+  }
+
+  @Override
+  public synchronized void write(CellInfo cellInfo, Shape shape, Text text) throws IOException {
+    // Write to the cell given
+    int cellIndex = locateCell(cellInfo);
+    writeInternal(cellIndex, shape, text);
+  }
+
+  /**
+   * Write the given shape to the cellIndex indicated.
+   * @param cellIndex
+   * @param shape
+   * @throws IOException
+   */
+  protected synchronized void writeInternal(int cellIndex, Shape shape, Text text) throws IOException {
+    if (text == null) {
+      text = this.text;
+      shape.toText(text);
+    }
     OutputStream cellStream = getCellStream(cellIndex);
     cellStream.write(text.getBytes(), 0, text.getLength());
     cellStream.write(NEW_LINE);
   }
   
   // Get a stream that writes to the given cell
-  private OutputStream getCellStream(int cellIndex) {
+  protected OutputStream getCellStream(int cellIndex) throws IOException {
     if (cellStreams[cellIndex] == null) {
       try {
         // Try to get a stream that writes directly to the file
@@ -140,42 +170,8 @@ public class GridRecordWriter implements TigerShapeRecordWriter {
     return cellStream;
   }
 
-  /**
-   * Write the given shape to a specific cell. The shape is not replicated to any other cells.
-   * It's just written to the given cell. This is useful when shapes are already assigned
-   * and replicated to grid cells another way, e.g. from a map phase that partitions.
-   * @param cellInfo
-   * @param rect
-   * @throws IOException
-   */
-  public synchronized void write(CellInfo cellInfo, TigerShape rect) throws IOException {
-    if (rect == null) {
-      closeCell(cellInfo);
-      return;
-    }
-    text.clear();
-    rect.toText(text);
-    write(cellInfo, rect, text);
-  }
-  
-  public synchronized void write(CellInfo cellInfo, TigerShape rect, Text text) throws IOException {
-    // Write to the cell given
-    int cellIndex = locateCell(cellInfo);
-    writeToCell(cellIndex, text);
-  }
-  
-  public synchronized void write(CellInfo cellInfo, Text text) throws IOException {
-    if (text == null) {
-      closeCell(cellInfo);
-      return;
-    }
-    // Write to the cell given
-    int cellIndex = locateCell(cellInfo);
-    writeToCell(cellIndex, text);
-  }
-
-  private int locateCell(CellInfo cellInfo) {
-    // TODO use a hashtable for faster locating a cell
+  protected int locateCell(CellInfo cellInfo) {
+    // TODO use a hashtable for faster locating of a cell
     for (int cellIndex = 0; cellIndex < cells.length; cellIndex++)
       if (cells[cellIndex].equals(cellInfo))
         return cellIndex;
@@ -187,6 +183,10 @@ public class GridRecordWriter implements TigerShapeRecordWriter {
     return -1;
   }
 
+  /**
+   * Close the whole writer. Finalize all cell files and concatenate them
+   * into the output file.
+   */
   public synchronized void close() throws IOException {
     final Vector<Path> pathsToConcat = new Vector<Path>();
     final int MaxConcurrentThreads = 10;
@@ -264,9 +264,7 @@ public class GridRecordWriter implements TigerShapeRecordWriter {
    * @param cellInfo
    * @throws IOException
    */
-  @Override
-  public void closeCell(CellInfo cellInfo) throws IOException {
-    int cellIndex = locateCell(cellInfo);
+  protected void closeCell(int cellIndex) throws IOException {
     // Flush all outstanding writes to the file
     flushCell(cellIndex);
     if (fileSystem.getConf().getBoolean("dfs.support.append", false)) {
@@ -286,7 +284,7 @@ public class GridRecordWriter implements TigerShapeRecordWriter {
    * @param cellIndex
    * @throws IOException
    */
-  private void flushCell(int cellIndex) throws IOException {
+  protected void flushCell(int cellIndex) throws IOException {
     OutputStream cellStream = cellStreams[cellIndex];
     // Flush only needed for temporary byte array outputstream
     if (cellStream == null || !(cellStream instanceof ByteArrayOutputStream))
@@ -312,28 +310,29 @@ public class GridRecordWriter implements TigerShapeRecordWriter {
    * size that is multiple of block size
    * @throws IOException
    */
-  private void finalizeCell(int cellIndex) throws IOException {
-    if (!fileSystem.exists(getCellFilePath(cellIndex)))
+  protected void finalizeCell(int cellIndex) throws IOException {
+    if (!fileSystem.exists(getCellFilePath(cellIndex)) &&
+        cellStreams[cellIndex] == null)
       return;
 
     // Get current file size
     OutputStream cellStream = cellStreams[cellIndex];
-    long cellSize;
+    long currSize;
     // Check if the file was previously closed and need to be finalized
     if (cellStream == null) {
-      cellSize = fileSystem.getFileStatus(getCellFilePath(cellIndex)).getLen();
+      currSize = fileSystem.getFileStatus(getCellFilePath(cellIndex)).getLen();
     } else {
       // I don't want to use getFileSize here because the file might still be
       // in memory (not closed) and I'm not sure it's legal to use getFileSize
-      cellSize = ((FSDataOutputStream)cellStream).getPos();
+      currSize = ((FSDataOutputStream)cellStream).getPos();
     }
 
     // Check if we need to write empty lines
     long blockSize =
         fileSystem.getFileStatus(getCellFilePath(cellIndex)).getBlockSize();
-    LOG.info("Current size: "+cellSize);
-    // Stuff all open streams with empty lines until each one is 64 MB
-    long remainingBytes = (blockSize - cellSize % blockSize) % blockSize;
+    LOG.info("Current size: "+currSize);
+    // Stuff the open stream with empty lines until it becomes of size blockSize
+    long remainingBytes = (blockSize - currSize % blockSize) % blockSize;
     
     if (remainingBytes > 0) {
       LOG.info("Stuffing file " + cellIndex +  " with new lines: " + remainingBytes);
@@ -365,12 +364,7 @@ public class GridRecordWriter implements TigerShapeRecordWriter {
    * @param row
    * @return
    */
-  private Path getCellFilePath(int cellIndex) {
+  protected Path getCellFilePath(int cellIndex) {
     return new Path(outFile.toUri().getPath() + '_' + cellIndex);
-  }
-  
-  @Override
-  public void write(CellInfo cellInfo, BytesWritable buffer) throws IOException {
-    throw new RuntimeException("Not supported");
   }
 }

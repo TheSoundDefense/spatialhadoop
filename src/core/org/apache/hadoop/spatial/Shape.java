@@ -73,5 +73,5 @@ public interface Shape extends WritableComparable<Shape>, Cloneable, TextSeriali
    * @return
    * @throws CloneNotSupportedException
    */
-  public Object clone();
+  public Shape clone();
 }

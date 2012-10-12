@@ -38,7 +38,7 @@ public abstract class AbstractShape implements Shape {
   }
 
   @Override
-  public abstract Object clone();
+  public abstract AbstractShape clone();
   
   @Override
   public void fromText(Text text) {

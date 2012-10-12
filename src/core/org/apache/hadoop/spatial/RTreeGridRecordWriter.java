@@ -3,58 +3,73 @@ package org.apache.hadoop.spatial;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.Vector;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.BytesWritable;
-import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
 
-public class RTreeGridRecordWriter implements TigerShapeRecordWriter {
+public class RTreeGridRecordWriter extends GridRecordWriter {
   public static final Log LOG = LogFactory.getLog(RTreeGridRecordWriter.class);
   
   /**The default RTree degree used for local indexing*/
   public static final String RTREE_DEGREE = "spatialHadoop.storage.RTreeDegree";
   
+  /**Maximum size of an RTree.*/
+  public static final String RTREE_BLOCK_SIZE =
+      "spatialHadoop.storage.RTreeBlockSize";
+  
+  static {
+    Configuration.addDefaultResource("spatial-default.xml");
+    Configuration.addDefaultResource("spatial-site.xml");
+  }
+  
+  /**
+   * A marker put in the beginning of each block to indicate that this block
+   * is stored as an RTree. It might be better to store this in the BlockInfo
+   * in a field (e.g. localIndexType).
+   */
   public static final long RTreeFileMarker = -0x0123456;
 
   /**An output stream for each grid cell*/
-  private CellInfo[] cells;
-  private Vector<TigerShape>[] cellShapes;
-  private FSDataOutputStream[] cellStreams;
-  private final Path outFile;
-  private final FileSystem fileSystem;
+  private Vector<Shape>[] cellShapes;
   private final int rtreeDegree;
   private final long rtreeLimit;
   
+  /**
+   * Maximum size of an RTree. Written files should have this as a block size.
+   * Once number of records reach the maximum limit of this block size, records
+   * are written as an RTree and the block is sealed. Next records will be
+   * written in another block. This means that an RTree always starts at a block
+   * boundary
+   */
+  private long blockSize;
+  
   @SuppressWarnings("unchecked")
-  public RTreeGridRecordWriter(FileSystem fileSystem, Path outFile, CellInfo[] cells) throws IOException {
+  public RTreeGridRecordWriter(FileSystem fileSystem, Path outFile,
+      CellInfo[] cells, boolean overwrite) throws IOException {
+    super(fileSystem, outFile, cells, overwrite);
     LOG.info("Writing to RTrees");
-    this.fileSystem = fileSystem;
-    this.outFile = outFile;
-    this.cells = cells;
-    this.rtreeDegree = fileSystem.getConf().getInt(RTREE_DEGREE, 5);
-    this.rtreeLimit = RTree.getBlockCapacity(fileSystem.getDefaultBlockSize()-8,
-        rtreeDegree, calculateRecordSize(TigerShape.class));
 
-    // Prepare arrays that hold records before building the RTree
+    // Initialize the buffer that stores shapes to be stored in each cell
     cellShapes = new Vector[cells.length];
-    cellStreams = new FSDataOutputStream[cells.length];
-
-    for (CellInfo cell : cells ) {
-      LOG.info("Partitioning according to cell: " + cell);
-    }
-
     for (int cellIndex = 0; cellIndex < cells.length; cellIndex++) {
-      cellShapes[cellIndex] = new Vector<TigerShape>();
+      cellShapes[cellIndex] = new Vector<Shape>();
     }
+    
+    // Determine the size of each RTree to decide when to flush a cell
+    this.rtreeDegree = fileSystem.getConf().getInt(RTREE_DEGREE, 11);
+    this.blockSize = fileSystem.getConf().getLong(RTREE_BLOCK_SIZE,
+        fileSystem.getDefaultBlockSize());
+    // The 8 is subtracted because we reserve it for the RTreeFileMarker
+    this.rtreeLimit = RTree.getBlockCapacity(this.blockSize - 8, rtreeDegree,
+        calculateRecordSize(TigerShape.class));
   }
   
   /**
@@ -82,126 +97,18 @@ public class RTreeGridRecordWriter implements TigerShapeRecordWriter {
     return size;
   }
 
-  /**
-   * Writes the given shape to the current grid file. The text representation that need
-   * to be written is passed for two reasons.
-   * 1 - Avoid converting the shape to text. (Performance)
-   * 2 - Some information may have been lost from the original line when converted to shape
-   * The text is assumed not to have a new line. This method writes a new line to the output
-   * after the given text is written.
-   * @param dummyId
-   * @param shape
-   * @param text
-   * @throws IOException
-   */
-  public synchronized void write(LongWritable dummyId, TigerShape shape) throws IOException {
-    // Write to all possible grid cells
-    Rectangle mbr = shape.getMBR();
-    for (int cellIndex = 0; cellIndex < cells.length; cellIndex++) {
-      if (mbr.isIntersected(cells[cellIndex])) {
-        writeToCell(cellIndex, shape);
-      }
-    }
-  }
-  
-  public synchronized void write(LongWritable dummyId, TigerShape shape, Text text) throws IOException {
-    write(dummyId, shape);
-  }
-  
-  /**
-   * Write the given shape to a specific cell. The shape is not replicated to any other cells.
-   * It's just written to the given cell. This is useful when shapes are already assigned
-   * and replicated to grid cells another way, e.g. from a map phase that partitions.
-   * @param cellInfo
-   * @param shape
-   * @throws IOException
-   */
-  public synchronized void write(CellInfo cellInfo, TigerShape shape) throws IOException {
-    // Write to the given cell
-    writeToCell(locateCell(cellInfo), shape);
-  }
-
-  public synchronized void write(CellInfo cellInfo, TigerShape shape, Text text) throws IOException {
-    write(cellInfo, shape);
-  }
-  
-  /**
-   * A low level method to write a text to a specified cell.
-   * 
-   * @param cellIndex
-   * @param text
-   * @throws IOException
-   */
-  private synchronized void writeToCell(int cellIndex, TigerShape shape) throws IOException {
-    if (shape == null) {
-      closeCell(cells[cellIndex]);
-      return;
-    }
-    cellShapes[cellIndex].add((TigerShape) shape.clone());
-    if (cellShapes[cellIndex].size() >= rtreeLimit) {
+  @Override
+  protected synchronized void writeInternal(int cellIndex, Shape shape, Text text)
+      throws IOException {
+    cellShapes[cellIndex].add(shape.clone());
+    // Write current contents as an RTree if reaches the limit of one RTree
+    if (cellShapes[cellIndex].size() == rtreeLimit) {
       flushCell(cellIndex);
     }
   }
   
-  public synchronized void write(CellInfo cellInfo, Text text) throws IOException {
-    throw new RuntimeException("Not supported");
-  }
-  
-  public synchronized void write(CellInfo cellInfo, BytesWritable bytes) throws IOException {
-    int cellIndex = locateCell(cellInfo);
-    FSDataOutputStream dos = getCellStream(cellIndex);
-    dos.writeLong(RTreeFileMarker);
-    dos.write(bytes.getBytes());
-    dos.close();
-  }
-  
-  private int locateCell(CellInfo cellInfo) {
-    // TODO use a hash table for faster locating of cells
-    for (int cellIndex = 0; cellIndex < cells.length; cellIndex++)
-      if (cells[cellIndex].equals(cellInfo))
-        return cellIndex;
-    LOG.error("Could not find: "+cellInfo);
-    LOG.error("In this list");
-    for (int cellIndex = 0; cellIndex < cells.length; cellIndex++) {
-      LOG.error("#"+cellIndex+": " + cells[cellIndex]);
-    }
-    throw new RuntimeException("Could not locate required cell");
-  }
-
-  public synchronized void close() throws IOException {
-    Vector<Path> pathsToConcat = new Vector<Path>();
-   
-    // Write all RTrees to files
-    for (int cellIndex = 0; cellIndex < cells.length; cellIndex++) {
-      if (cellShapes[cellIndex] != null && !cellShapes[cellIndex].isEmpty()) {
-        flushCell(cellIndex);
-        finalizeCell(cellIndex);
-      }
-      
-      Path cellPath = getCellFilePath(cellIndex);
-      if (fileSystem.exists(cellPath))
-        pathsToConcat.add(cellPath);
-    }
-
-    LOG.info("Closing... Merging "+pathsToConcat.size());
-    if (pathsToConcat.size() == 1) {
-      fileSystem.rename(pathsToConcat.firstElement(), outFile);
-    } else {
-      if (!pathsToConcat.isEmpty()) {
-        // Concat requires the target file to be a non-empty file with the same
-        // block size as source files
-        Path target = pathsToConcat.lastElement();
-        pathsToConcat.remove(pathsToConcat.size()-1);
-        Path[] paths = pathsToConcat.toArray(new Path[pathsToConcat.size()]);
-        fileSystem.concat(target, paths);
-        fileSystem.rename(target, outFile);
-      }
-      LOG.info("Concatenated files into: "+outFile);
-    }
-    LOG.info("Final file size: "+fileSystem.getFileStatus(outFile).getLen());
-  }
-  
-  private void flushCell(int cellIndex) throws IOException {
+  @Override
+  protected void flushCell(int cellIndex) throws IOException {
     LOG.info(this+"Writing the RTree at cell #"+cellIndex);
 
     if (cellShapes[cellIndex].size() > 0) {
@@ -217,7 +124,8 @@ public class RTreeGridRecordWriter implements TigerShapeRecordWriter {
       rtree.write(cellStream);
 
       // Stuff the file with bytes to make a complete block
-      long blockSize = fileSystem.getDefaultBlockSize();
+      long blockSize =
+          fileSystem.getFileStatus(getCellFilePath(cellIndex)).getBlockSize();
       long cellSize = cellStream.getPos();
       LOG.info("Current size: "+cellSize);
       // Stuff all open streams with empty lines until each one is 64 MB
@@ -236,67 +144,36 @@ public class RTreeGridRecordWriter implements TigerShapeRecordWriter {
       }
       buffer = null;
 
-      LOG.info("Actual size: "+fileSystem.getFileStatus(getCellFilePath(cellIndex)).getLen());
+      LOG.info("Actual size: "+cellStream.getPos());
     }
   }
 
-  private void finalizeCell(int cellIndex) throws IOException {
-    // Create a buffer filled with new lines
-    byte[] buffer = new byte[fileSystem.getConf().getInt("io.file.buffer.size", 1024 * 1024)];
-    for (int i = 0; i < buffer.length; i++)
-      buffer[i] = '\0';
-    
-    long blockSize = fileSystem.getDefaultBlockSize();
-
-    if (fileSystem.exists(getCellFilePath(cellIndex))) {
-      long cellSize = fileSystem.getFileStatus(getCellFilePath(cellIndex)).getLen();
-      OutputStream cellStream = getCellStream(cellIndex);
-      LOG.info("Current size: "+cellSize);
-      // Stuff all open streams with empty lines until each one is 64 MB
-      long remainingBytes = (blockSize - cellSize % blockSize) % blockSize;
-      LOG.info("Stuffing file " + cellIndex +  " with new lines: " + remainingBytes);
-      // Write some bytes so that remainingBytes is multiple of buffer.length
-      cellStream.write(buffer, 0, (int)(remainingBytes % buffer.length));
-      remainingBytes -= remainingBytes % buffer.length;
-      // Write chunks of size buffer.length
-      while (remainingBytes > 0) {
-        cellStream.write(buffer);
-        remainingBytes -= buffer.length;
-      }
-      // Close stream
-      cellStream.close();
-      LOG.info("Actual size: "+fileSystem.getFileStatus(getCellFilePath(cellIndex)).getLen());
+  @Override
+  protected void finalizeCell(int cellIndex) throws IOException {
+    // Close the cellStream if still open
+    if (cellStreams[cellIndex] != null) {
+      cellStreams[cellIndex].close();
+      LOG.info("Final size: "+
+          fileSystem.getFileStatus(getCellFilePath(cellIndex)).getLen());
+      cellStreams[cellIndex] = null;
     }
   }
   
-  /**
-   * Return path to a file that is used to write one grid cell
-   * @param column
-   * @param row
-   * @return
-   */
-  private Path getCellFilePath(int cellIndex) {
-    return new Path(outFile.toUri().getPath() + '_' + cellIndex);
-  }
-  
-  private FSDataOutputStream getCellStream(int cellIndex) throws IOException {
+  @Override
+  protected FSDataOutputStream getCellStream(int cellIndex) throws IOException {
     if (cellStreams[cellIndex] == null) {
       Path cellFilePath = getCellFilePath(cellIndex);
       if (!fileSystem.exists(cellFilePath)) {
         // Create new file
-        cellStreams[cellIndex] = fileSystem.create(cellFilePath, cells[cellIndex]);
+        cellStreams[cellIndex] = fileSystem.create(cellFilePath, true,
+            fileSystem.getConf().getInt("io.file.buffer.size", 4096),
+            fileSystem.getDefaultReplication(), this.blockSize,
+            cells[cellIndex]);
       } else {
         // Append to existing file
         cellStreams[cellIndex] = fileSystem.append(cellFilePath);
       }
     }
-    return cellStreams[cellIndex];
-  }
-
-  @Override
-  public void closeCell(CellInfo cellInfo) throws IOException {
-    int cellIndex = locateCell(cellInfo);
-    flushCell(cellIndex);
-    finalizeCell(cellIndex);
+    return (FSDataOutputStream) cellStreams[cellIndex];
   }
 }

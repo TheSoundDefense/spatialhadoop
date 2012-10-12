@@ -1313,6 +1313,8 @@
            includes="hdfs-default.xml" style="conf/configuration.xsl"/>
     <style basedir="${mapred.src.dir}" destdir="${build.docs}"
            includes="mapred-default.xml" style="conf/configuration.xsl"/>
+    <style basedir="${core.src.dir}" destdir="${build.docs}"
+           includes="spatial-default.xml" style="conf/configuration.xsl"/>
     <antcall target="changes-to-html"/>
   </target>
 
@@ -1332,6 +1334,8 @@
            includes="hdfs-default.xml" style="conf/configuration.xsl"/>
     <style basedir="${mapred.src.dir}" destdir="${build.docs.cn}"
            includes="mapred-default.xml" style="conf/configuration.xsl"/>
+    <style basedir="${core.src.dir}" destdir="${build.docs}"
+           includes="spatial-default.xml" style="conf/configuration.xsl"/>
     <antcall target="changes-to-html"/>
   </target>
 

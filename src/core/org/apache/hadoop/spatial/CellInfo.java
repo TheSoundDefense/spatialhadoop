@@ -53,7 +53,7 @@ public class CellInfo extends Rectangle {
   }
   
   @Override
-  public Object clone() {
+  public CellInfo clone() {
     return new CellInfo(cellId, x, y, width, height);
   }
   

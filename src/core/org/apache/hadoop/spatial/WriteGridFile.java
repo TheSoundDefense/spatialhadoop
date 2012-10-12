@@ -47,8 +47,8 @@ public class WriteGridFile {
       gridInfo.getAllCells();
 
     // Prepare grid file writer
-    TigerShapeRecordWriter rrw = rtree ?
-        new RTreeGridRecordWriter(outFileSystem, outputPath, cells):
+    ShapeRecordWriter rrw = rtree ?
+        new RTreeGridRecordWriter(outFileSystem, outputPath, cells, overwrite):
         new GridRecordWriter(outFileSystem, outputPath, cells, overwrite);
 
     // Open input file
@@ -172,7 +172,7 @@ public class WriteGridFile {
 
     List<Point> samplePoints = new ArrayList<Point>();
 
-    long totalSampleSize = inTotalSize / 1000;
+    long totalSampleSize = inTotalSize / 500;
     long totalBytesToSample = totalSampleSize;
     long lastTime = System.currentTimeMillis();
 

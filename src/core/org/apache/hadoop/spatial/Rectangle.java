@@ -132,7 +132,7 @@ public class Rectangle extends AbstractShape {
   }
 
   @Override
-  public Object clone() {
+  public Rectangle clone() {
     return new Rectangle(this);
   }
   

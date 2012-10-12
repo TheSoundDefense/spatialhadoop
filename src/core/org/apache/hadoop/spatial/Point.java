@@ -70,7 +70,7 @@ public class Point extends AbstractShape implements Writable, Cloneable {
 	}
 	
 	@Override
-	public Object clone() {
+	public Point clone() {
 	  return new Point(this.x, this.y);
 	}
 
