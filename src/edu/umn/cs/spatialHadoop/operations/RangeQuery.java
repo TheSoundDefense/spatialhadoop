@@ -2,20 +2,23 @@ package edu.umn.cs.spatialHadoop.operations;
 
 import java.io.IOException;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.ByteWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.MapReduceBase;
 import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
-import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.spatial.CellInfo;
+import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.TigerShape;
@@ -31,6 +34,8 @@ import edu.umn.cs.spatialHadoop.mapReduce.SplitCalculator;
  *
  */
 public class RangeQuery {
+  /**Logger for RangeQuery*/
+  private static final Log LOG = LogFactory.getLog(RangeQuery.class);
   
   /**Name of the config line that stores the class name of the query shape*/
   public static final String QUERY_SHAPE_CLASS =
@@ -40,29 +45,19 @@ public class RangeQuery {
   public static final String QUERY_SHAPE =
       "edu.umn.cs.spatialHadoop.operations.RangeQuery.QueryShape";
   
-  /**A shape that is used to filter input*/
-  public static Shape queryShape;
-  
-  public static class Map<T extends Shape> extends MapReduceBase implements
-  Mapper<LongWritable, T, ByteWritable, T> {
-    private static final ByteWritable ONEB = new ByteWritable((byte)1);
-    public void map(LongWritable shapeId, T shape,
-        OutputCollector<ByteWritable, T> output, Reporter reporter)
-            throws IOException {
-      if (shape.isIntersected(queryShape)) {
-        output.collect(ONEB, shape);
-      }
-    }
-  }
-  
   /**
-   * An input format that sets the query range before starting the mapper 
+   * The map function used for range query
    * @author eldawy
+   *
+   * @param <T>
    */
-  public static class InputFormat extends ShapeInputFormat {
+  public static class Map<T extends Shape> extends MapReduceBase {
+    /**A shape that is used to filter input*/
+    private Shape queryShape;
+
     @Override
-    public RecordReader<LongWritable, Shape> getRecordReader(InputSplit split,
-        JobConf job, Reporter reporter) throws IOException {
+    public void configure(JobConf job) {
+      super.configure(job);
       try {
         String queryShapeClassName = job.get(QUERY_SHAPE_CLASS);
         Class<? extends Shape> queryShapeClass =
@@ -76,10 +71,52 @@ public class RangeQuery {
       } catch (IllegalAccessException e) {
         e.printStackTrace();
       }
-
-      return super.getRecordReader(split, job, reporter);
+    }
+    
+    private static final ByteWritable ONEB = new ByteWritable((byte)1);
+    
+    /**
+     * Map function for non-indexed blocks
+     */
+    public void map(LongWritable shapeId, T shape,
+        OutputCollector<ByteWritable, T> output, Reporter reporter)
+            throws IOException {
+      if (shape.isIntersected(queryShape)) {
+        output.collect(ONEB, shape);
+      }
+    }
+    
+    /**
+     * Map function for RTree indexed blocks
+     * @param shapeId
+     * @param shapes
+     * @param output
+     * @param reporter
+     */
+    public void map(CellInfo cellInfo, RTree<T> shapes,
+        final OutputCollector<ByteWritable, T> output, Reporter reporter) {
+      LOG.info("Searching in the range: "+cellInfo+" for the query: "+queryShape.getMBR());
+      int count = shapes.search(queryShape.getMBR(), new RTree.ResultCollector<T>() {
+        @Override
+        public void add(T x) {
+          try {
+            output.collect(ONEB, x);
+          } catch (IOException e) {
+            e.printStackTrace();
+          }
+        }
+      });
+      LOG.info("count: "+count);
     }
   }
+  
+  /** Mapper for non-indexed blocks */
+  public static class Map1<T extends Shape> extends Map<T> implements
+      Mapper<LongWritable, T, ByteWritable, T> { }
+
+  /** Mapper for RTree indexed blocks */
+  public static class Map2<T extends Shape> extends Map<T> implements
+      Mapper<CellInfo, RTree<T>, ByteWritable, T> { }
   
   /**
    * Performs a range query using MapReduce
@@ -101,16 +138,29 @@ public class RangeQuery {
     outFs.delete(outputPath, true);
     
     job.setJobName("RangeQuery");
-    job.setMapOutputKeyClass(ByteWritable.class);
-    job.setMapOutputValueClass(shape.getClass());
     job.set(QUERY_SHAPE_CLASS, queryShape.getClass().getName());
     job.set(QUERY_SHAPE, queryShape.writeToString());
+
+    job.setMapOutputKeyClass(ByteWritable.class);
+    job.setMapOutputValueClass(shape.getClass());
     job.set(SplitCalculator.QUERY_RANGE, queryShape.getMBR().writeToString());
-    
-    job.setMapperClass(Map.class);
-    
-    job.setInputFormat(InputFormat.class);
+    // Decide which map function to use depending on how blocks are indexed
+    // And also which input format to use
+    FSDataInputStream in = fs.open(file);
+    if (in.readLong() == RTreeGridRecordWriter.RTreeFileMarker) {
+      // RTree indexed file
+      LOG.info("Searching an RTree indexed file");
+      job.setMapperClass(Map2.class);
+      job.setInputFormat(RTreeInputFormat.class);
+    } else {
+      // A file with no local index
+      LOG.info("Searching a non local-indexed file");
+      job.setMapperClass(Map1.class);
+      job.setInputFormat(ShapeInputFormat.class);
+    }
     job.set(ShapeRecordReader.SHAPE_CLASS, TigerShape.class.getName());
+    in.close();
+    
     job.setOutputFormat(STextOutputFormat.class);
     
     ShapeInputFormat.setInputPaths(job, file);

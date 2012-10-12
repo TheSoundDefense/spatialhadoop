@@ -7,14 +7,14 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.RecordWriter;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.CellInfo;
-import org.apache.hadoop.spatial.TigerShape;
+import org.apache.hadoop.spatial.Shape;
 
 public class RTreeGridRecordWriter
     extends org.apache.hadoop.spatial.RTreeGridRecordWriter
-    implements RecordWriter<CellInfo, TigerShape> {
+    implements RecordWriter<CellInfo, Shape> {
 
-  public RTreeGridRecordWriter(FileSystem fileSystem, Path outFile, CellInfo[] cells) throws IOException {
-    super(fileSystem, outFile, cells);
+  public RTreeGridRecordWriter(FileSystem fileSystem, Path outFile, CellInfo[] cells, boolean overwrite) throws IOException {
+    super(fileSystem, outFile, cells, overwrite);
   }
 
   @Override

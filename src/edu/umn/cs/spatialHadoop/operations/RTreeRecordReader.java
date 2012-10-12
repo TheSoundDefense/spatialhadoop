@@ -17,11 +17,12 @@ import org.apache.hadoop.io.compress.Decompressor;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.spatial.CellInfo;
-import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.RTreeGridRecordWriter;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.TigerShape;
+
+import edu.umn.cs.spatialHadoop.TigerShapeWithIndex;
 
 
 /**
@@ -29,7 +30,7 @@ import org.apache.hadoop.spatial.TigerShape;
  * @author eldawy
  *
  */
-public class RTreeRecordReader  implements RecordReader<CellInfo, RTree<TigerShape>>{
+public class RTreeRecordReader  implements RecordReader<CellInfo, RTree<Shape>>{
   public static final Log LOG = LogFactory.getLog(RTreeRecordReader.class);
   
   private CompressionCodecFactory compressionCodecs = null;
@@ -41,7 +42,6 @@ public class RTreeRecordReader  implements RecordReader<CellInfo, RTree<TigerSha
   private CompressionCodec codec;
   private Decompressor decompressor;
   
-  private static String TigerShapeClassName;
   private static String ShapeClassName;
   private int index;
 
@@ -51,38 +51,27 @@ public class RTreeRecordReader  implements RecordReader<CellInfo, RTree<TigerSha
 
   public RTreeRecordReader(Configuration job, FileSplit split)
       throws IOException {
-    TigerShapeClassName = job.get(TigerShapeRecordReader.TIGER_SHAPE_CLASS, TigerShape.class.getName());
-    ShapeClassName = job.get(TigerShapeRecordReader.SHAPE_CLASS, Point.class.getName());
+    ShapeClassName = job.get(ShapeRecordReader.SHAPE_CLASS, TigerShape.class.getName());
     
     start = split.getStart();
     end = start + split.getLength();
-    final Path file = split.getPath();
+    file = split.getPath();
     compressionCodecs = new CompressionCodecFactory(job);
     final CompressionCodec codec = compressionCodecs.getCodec(file);
 
     // open the file and seek to the start of the split
-    FileSystem fs = file.getFileSystem(job);
+    this.fs = file.getFileSystem(job);
     fileIn = fs.open(split.getPath());
-    boolean skipFirstLine = false;
     if (codec != null) {
       fileIn = new FSDataInputStream(codec.createInputStream(fileIn));
       end = Long.MAX_VALUE;
     } else {
       if (start != 0) {
-        skipFirstLine = true;
-        --start;
         fileIn.seek(start);
       }
     }
     this.filePosition = fileIn;
     
-    // If this is not the first split, we always throw away first record
-    // because we always (except the last split) read one extra line in
-    // next() method.
-    if (skipFirstLine) {
-      // TODO skip until the beginning of the next RTree (how to know this?)
-    }
-
     this.pos = start;
   }
 
@@ -93,25 +82,28 @@ public class RTreeRecordReader  implements RecordReader<CellInfo, RTree<TigerSha
   }
 
   @Override
-  public boolean next(CellInfo key, RTree<TigerShape> value) throws IOException {
+  public boolean next(CellInfo key, RTree<Shape> value) throws IOException {
+    if (fileIn.getPos() >= end)
+      return false;
+    LOG.info("Looking for an RTree at Pos: " + fileIn.getPos());
     long marker = fileIn.readLong();
     if (marker != RTreeGridRecordWriter.RTreeFileMarker) {
+      LOG.info("No more RTrees stored in file");
       return false;
     }
-    long start = this.pos;
-    // Access RTree on disk
-    //value.setInputStream(fileIn);
-    // Read the entire RTree in memory
-    value.readFields(fileIn);
-    this.pos = fileIn.getPos();
-    long len = this.pos - start;
+    LOG.info("Found an RTree in file");
+    // Find the CellInfo of the block where the RTree is stored
     BlockLocation[] blockLocations =
-        fs.getFileBlockLocations(fs.getFileStatus(file), start, len);
+        fs.getFileBlockLocations(fs.getFileStatus(file), this.pos, 1);
     CellInfo cellInfo = blockLocations[0].getCellInfo();
     if (cellInfo != null)
       key.set(cellInfo.x, cellInfo.y, cellInfo.width, cellInfo.height);
     else
       key.set(0, 0, 0, 0);
+    // Read RTree from disk
+    value.readFields(fileIn);
+    // Update position
+    this.pos = fileIn.getPos();
     return true;
   }
 
@@ -121,17 +113,18 @@ public class RTreeRecordReader  implements RecordReader<CellInfo, RTree<TigerSha
   }
 
   @Override
-  public RTree<TigerShape> createValue() {
+  public RTree<Shape> createValue() {
     try {
-      final Class<TigerShape> tigerShapeClass = (Class<TigerShape>) Class.forName(TigerShapeClassName);
-      final Class<Shape> shapeClass = (Class<Shape>)Class.forName(ShapeClassName);
+      final Class<? extends Shape> shapeClass =
+          Class.forName(ShapeClassName).asSubclass(Shape.class);
 
-      RTree<TigerShape> rtree = new RTree<TigerShape>();
+      RTree<Shape> rtree = new RTree<Shape>();
       try {
         Shape shape = shapeClass.newInstance();
-        TigerShape tigerShape = tigerShapeClass.newInstance();
-        tigerShape.shape = shape;
-        rtree.setStockObject(tigerShape);
+        if (shape instanceof TigerShapeWithIndex)
+          ((TigerShapeWithIndex) shape).index = index;
+        LOG.info("Stock object in the RTree is: "+shape);
+        rtree.setStockObject(shape);
       } catch (InstantiationException e) {
         e.printStackTrace();
       } catch (IllegalAccessException e) {

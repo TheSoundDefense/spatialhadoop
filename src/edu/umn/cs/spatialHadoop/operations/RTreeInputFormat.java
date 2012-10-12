@@ -10,8 +10,7 @@ import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.RTree;
-import org.apache.hadoop.spatial.Rectangle;
-import org.apache.hadoop.spatial.TigerShape;
+import org.apache.hadoop.spatial.Shape;
 
 import edu.umn.cs.FileRange;
 import edu.umn.cs.spatialHadoop.mapReduce.SplitCalculator;
@@ -22,16 +21,11 @@ import edu.umn.cs.spatialHadoop.mapReduce.SplitCalculator;
  * @author eldawy
  *
  */
-public class RTreeInputFormat extends FileInputFormat<CellInfo, RTree<TigerShape>> {
+public class RTreeInputFormat extends FileInputFormat<CellInfo, RTree<Shape>> {
 
 	@Override
-	public RecordReader<CellInfo, RTree<TigerShape>> getRecordReader(InputSplit split,
+	public RecordReader<CellInfo, RTree<Shape>> getRecordReader(InputSplit split,
 			JobConf job, Reporter reporter) throws IOException {
-		// TODO move this part to another code that gets processed once for each mapper
-		// Set QueryRange in the mapper class
-		String queryRangeStr = job.get(RQMapReduce.QUERY_SHAPE);
-		RQMapReduce.queryShape = new Rectangle();
-		RQMapReduce.queryShape.readFromString(queryRangeStr);
 		// Create record reader
 	    reporter.setStatus(split.toString());
 		return new RTreeRecordReader(job, (FileSplit)split);

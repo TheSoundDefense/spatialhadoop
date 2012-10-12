@@ -15,7 +15,7 @@ import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.GridRecordWriter;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.TigerShape;
-import org.apache.hadoop.spatial.TigerShapeRecordWriter;
+import org.apache.hadoop.spatial.ShapeRecordWriter;
 
 import edu.umn.cs.spatialHadoop.operations.RTreeGridRecordWriter;
 
@@ -51,15 +51,16 @@ public class RandomSpatialGenerator {
    * @throws IOException
    */
   public static void generateGridFile(FileSystem outFS, Path outFilePath,
-      Rectangle mbr, long totalSize, boolean rtree) throws IOException {
+      Rectangle mbr, long totalSize, boolean overwrite, boolean rtree) throws IOException {
     GridInfo gridInfo = new GridInfo(mbr.x, mbr.y, mbr.width, mbr.height, 0, 0);
     gridInfo.calculateCellDimensions(totalSize, outFS.getDefaultBlockSize());
-    TigerShapeRecordWriter recordWriter = rtree ?
-        new RTreeGridRecordWriter(outFS, outFilePath, gridInfo.getAllCells())
-        : new GridRecordWriter(outFS, outFilePath, gridInfo.getAllCells(), true);
+    ShapeRecordWriter recordWriter = rtree ?
+        new RTreeGridRecordWriter(outFS, outFilePath, gridInfo.getAllCells(), overwrite)
+        : new GridRecordWriter(outFS, outFilePath, gridInfo.getAllCells(), overwrite);
 
     long generatedSize = 0;
     TigerShape randomShape = new TigerShape();
+    randomShape.id = Long.MAX_VALUE / 2;
     Random random = new Random();
     Text text = new Text();
     
@@ -101,7 +102,7 @@ public class RandomSpatialGenerator {
    * @throws IOException 
    */
   public static void generateHeapFile(FileSystem outFS, Path outputFilePath,
-      Rectangle mbr, long totalSize) throws IOException {
+      Rectangle mbr, long totalSize, boolean overwrite) throws IOException {
     OutputStream out = null;
     if (outFS == null || outputFilePath == null)
       out = new BufferedOutputStream(System.out);
@@ -161,6 +162,7 @@ public class RandomSpatialGenerator {
       mbr = grid.getMBR();
     long totalSize = cla.getSize();
     boolean rtree = cla.isRtree();
+    boolean overwrite = cla.isOverwrite();
 
     if (outputFile != null) {
       System.out.print("Generating a ");
@@ -170,9 +172,9 @@ public class RandomSpatialGenerator {
       System.out.println("In the range: " + mbr);
     }
     if (grid != null || rtree)
-      generateGridFile(fs, outputFile, mbr, totalSize, rtree);
+      generateGridFile(fs, outputFile, mbr, totalSize, overwrite, rtree);
     else
-      generateHeapFile(fs, outputFile, mbr, totalSize);
+      generateHeapFile(fs, outputFile, mbr, totalSize, overwrite);
   }
 
 }

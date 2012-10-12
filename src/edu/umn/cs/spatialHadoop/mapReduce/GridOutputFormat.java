@@ -8,19 +8,19 @@ import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordWriter;
 import org.apache.hadoop.spatial.CellInfo;
-import org.apache.hadoop.spatial.TigerShape;
+import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.util.Progressable;
 
 import edu.umn.cs.spatialHadoop.operations.GridRecordWriter;
 
 
-public class GridOutputFormat extends FileOutputFormat<CellInfo, TigerShape> {
+public class GridOutputFormat extends FileOutputFormat<CellInfo, Shape> {
   public static final String OUTPUT_CELLS = "edu.umn.cs.spatial.mapReduce.GridOutputFormat.CellsInfo";
   public static final String OVERWRITE = "edu.umn.cs.spatial.mapReduce.GridOutputFormat.Overwrite";
   public static final String RTREE = "edu.umn.cs.spatial.mapReduce.GridOutputFormat.RTree";
 
   @Override
-  public RecordWriter<CellInfo, TigerShape> getRecordWriter(FileSystem ignored,
+  public RecordWriter<CellInfo, Shape> getRecordWriter(FileSystem ignored,
       JobConf job,
       String name,
       Progressable progress)

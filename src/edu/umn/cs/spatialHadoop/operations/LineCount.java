@@ -3,6 +3,7 @@ package edu.umn.cs.spatialHadoop.operations;
 import java.io.IOException;
 import java.util.Iterator;
 
+import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -21,6 +22,7 @@ import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.CommandLineArguments;
+import edu.umn.cs.Estimator;
 
 public class LineCount {
   private static final ByteWritable ONEB = new ByteWritable((byte)1);
@@ -124,6 +126,69 @@ public class LineCount {
   }
   
   /**
+   * Counts the approximate number of lines in a file by getting an approximate
+   * average line length
+   * @param fs
+   * @param file
+   * @return
+   * @throws IOException
+   */
+  public static<T> long lineCountApprox(FileSystem fs, Path file) throws IOException {
+    final long fileSize = fs.getFileStatus(file).getLen();
+    final FSDataInputStream in = fs.open(file);
+    
+    Estimator<Long> lineEstimator = new Estimator<Long>(0.05);
+    lineEstimator.setRandomSample(new Estimator.RandomSample() {
+      
+      @Override
+      public double next() {
+        int lineLength = 0;
+        try {
+          long randomFilePosition = (long)(Math.random() * fileSize);
+          in.seek(randomFilePosition);
+          
+          // Skip the rest of this line
+          byte lastReadByte;
+          do {
+            lastReadByte = in.readByte();
+          } while (lastReadByte != '\n' && lastReadByte != '\r');
+
+          while (in.getPos() < fileSize - 1) {
+            lastReadByte = in.readByte();
+            if (lastReadByte == '\n' || lastReadByte == '\r') {
+              break;
+            }
+            lineLength++;
+          }
+        } catch (IOException e) {
+          e.printStackTrace();
+        }
+        return lineLength+1;
+      }
+    });
+    
+    lineEstimator.setUserFunction(new Estimator.UserFunction<Long>() {
+      @Override
+      public Long calculate(double x) {
+        return (long)(fileSize / x);
+      }
+    });
+    
+    lineEstimator.setQualityControl(new Estimator.QualityControl<Long>() {
+      
+      @Override
+      public boolean isAcceptable(Long y1, Long y2) {
+        return (double)Math.abs(y2 - y1) / Math.min(y1, y2) < 0.01;
+      }
+    });
+    
+    Estimator.Range<Long> lineCount = lineEstimator.getEstimate();
+    in.close();
+    
+    return (lineCount.limit1 + lineCount.limit2) / 2;
+  }
+  
+  /**
    * @param args
    * @throws IOException 
    */
@@ -132,7 +197,7 @@ public class LineCount {
     JobConf conf = new JobConf(LineCount.class);
     Path inputFile = cla.getFilePath();
     FileSystem fs = inputFile.getFileSystem(conf);
-    long lineCount = lineCountMapReduce(fs, inputFile);
+    long lineCount = lineCountApprox(fs, inputFile);
     System.out.println("Count of lines in "+inputFile+" is "+lineCount);
   }
 

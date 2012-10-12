@@ -14,17 +14,13 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.TextSerializable;
 import org.apache.hadoop.io.TextSerializerHelper;
 import org.apache.hadoop.io.Writable;
-import org.apache.hadoop.mapred.FileOutputCommitter;
-import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.MapReduceBase;
 import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
-import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
-import org.apache.hadoop.mapred.TaskAttemptContext;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.TigerShape;
 import org.apache.hadoop.util.LineReader;
@@ -43,7 +39,6 @@ public class KNN {
   /**Configration line name for query point*/
   public static final String QUERY_POINT =
       "edu.umn.cs.spatialHadoop.operations.KNN.QueryPoint";
-  public static PointWithK queryPoint;
 
   /**
    * A simple inner type that stores a shape with its distance
@@ -111,8 +106,6 @@ public class KNN {
     }
   }
   
-  /**A dummy intermediate value used instead of recreating it again and gain*/
-  private static final ByteWritable ONE = new ByteWritable((byte)1);
 
   /**
    * Mapper for KNN MapReduce. Calculates the distance between a shape and 
@@ -123,7 +116,21 @@ public class KNN {
   public static class Map extends MapReduceBase
   implements
       Mapper<LongWritable, Shape, ByteWritable, ShapeWithDistance> {
+    /**A dummy intermediate value used instead of recreating it again and gain*/
+    private static final ByteWritable ONE = new ByteWritable((byte)1);
+
+    /**A temporary object to be used for output*/
     private final ShapeWithDistance temp = new ShapeWithDistance();
+    
+    /**User query*/
+    private PointWithK queryPoint;
+
+    @Override
+    public void configure(JobConf job) {
+      super.configure(job);
+      queryPoint = new PointWithK();
+      queryPoint.readFromString(job.get(QUERY_POINT));
+    }
 
     public void map(LongWritable id, Shape shape,
         OutputCollector<ByteWritable, ShapeWithDistance> output,
@@ -142,6 +149,19 @@ public class KNN {
    */
   public static class Reduce extends MapReduceBase implements
   Reducer<ByteWritable, ShapeWithDistance, ByteWritable, ShapeWithDistance> {
+    /**A dummy intermediate value used instead of recreating it again and gain*/
+    private static final ByteWritable ONE = new ByteWritable((byte)1);
+
+    /**User query*/
+    private PointWithK queryPoint;
+
+    @Override
+    public void configure(JobConf job) {
+      super.configure(job);
+      queryPoint = new PointWithK();
+      queryPoint.readFromString(job.get(QUERY_POINT));
+    }
+
     @Override
     public void reduce(ByteWritable dummy, Iterator<ShapeWithDistance> values,
         OutputCollector<ByteWritable, ShapeWithDistance> output, Reporter reporter)
@@ -180,39 +200,6 @@ public class KNN {
   }
   
   /**
-   * An input format that sets the query point before starting the mapper 
-   * @author eldawy
-   */
-  public static class InputFormat extends ShapeInputFormat {
-    @Override
-    public RecordReader<LongWritable, Shape> getRecordReader(InputSplit split,
-        JobConf job, Reporter reporter) throws IOException {
-      queryPoint = new PointWithK();
-      queryPoint.readFromString(job.get(QUERY_POINT));
-      return super.getRecordReader(split, job, reporter);
-    }
-  }
-
-  /**
-   * A custom output committer that sets the query point before starting the
-   * reducer
-   * @author eldawy
-   *
-   * @param <K>
-   * @param <V>
-   */
-  public static class OutputCommiter extends FileOutputCommitter {
-    
-    @Override
-    public void setupTask(TaskAttemptContext context) throws IOException {
-      // TODO Auto-generated method stub
-      queryPoint = new PointWithK();
-      queryPoint.readFromString(context.getConfiguration().get(QUERY_POINT));
-      super.setupTask(context);
-    }
-  }
-
-  /**
    * A MapReduce version of KNN query.
    * @param fs
    * @param file
@@ -241,12 +228,11 @@ public class KNN {
     job.setReducerClass(Reduce.class);
     job.setCombinerClass(Reduce.class);
     
-    job.setInputFormat(InputFormat.class);
+    job.setInputFormat(ShapeInputFormat.class);
     job.set(ShapeRecordReader.SHAPE_CLASS, TigerShape.class.getName());
     String query_point_distance = queryPoint.x+","+queryPoint.y+","+0;
     job.set(SplitCalculator.QUERY_POINT_DISTANCE, query_point_distance);
     job.setOutputFormat(STextOutputFormat.class);
-    job.setOutputCommitter(OutputCommiter.class);
     
     ShapeInputFormat.setInputPaths(job, file);
     STextOutputFormat.setOutputPath(job, outputPath);

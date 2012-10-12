@@ -8,16 +8,16 @@ import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordWriter;
 import org.apache.hadoop.spatial.CellInfo;
-import org.apache.hadoop.spatial.TigerShape;
+import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.util.Progressable;
 
 import edu.umn.cs.spatialHadoop.mapReduce.GridOutputFormat;
 
 
-public class RTreeGridOutputFormat extends FileOutputFormat<CellInfo, TigerShape> {
+public class RTreeGridOutputFormat extends FileOutputFormat<CellInfo, Shape> {
 
   @Override
-  public RecordWriter<CellInfo, TigerShape> getRecordWriter(FileSystem ignored,
+  public RecordWriter<CellInfo, Shape> getRecordWriter(FileSystem ignored,
       JobConf job,
       String name,
       Progressable progress)
@@ -27,10 +27,12 @@ public class RTreeGridOutputFormat extends FileOutputFormat<CellInfo, TigerShape
 
     // Get file system
     FileSystem fileSystem = outFile.getFileSystem(job);
+    
+    boolean overwrite = job.getBoolean(GridOutputFormat.OVERWRITE, false);
 
     // Get grid info
     CellInfo[] cellsInfo = GridOutputFormat.decodeCells(job.get(GridOutputFormat.OUTPUT_CELLS));
-    return new RTreeGridRecordWriter(fileSystem, outFile, cellsInfo);
+    return new RTreeGridRecordWriter(fileSystem, outFile, cellsInfo, overwrite);
   }
 
 }
