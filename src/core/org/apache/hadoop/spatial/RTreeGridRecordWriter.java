@@ -108,6 +108,11 @@ public class RTreeGridRecordWriter extends GridRecordWriter {
   }
   
   @Override
+  protected boolean isCellEmpty(int cellIndex) {
+    return super.isCellEmpty(cellIndex) && cellShapes[cellIndex].size() == 0;
+  }
+  
+  @Override
   protected void flushCell(int cellIndex) throws IOException {
     LOG.info(this+"Writing the RTree at cell #"+cellIndex);
 

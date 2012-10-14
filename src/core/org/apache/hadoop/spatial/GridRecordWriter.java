@@ -39,7 +39,6 @@ public class GridRecordWriter implements ShapeRecordWriter {
 
   public GridRecordWriter(FileSystem outFileSystem, Path outFile,
       CellInfo[] cells, boolean overwrite) throws IOException {
-    LOG.info("Writing without RTree");
     this.fileSystem = outFileSystem;
     this.outFile = outFile;
     this.cells = cells;
@@ -183,6 +182,16 @@ public class GridRecordWriter implements ShapeRecordWriter {
     return -1;
   }
 
+  protected boolean isCellEmpty(int cellIndex) {
+    try {
+      return cellStreams[cellIndex] == null
+          && !fileSystem.exists(getCellFilePath(cellIndex));
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+    return true;
+  }
+  
   /**
    * Close the whole writer. Finalize all cell files and concatenate them
    * into the output file.
@@ -194,7 +203,7 @@ public class GridRecordWriter implements ShapeRecordWriter {
     
     // Close all output files
     for (int cellIndex = 0; cellIndex < cells.length; cellIndex++) {
-      if (cellStreams[cellIndex] != null || fileSystem.exists(getCellFilePath(cellIndex))) {
+      if (!isCellEmpty(cellIndex)) {
         final int iCell = cellIndex;
         closingThreads.add(new Thread() {
           @Override
