@@ -37,12 +37,17 @@ import edu.umn.cs.spatialHadoop.mapReduce.GridOutputFormat;
  * @author aseldawy
  *
  */
-public class RepartitionMapReduce {
-  static final Log LOG = LogFactory.getLog(RepartitionMapReduce.class);
+public class Repartition {
+  static final Log LOG = LogFactory.getLog(Repartition.class);
   
   /**Configuration line name for replication overhead*/
   public static final String REPLICATION_OVERHEAD =
       "spatialHadoop.storage.ReplicationOverHead";
+  
+  static {
+    Configuration.addDefaultResource("spatial-default.xml");
+    Configuration.addDefaultResource("spatial-site.xml");
+  }
   
   /**
    * The map class maps each object to all cells it overlaps with.
@@ -116,93 +121,6 @@ public class RepartitionMapReduce {
   }
   
   /**
-   * Repartitions a file that is already in HDFS. It runs a MapReduce job
-   * that partitions the file into cells, and writes each cell separately.
-   * @param conf
-   * @param inFile
-   * @param outPath
-   * @param gridInfo
-   * @param pack
-   * @param rtree
-   * @param overwrite
-   * @throws IOException
-   */
-  public static void repartition(JobConf conf, Path inFile, Path outPath,
-      GridInfo gridInfo, boolean pack, boolean rtree, boolean overwrite)
-          throws IOException {
-    conf.setJobName("Repartition");
-    
-    FileSystem inFs = inFile.getFileSystem(conf);
-    FileSystem outFs = outPath.getFileSystem(conf);
-
-    if (gridInfo == null)
-      gridInfo = WriteGridFile.getGridInfo(inFs, inFile, outFs);
-    if (gridInfo.columns == 0 || rtree) {
-      // Recalculate grid dimensions
-      int num_cells = calculateNumberOfPartitions(inFs, inFile, outFs, rtree);
-      gridInfo.calculateCellDimensions(num_cells);
-    }
-    CellInfo[] cellsInfo = pack ?
-        WriteGridFile.packInRectangles(inFs, inFile, outFs, gridInfo) :
-          gridInfo.getAllCells();
-
-    // Overwrite output file
-    if (inFs.exists(outPath)) {
-      if (overwrite)
-        outFs.delete(outPath, true);
-      else
-        throw new RuntimeException("Output file '" + outPath
-            + "' already exists and overwrite flag is not set");
-    }
-
-    conf.setInputFormat(ShapeInputFormat.class);
-    ShapeInputFormat.setInputPaths(conf, inFile);
-    conf.setMapOutputKeyClass(IntWritable.class);
-    conf.setMapOutputValueClass(TigerShape.class);
-
-    conf.setMapperClass(Map.class);
-    conf.setReducerClass(Reduce.class);
-
-    // Set default parameters for reading input file
-    conf.set(ShapeRecordReader.SHAPE_CLASS, TigerShape.class.getName());
-
-    FileOutputFormat.setOutputPath(conf,outPath);
-    conf.setOutputFormat(rtree ? RTreeGridOutputFormat.class : GridOutputFormat.class);
-    conf.set(GridOutputFormat.OUTPUT_CELLS,
-        GridOutputFormat.encodeCells(cellsInfo));
-    conf.setBoolean(GridOutputFormat.OVERWRITE, overwrite);
-
-    JobClient.runJob(conf);
-    
-    // Combine all output files into one file as we do with grid files
-    Vector<Path> pathsToConcat = new Vector<Path>();
-    FileStatus[] resultFiles = inFs.listStatus(outPath);
-    for (int i = 0; i < resultFiles.length; i++) {
-      FileStatus resultFile = resultFiles[i];
-      if (resultFile.getLen() > 0 &&
-          resultFile.getLen() % resultFile.getBlockSize() == 0) {
-        Path partFile = new Path(outPath.toUri().getPath()+"_"+i);
-        outFs.rename(resultFile.getPath(), partFile);
-        LOG.info("Rename "+resultFile.getPath()+" -> "+partFile);
-        pathsToConcat.add(partFile);
-      }
-    }
-    
-    LOG.info("Concatenating: "+pathsToConcat+" into "+outPath);
-    if (outFs.exists(outPath))
-      outFs.delete(outPath, true);
-    if (pathsToConcat.size() == 1) {
-      outFs.rename(pathsToConcat.firstElement(), outPath);
-    } else if (!pathsToConcat.isEmpty()) {
-      Path target = pathsToConcat.lastElement();
-      pathsToConcat.remove(pathsToConcat.size()-1);
-      outFs.concat(target,
-          pathsToConcat.toArray(new Path[pathsToConcat.size()]));
-      outFs.rename(target, outPath);
-    }
-  }
-  
-  /**
    * Calculates number of partitions required to index the given file
    * @param inFs
    * @param file
@@ -215,7 +133,7 @@ public class RepartitionMapReduce {
       boolean rtree) throws IOException {
     Configuration conf = inFs.getConf();
     final float ReplicationOverhead = conf.getFloat(REPLICATION_OVERHEAD,
-        0.001f);
+        0.002f);
     final long fileSize = inFs.getFileStatus(file).getLen();
     if (!rtree) {
       long indexedFileSize = (long) (fileSize * (1 + ReplicationOverhead));
@@ -290,6 +208,96 @@ public class RepartitionMapReduce {
   }
 	
 	/**
+   * Repartitions a file that is already in HDFS. It runs a MapReduce job
+   * that partitions the file into cells, and writes each cell separately.
+   * @param conf
+   * @param inFile
+   * @param outPath
+   * @param gridInfo
+   * @param pack
+   * @param rtree
+   * @param overwrite
+   * @throws IOException
+   */
+  public static void repartitionMapReduce(Path inFile, Path outPath,
+      GridInfo gridInfo, boolean pack, boolean rtree, boolean overwrite)
+          throws IOException {
+    JobConf conf = new JobConf(Repartition.class);
+    conf.setJobName("Repartition");
+    
+    FileSystem inFs = inFile.getFileSystem(conf);
+    FileSystem outFs = outPath.getFileSystem(conf);
+  
+    if (gridInfo == null)
+      gridInfo = WriteGridFile.getGridInfo(inFs, inFile, outFs);
+    if (gridInfo.columns == 0 || rtree) {
+      // Recalculate grid dimensions
+      int num_cells = calculateNumberOfPartitions(inFs, inFile, outFs, rtree);
+      // Maximum 20 cells to be written per reduce task. This reduces memory
+      // leak problems
+      gridInfo.calculateCellDimensions(num_cells);
+    }
+    CellInfo[] cellsInfo = pack ?
+        WriteGridFile.packInRectangles(inFs, inFile, outFs, gridInfo) :
+          gridInfo.getAllCells();
+  
+    // Overwrite output file
+    if (inFs.exists(outPath)) {
+      if (overwrite)
+        outFs.delete(outPath, true);
+      else
+        throw new RuntimeException("Output file '" + outPath
+            + "' already exists and overwrite flag is not set");
+    }
+  
+    conf.setInputFormat(ShapeInputFormat.class);
+    ShapeInputFormat.setInputPaths(conf, inFile);
+    conf.setMapOutputKeyClass(IntWritable.class);
+    conf.setMapOutputValueClass(TigerShape.class);
+  
+    conf.setMapperClass(Map.class);
+    conf.setReducerClass(Reduce.class);
+  
+    // Set default parameters for reading input file
+    conf.set(ShapeRecordReader.SHAPE_CLASS, TigerShape.class.getName());
+  
+    FileOutputFormat.setOutputPath(conf,outPath);
+    conf.setOutputFormat(rtree ? RTreeGridOutputFormat.class : GridOutputFormat.class);
+    conf.set(GridOutputFormat.OUTPUT_CELLS,
+        GridOutputFormat.encodeCells(cellsInfo));
+    conf.setBoolean(GridOutputFormat.OVERWRITE, overwrite);
+  
+    JobClient.runJob(conf);
+    
+    // Combine all output files into one file as we do with grid files
+    Vector<Path> pathsToConcat = new Vector<Path>();
+    FileStatus[] resultFiles = inFs.listStatus(outPath);
+    for (int i = 0; i < resultFiles.length; i++) {
+      FileStatus resultFile = resultFiles[i];
+      if (resultFile.getLen() > 0 &&
+          resultFile.getLen() % resultFile.getBlockSize() == 0) {
+        Path partFile = new Path(outPath.toUri().getPath()+"_"+i);
+        outFs.rename(resultFile.getPath(), partFile);
+        LOG.info("Rename "+resultFile.getPath()+" -> "+partFile);
+        pathsToConcat.add(partFile);
+      }
+    }
+    
+    LOG.info("Concatenating: "+pathsToConcat+" into "+outPath);
+    if (outFs.exists(outPath))
+      outFs.delete(outPath, true);
+    if (pathsToConcat.size() == 1) {
+      outFs.rename(pathsToConcat.firstElement(), outPath);
+    } else if (!pathsToConcat.isEmpty()) {
+      Path target = pathsToConcat.lastElement();
+      pathsToConcat.remove(pathsToConcat.size()-1);
+      outFs.concat(target,
+          pathsToConcat.toArray(new Path[pathsToConcat.size()]));
+      outFs.rename(target, outPath);
+    }
+  }
+
+  /**
 	 * Entry point to the file.
 	 * ... grid:<gridInfo> [-pack] [-rtree] <input filenames> <output filename>
 	 * gridInfo in the format <x1,y1,w,h[,cw,ch]>
@@ -299,7 +307,6 @@ public class RepartitionMapReduce {
 	 * @throws Exception
 	 */
 	public static void main(String[] args) throws Exception {
-    JobConf conf = new JobConf(RepartitionMapReduce.class);
     CommandLineArguments cla = new CommandLineArguments(args);
     Path inputPath = cla.getInputPath();
     Path outputPath = cla.getOutputPath();
@@ -310,6 +317,6 @@ public class RepartitionMapReduce {
     boolean pack = cla.isPack();
     boolean overwrite = cla.isOverwrite();
     
-    repartition(conf, inputPath, outputPath, gridInfo, pack, rtree, overwrite);
+    repartitionMapReduce(inputPath, outputPath, gridInfo, pack, rtree, overwrite);
 	}
 }

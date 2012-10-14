@@ -37,7 +37,7 @@ public class SJRepartitionMapReduce {
       if (fileStatus.getGridInfo() == null || !fileStatus.getGridInfo().equals(gridInfo)) {
         LOG.info("Going to repartition "+inputFiles[i]);
         Path repartitioned = new Path(inputFiles[i].toUri().getPath()+".grid");
-        RepartitionMapReduce.repartition(conf, inputFiles[i], repartitioned, gridInfo, pack, false, true);
+        Repartition.repartition(conf, inputFiles[i], repartitioned, gridInfo, pack, false, true);
         // Use the repartitioned file instead of original file
         inputFiles[i] = repartitioned;
       }
@@ -56,7 +56,7 @@ public class SJRepartitionMapReduce {
 	 * @throws Exception
 	 */
 	public static void main(String[] args) throws Exception {
-    JobConf conf = new JobConf(RepartitionMapReduce.class);
+    JobConf conf = new JobConf(Repartition.class);
     CommandLineArguments cla = new CommandLineArguments(args);
     Path[] inputFiles = cla.getInputPaths();
     Path outputPath = cla.getOutputPath();

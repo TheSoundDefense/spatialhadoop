@@ -174,7 +174,7 @@ public class RangeQuery {
     long resultCount = 0;
     for (FileStatus fileStatus : results) {
       if (fileStatus.getLen() > 0 && fileStatus.getPath().getName().startsWith("part-")) {
-        resultCount = LineCount.lineCountLocal(outFs, fileStatus.getPath());
+        resultCount = RecordCount.lineCountLocal(outFs, fileStatus.getPath());
         if (output != null) {
           // Report every single result
           LineReader lineReader = new LineReader(outFs.open(fileStatus.getPath()));

@@ -24,7 +24,16 @@ import org.apache.hadoop.util.LineReader;
 import edu.umn.cs.CommandLineArguments;
 import edu.umn.cs.Estimator;
 
-public class LineCount {
+
+/**
+ * Calculates number of records in a file depending on its type. If the file
+ * is a text file, it counts number of lines. If it's a grid file with no local
+ * index, it counts number of non-empty lines. If it's a grid file with RTree
+ * index, it counts total number of records stored in all RTrees.
+ * @author eldawy
+ *
+ */
+public class RecordCount {
   private static final ByteWritable ONEB = new ByteWritable((byte)1);
   private static final LongWritable ONEL = new LongWritable(1);
 
@@ -62,7 +71,7 @@ public class LineCount {
    * @throws IOException 
    */
   public static long lineCountMapReduce(FileSystem fs, Path file) throws IOException {
-    JobConf job = new JobConf(LineCount.class);
+    JobConf job = new JobConf(RecordCount.class);
     
     Path outputPath = new Path(file.toUri().getPath()+".linecount");
     FileSystem outFs = outputPath.getFileSystem(job);
@@ -120,7 +129,8 @@ public class LineCount {
     long lineCount = 0;
     
     while (lineReader.readLine(line) > 0) {
-      lineCount++;
+      if (line.getLength() > 0)
+        lineCount++;
     }
     return lineCount;
   }
@@ -194,10 +204,10 @@ public class LineCount {
    */
   public static void main(String[] args) throws IOException {
     CommandLineArguments cla = new CommandLineArguments(args);
-    JobConf conf = new JobConf(LineCount.class);
+    JobConf conf = new JobConf(RecordCount.class);
     Path inputFile = cla.getFilePath();
     FileSystem fs = inputFile.getFileSystem(conf);
-    long lineCount = lineCountApprox(fs, inputFile);
+    long lineCount = lineCountLocal(fs, inputFile);
     System.out.println("Count of lines in "+inputFile+" is "+lineCount);
   }
 

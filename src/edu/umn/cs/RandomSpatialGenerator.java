@@ -6,6 +6,7 @@ import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.util.Random;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.LongWritable;
@@ -18,6 +19,7 @@ import org.apache.hadoop.spatial.TigerShape;
 import org.apache.hadoop.spatial.ShapeRecordWriter;
 
 import edu.umn.cs.spatialHadoop.operations.RTreeGridRecordWriter;
+import edu.umn.cs.spatialHadoop.operations.Repartition;
 
 public class RandomSpatialGenerator {
   static byte[] NEW_LINE;
@@ -53,7 +55,10 @@ public class RandomSpatialGenerator {
   public static void generateGridFile(FileSystem outFS, Path outFilePath,
       Rectangle mbr, long totalSize, boolean overwrite, boolean rtree) throws IOException {
     GridInfo gridInfo = new GridInfo(mbr.x, mbr.y, mbr.width, mbr.height, 0, 0);
-    gridInfo.calculateCellDimensions(totalSize, outFS.getDefaultBlockSize());
+    Configuration conf = outFS.getConf();
+    gridInfo.calculateCellDimensions((long)(totalSize *
+        (1+conf.getFloat(Repartition.REPLICATION_OVERHEAD, 0.002f))),
+        outFS.getDefaultBlockSize());
     ShapeRecordWriter recordWriter = rtree ?
         new RTreeGridRecordWriter(outFS, outFilePath, gridInfo.getAllCells(), overwrite)
         : new GridRecordWriter(outFS, outFilePath, gridInfo.getAllCells(), overwrite);
@@ -65,14 +70,14 @@ public class RandomSpatialGenerator {
     Text text = new Text();
     
     long t1 = System.currentTimeMillis();
+    final int MaxShapeWidth = 100;
+    final int MaxShapeHeight = 100;
     while (true) {
       // Generate a random rectangle
-      randomShape.x = Math.abs(random.nextLong()) % mbr.width + mbr.x;
-      randomShape.y = Math.abs(random.nextLong()) % mbr.height + mbr.y;
-      randomShape.width = Math.min(Math.abs(random.nextLong()) % 100,
-          mbr.width + mbr.x - randomShape.x);
-      randomShape.height = Math.min(Math.abs(random.nextLong()) % 100,
-          mbr.height + mbr.y - randomShape.y);
+      randomShape.x = Math.abs(random.nextLong()) % (mbr.width - MaxShapeWidth) + mbr.x;
+      randomShape.y = Math.abs(random.nextLong()) % (mbr.height - MaxShapeHeight) + mbr.y;
+      randomShape.width = Math.abs(random.nextLong()) % MaxShapeWidth;
+      randomShape.height = Math.abs(random.nextLong()) % MaxShapeHeight;
       randomShape.id++; // The ID doesn't need to be random but unique
       
       // Serialize it to text first to make it easy count its size
