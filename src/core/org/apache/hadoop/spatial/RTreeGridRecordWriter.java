@@ -71,11 +71,6 @@ public class RTreeGridRecordWriter extends GridRecordWriter {
    */
   private long blockSize;
 
-  /**
-   * A temporary place to hold cell data before the rtree is created
-   */
-  private byte[] cellData;
-  
   public RTreeGridRecordWriter(FileSystem fileSystem, Path outFile,
       CellInfo[] cells, boolean overwrite) throws IOException {
     super(fileSystem, outFile, cells, overwrite);
@@ -89,7 +84,6 @@ public class RTreeGridRecordWriter extends GridRecordWriter {
     this.rtreeDegree = fileSystem.getConf().getInt(RTREE_DEGREE, 11);
     this.blockSize = fileSystem.getConf().getLong(RTREE_BLOCK_SIZE,
         fileSystem.getDefaultBlockSize());
-    this.cellData = new byte[(int) this.blockSize];
     // The 8 is subtracted because we reserve it for the RTreeFileMarker
     this.rtreeLimit = RTree.getBlockCapacity(this.blockSize - 8, rtreeDegree,
         calculateRecordSize(TigerShape.class));
@@ -150,6 +144,7 @@ public class RTreeGridRecordWriter extends GridRecordWriter {
     int fileSize = (int) fileSystem.getFileStatus(
         getTempCellFilePath(cellIndex)).getLen();
     FSDataInputStream cellIn = fileSystem.open(getTempCellFilePath(cellIndex));
+    byte[] cellData = new byte[fileSize];
     cellIn.read(cellData, 0, fileSize);
     cellIn.close();
     fileSystem.delete(getTempCellFilePath(cellIndex), false);
@@ -160,6 +155,7 @@ public class RTreeGridRecordWriter extends GridRecordWriter {
     FSDataOutputStream cellStream = getCellStream(cellIndex);
     cellStream.writeLong(RTreeFileMarker);
     rtree.bulkLoadWrite(cellData, 0, fileSize, rtreeDegree, cellStream, fastRTree);
+    cellData = null;
     long blockSize =
         fileSystem.getFileStatus(getCellFilePath(cellIndex)).getBlockSize();
     // Stuff the file with bytes to make a complete block
@@ -181,6 +177,8 @@ public class RTreeGridRecordWriter extends GridRecordWriter {
     }
     buffer = null;
     LOG.info("Size after writing the cell: "+cellStream.getPos());
+    // Clean up after writing each cell as the code is heavy in memory
+    System.gc();
   }
 
   @Override
