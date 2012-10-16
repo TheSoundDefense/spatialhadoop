@@ -13,6 +13,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.mapred.ClusterStatus;
 import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
@@ -31,6 +32,10 @@ import org.apache.hadoop.spatial.WriteGridFile;
 import edu.umn.cs.CommandLineArguments;
 import edu.umn.cs.Estimator;
 import edu.umn.cs.spatialHadoop.mapReduce.GridOutputFormat;
+import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridOutputFormat;
+import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridRecordWriter;
+import edu.umn.cs.spatialHadoop.mapReduce.ShapeInputFormat;
+import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
 
 /**
  * Repartitions a file according to a different grid through a MapReduce job
@@ -233,8 +238,6 @@ public class Repartition {
     if (gridInfo.columns == 0 || rtree) {
       // Recalculate grid dimensions
       int num_cells = calculateNumberOfPartitions(inFs, inFile, outFs, rtree);
-      // Maximum 20 cells to be written per reduce task. This reduces memory
-      // leak problems
       gridInfo.calculateCellDimensions(num_cells);
     }
     CellInfo[] cellsInfo = pack ?
@@ -257,6 +260,8 @@ public class Repartition {
   
     conf.setMapperClass(Map.class);
     conf.setReducerClass(Reduce.class);
+    ClusterStatus clusterStatus = new JobClient(conf).getClusterStatus();
+    conf.setNumReduceTasks(clusterStatus.getMaxReduceTasks());
   
     // Set default parameters for reading input file
     conf.set(ShapeRecordReader.SHAPE_CLASS, TigerShape.class.getName());

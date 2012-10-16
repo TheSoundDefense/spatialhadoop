@@ -1,4 +1,4 @@
-package edu.umn.cs.spatialHadoop.operations;
+package edu.umn.cs.spatialHadoop.mapReduce;
 import java.io.IOException;
 import java.util.Vector;
 
@@ -13,7 +13,6 @@ import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Shape;
 
 import edu.umn.cs.FileRange;
-import edu.umn.cs.spatialHadoop.mapReduce.SplitCalculator;
 
 
 /**

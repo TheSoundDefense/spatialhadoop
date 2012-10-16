@@ -1,4 +1,4 @@
-package edu.umn.cs.spatialHadoop.operations;
+package edu.umn.cs.spatialHadoop.mapReduce;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -8,7 +8,6 @@ import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Shape;
 
-import edu.umn.cs.spatialHadoop.mapReduce.STextRecordReader;
 
 /**
  * A record reader for objects of class {@link Shape}

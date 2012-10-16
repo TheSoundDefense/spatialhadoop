@@ -18,7 +18,7 @@ import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.TigerShape;
 import org.apache.hadoop.spatial.ShapeRecordWriter;
 
-import edu.umn.cs.spatialHadoop.operations.RTreeGridRecordWriter;
+import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridRecordWriter;
 import edu.umn.cs.spatialHadoop.operations.Repartition;
 
 public class RandomSpatialGenerator {
@@ -54,7 +54,7 @@ public class RandomSpatialGenerator {
    */
   public static void generateGridFile(FileSystem outFS, Path outFilePath,
       Rectangle mbr, long totalSize, boolean overwrite, boolean rtree) throws IOException {
-    GridInfo gridInfo = new GridInfo(mbr.x, mbr.y, mbr.width, mbr.height, 0, 0);
+    GridInfo gridInfo = new GridInfo(mbr.x, mbr.y, mbr.width, mbr.height);
     Configuration conf = outFS.getConf();
     gridInfo.calculateCellDimensions((long)(totalSize *
         (1+conf.getFloat(Repartition.REPLICATION_OVERHEAD, 0.002f))),

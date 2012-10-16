@@ -11,7 +11,6 @@ import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.util.Progressable;
 
-import edu.umn.cs.spatialHadoop.operations.GridRecordWriter;
 
 
 public class GridOutputFormat extends FileOutputFormat<CellInfo, Shape> {

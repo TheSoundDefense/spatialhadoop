@@ -1,4 +1,4 @@
-package edu.umn.cs.spatialHadoop.operations;
+package edu.umn.cs.spatialHadoop.mapReduce;
 
 import java.io.IOException;
 
@@ -10,6 +10,7 @@ import org.apache.hadoop.spatial.TigerShape;
 
 import edu.umn.cs.ArrayListWritable;
 import edu.umn.cs.CollectionWritable;
+import edu.umn.cs.spatialHadoop.operations.PairOfFileSplits;
 
 /**
  * Combines two record readers to read pair of files in the same time.

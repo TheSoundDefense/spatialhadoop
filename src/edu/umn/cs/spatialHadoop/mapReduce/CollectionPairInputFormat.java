@@ -1,4 +1,4 @@
-package edu.umn.cs.spatialHadoop.operations;
+package edu.umn.cs.spatialHadoop.mapReduce;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -21,6 +21,7 @@ import org.apache.hadoop.spatial.TigerShape;
 
 import edu.umn.cs.CollectionWritable;
 import edu.umn.cs.spatialHadoop.SpatialAlgorithms;
+import edu.umn.cs.spatialHadoop.operations.PairOfFileSplits;
 
 /**
  * Reads two splits at the same time from two different files. Each file contains a list

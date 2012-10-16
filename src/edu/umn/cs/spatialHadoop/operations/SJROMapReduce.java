@@ -19,6 +19,7 @@ import org.apache.hadoop.spatial.TigerShape;
 import edu.umn.cs.ArrayListWritable;
 import edu.umn.cs.CollectionWritable;
 import edu.umn.cs.spatialHadoop.SpatialAlgorithms;
+import edu.umn.cs.spatialHadoop.mapReduce.CollectionPairInputFormat;
 
 
 /**

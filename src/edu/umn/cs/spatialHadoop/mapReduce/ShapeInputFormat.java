@@ -1,4 +1,4 @@
-package edu.umn.cs.spatialHadoop.operations;
+package edu.umn.cs.spatialHadoop.mapReduce;
 
 import java.io.IOException;
 
@@ -11,7 +11,6 @@ import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.Shape;
 
-import edu.umn.cs.spatialHadoop.mapReduce.SplitCalculator;
 
 public class ShapeInputFormat extends FileInputFormat<LongWritable, Shape> {
 

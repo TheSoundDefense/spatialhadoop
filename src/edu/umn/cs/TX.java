@@ -14,7 +14,7 @@ import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.TigerShape;
 
-import edu.umn.cs.spatialHadoop.operations.ShapeRecordReader;
+import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
 
 public class TX {
 
@@ -57,7 +57,8 @@ public class TX {
     reader.close();
     
     // Partition them into a 4x4 grid
-    GridInfo gridInfo = new GridInfo(x1, y1, x2-x1, y2-y1, (x2-x1)/4+1, (y2-y1)/4+1);
+    GridInfo gridInfo = new GridInfo(x1, y1, x2-x1, y2-y1);
+    gridInfo.columns = gridInfo.rows = 4;
     Rectangle[] cells = 
         RTree.packInRectangles(gridInfo, shapes.toArray(new Point[shapes.size()]));
     

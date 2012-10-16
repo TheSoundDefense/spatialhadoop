@@ -1,4 +1,4 @@
-package edu.umn.cs.spatialHadoop.operations;
+package edu.umn.cs.spatialHadoop.mapReduce;
 import java.io.IOException;
 
 import org.apache.hadoop.fs.FileStatus;
@@ -11,7 +11,7 @@ import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.TigerShape;
 
-import edu.umn.cs.spatialHadoop.mapReduce.GridOutputFormat;
+import edu.umn.cs.spatialHadoop.operations.SJMapReduce;
 
 /**
  * Reads and parses a file that contains records of type Rectangle. Records are

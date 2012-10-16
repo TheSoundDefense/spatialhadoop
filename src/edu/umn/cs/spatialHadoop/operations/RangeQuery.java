@@ -25,7 +25,11 @@ import org.apache.hadoop.spatial.TigerShape;
 import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.CommandLineArguments;
+import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridRecordWriter;
+import edu.umn.cs.spatialHadoop.mapReduce.RTreeInputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.STextOutputFormat;
+import edu.umn.cs.spatialHadoop.mapReduce.ShapeInputFormat;
+import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
 import edu.umn.cs.spatialHadoop.mapReduce.SplitCalculator;
 
 /**
@@ -140,6 +144,7 @@ public class RangeQuery {
     job.setJobName("RangeQuery");
     job.set(QUERY_SHAPE_CLASS, queryShape.getClass().getName());
     job.set(QUERY_SHAPE, queryShape.writeToString());
+    job.setNumReduceTasks(0);
 
     job.setMapOutputKeyClass(ByteWritable.class);
     job.setMapOutputValueClass(shape.getClass());
@@ -174,7 +179,7 @@ public class RangeQuery {
     long resultCount = 0;
     for (FileStatus fileStatus : results) {
       if (fileStatus.getLen() > 0 && fileStatus.getPath().getName().startsWith("part-")) {
-        resultCount = RecordCount.lineCountLocal(outFs, fileStatus.getPath());
+        resultCount = RecordCount.recordCountLocal(outFs, fileStatus.getPath());
         if (output != null) {
           // Report every single result
           LineReader lineReader = new LineReader(outFs.open(fileStatus.getPath()));

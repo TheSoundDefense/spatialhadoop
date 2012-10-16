@@ -30,6 +30,7 @@ import edu.umn.cs.CommandLineArguments;
 import edu.umn.cs.spatialHadoop.SpatialAlgorithms;
 import edu.umn.cs.spatialHadoop.TigerShapeWithIndex;
 import edu.umn.cs.spatialHadoop.mapReduce.GridOutputFormat;
+import edu.umn.cs.spatialHadoop.mapReduce.SJInputFormat;
 
 
 /**
@@ -145,7 +146,7 @@ public class SJMapReduce {
     }
     
     if (gridInfo == null) {
-      gridInfo = new GridInfo(mbrOfAllFiles.x, mbrOfAllFiles.y, mbrOfAllFiles.width, mbrOfAllFiles.height, 0, 0);
+      gridInfo = new GridInfo(mbrOfAllFiles.x, mbrOfAllFiles.y, mbrOfAllFiles.width, mbrOfAllFiles.height);
       gridInfo.calculateCellDimensions(totalSize, outFS.getDefaultBlockSize());
       LOG.info("SJ gridInfo calculated using MBR: " + gridInfo);
     }

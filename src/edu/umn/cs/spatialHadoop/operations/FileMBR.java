@@ -22,6 +22,8 @@ import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.CommandLineArguments;
 import edu.umn.cs.spatialHadoop.mapReduce.STextOutputFormat;
+import edu.umn.cs.spatialHadoop.mapReduce.ShapeInputFormat;
+import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
 
 /**
  * Finds the minimal bounding rectangle for a file.

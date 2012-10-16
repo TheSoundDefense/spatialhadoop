@@ -70,7 +70,7 @@ public class RecordCount {
    * @return
    * @throws IOException 
    */
-  public static long lineCountMapReduce(FileSystem fs, Path file) throws IOException {
+  public static long recordCountMapReduce(FileSystem fs, Path file) throws IOException {
     JobConf job = new JobConf(RecordCount.class);
     
     Path outputPath = new Path(file.toUri().getPath()+".linecount");
@@ -78,8 +78,8 @@ public class RecordCount {
     outFs.delete(outputPath, true);
     
     job.setJobName("LineCount");
-    job.setOutputKeyClass(ByteWritable.class);
-    job.setOutputValueClass(LongWritable.class);
+    job.setMapOutputKeyClass(ByteWritable.class);
+    job.setMapOutputValueClass(LongWritable.class);
     
     job.setMapperClass(Map.class);
     job.setReducerClass(Reduce.class);
@@ -123,7 +123,7 @@ public class RecordCount {
    * @return
    * @throws IOException
    */
-  public static long lineCountLocal(FileSystem fs, Path file) throws IOException {
+  public static long recordCountLocal(FileSystem fs, Path file) throws IOException {
     LineReader lineReader = new LineReader(fs.open(file));
     Text line = new Text();
     long lineCount = 0;
@@ -143,7 +143,7 @@ public class RecordCount {
    * @return
    * @throws IOException
    */
-  public static<T> long lineCountApprox(FileSystem fs, Path file) throws IOException {
+  public static<T> long recordCountApprox(FileSystem fs, Path file) throws IOException {
     final long fileSize = fs.getFileStatus(file).getLen();
     final FSDataInputStream in = fs.open(file);
     
@@ -207,8 +207,8 @@ public class RecordCount {
     JobConf conf = new JobConf(RecordCount.class);
     Path inputFile = cla.getFilePath();
     FileSystem fs = inputFile.getFileSystem(conf);
-    long lineCount = lineCountLocal(fs, inputFile);
-    System.out.println("Count of lines in "+inputFile+" is "+lineCount);
+    long lineCount = recordCountMapReduce(fs, inputFile);
+    System.out.println("Count of records in "+inputFile+" is "+lineCount);
   }
 
 }

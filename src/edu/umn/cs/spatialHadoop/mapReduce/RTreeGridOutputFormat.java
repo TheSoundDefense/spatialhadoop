@@ -1,4 +1,4 @@
-package edu.umn.cs.spatialHadoop.operations;
+package edu.umn.cs.spatialHadoop.mapReduce;
 
 import java.io.IOException;
 
@@ -11,7 +11,6 @@ import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.util.Progressable;
 
-import edu.umn.cs.spatialHadoop.mapReduce.GridOutputFormat;
 
 
 public class RTreeGridOutputFormat extends FileOutputFormat<CellInfo, Shape> {
