@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.DataOutput;
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
@@ -22,8 +23,11 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.MemoryInputStream;
+import org.apache.hadoop.io.MemoryOutputStream;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.util.IndexedSortable;
+import org.apache.hadoop.util.IndexedSorter;
 import org.apache.hadoop.util.QuickSort;
 
 /**
@@ -45,11 +49,6 @@ public class RTree<T extends Shape> implements Writable {
   static class Node extends Rectangle {
     // Children of each node could be either other nodes or elements
     Vector<Shape> children;
-    // When we read elements from disk and we want to delay parsing values,
-    // we use element data to store the raw data of all children.
-    // Only when this node is queried, we parse these values and store them
-    // in children list
-    byte[] elementData;
     boolean leaf;
     
     Node(boolean leaf) {
@@ -80,7 +79,7 @@ public class RTree<T extends Shape> implements Writable {
         return children.size();
       int totalSize = 0;
       for (int i = 0; i < children.size(); i++) {
-        totalSize += ((Node)children.elementAt(0)).getElementCount();
+        totalSize += ((Node)children.elementAt(i)).getElementCount();
       }
       return totalSize;
     }
@@ -103,7 +102,7 @@ public class RTree<T extends Shape> implements Writable {
       return this;
     }
   }
-
+  
   /**Size of tree header on disk. Height + Degree + Number of records*/
   private static final int TreeHeaderSize = 4 + 4 + 4;
 
@@ -123,6 +122,287 @@ public class RTree<T extends Shape> implements Writable {
   public RTree() {
   }
 
+  /**
+   *  Builds the RTree given a serialized list of elements. It uses the given
+   * stockObject to deserialize these elements and build the tree.
+   * Also writes the created tree to the disk directly.
+   * @param elements - serialization of elements to be written
+   * @param offset - index of the first element to use in the elements array
+   * @param len - number of bytes to user from the elements array
+   * @param degree - required degree of the tree to be built
+   * @param dataOut - an output to use for writing the tree to
+   * @param fast_sort - setting this to <code>true</code> allows the method
+   *  to run faster by materializing the offset of each element in the list
+   *  which speeds up the comparison. However, this requires an additional
+   *  16 bytes per element. So, for each 1M elements, the method will require
+   *  an additional 16 M bytes (approximately).
+   */
+  public void bulkLoadWrite(final byte[] elements, int offset, int len,
+      final int degree, DataOutput dataOut, final boolean fast_sort) {
+    try {
+      final MemoryInputStream min = new MemoryInputStream(elements, offset, len);
+      final FSDataInputStream in = new FSDataInputStream(min);
+      int elementCount = 0;
+      while (in.available() > 0) {
+        stockObject.readFields(in);
+        elementCount++;
+      }
+
+      // Keep track of the offset of each element in the array
+      final int[] offsets = new int[elementCount];
+      final long[] xs = fast_sort? new long[elementCount] : null;
+      final long[] ys = fast_sort? new long[elementCount] : null;
+      
+      in.reset();
+      for (int i = 0; i < elementCount; i++) {
+        offsets[i] = (int)in.getPos();
+        stockObject.readFields(in);
+        if (fast_sort) {
+          xs[i] = stockObject.getMBR().getXMid();
+          ys[i] = stockObject.getMBR().getYMid();
+        }
+      }
+
+      /**A struct to store information about a split*/
+      class SplitStruct extends Rectangle {
+        /**Start and end index for this split*/
+        int index1, index2;
+        /**Direction of this split*/
+        byte direction;
+        /**Index of first element on disk*/
+        int offsetOfFirstElement;
+        
+        static final byte DIRECTION_X = 0;
+        static final byte DIRECTION_Y = 1;
+        
+        SplitStruct(int index1, int index2, byte direction) {
+          this.index1 = index1;
+          this.index2 = index2;
+          this.direction = direction;
+        }
+        
+        @Override
+        public void write(DataOutput out) throws IOException {
+          out.writeInt(offsetOfFirstElement);
+          super.write(out);
+        }
+
+        void partition(Queue<SplitStruct> toBePartitioned) {
+          IndexedSortable sortableX;
+          IndexedSortable sortableY;
+
+          if (fast_sort) {
+            // Use materialized xs[] and ys[] to do the comparisons
+            sortableX = new IndexedSortable() {
+              @Override
+              public void swap(int i, int j) {
+                // Swap xs
+                long tempx = xs[i];
+                xs[i] = xs[j];
+                xs[j] = tempx;
+                // Swap ys
+                long tempY = ys[i];
+                ys[i] = ys[j];
+                ys[j] = tempY;
+                // Swap id
+                int tempid = offsets[i];
+                offsets[i] = offsets[j];
+                offsets[j] = tempid;
+              }
+              
+              @Override
+              public int compare(int i, int j) {
+                return (int)(xs[i] - xs[j]);
+              }
+            };
+            
+            sortableY = new IndexedSortable() {
+              @Override
+              public void swap(int i, int j) {
+                // Swap xs
+                long tempx = xs[i];
+                xs[i] = xs[j];
+                xs[j] = tempx;
+                // Swap ys
+                long tempY = ys[i];
+                ys[i] = ys[j];
+                ys[j] = tempY;
+                // Swap id
+                int tempid = offsets[i];
+                offsets[i] = offsets[j];
+                offsets[j] = tempid;
+              }
+              
+              @Override
+              public int compare(int i, int j) {
+                return (int)(ys[i] - ys[j]);
+                }
+            };
+          } else {
+            // No materialized xs and ys. Always deserialize objects to compare
+            sortableX = new IndexedSortable() {
+              @Override
+              public void swap(int i, int j) {
+                // Swap id
+                int tempid = offsets[i];
+                offsets[i] = offsets[j];
+                offsets[j] = tempid;
+              }
+              
+              @Override
+              public int compare(int i, int j) {
+                try {
+                  in.seek(offsets[i]);
+                  stockObject.readFields(in);
+                  long xi = stockObject.getMBR().getXMid();
+                  in.seek(offsets[j]);
+                  stockObject.readFields(in);
+                  long xj = stockObject.getMBR().getXMid();
+                  return (int) (xi - xj);
+                } catch (IOException e) {
+                  e.printStackTrace();
+                }
+                return 0;
+              }
+            };
+            
+            sortableY = new IndexedSortable() {
+              @Override
+              public void swap(int i, int j) {
+                // Swap id
+                int tempid = offsets[i];
+                offsets[i] = offsets[j];
+                offsets[j] = tempid;
+              }
+              
+              @Override
+              public int compare(int i, int j) {
+                try {
+                  in.seek(offsets[i]);
+                  stockObject.readFields(in);
+                  long yi = stockObject.getMBR().getYMid();
+                  in.seek(offsets[j]);
+                  stockObject.readFields(in);
+                  long yj = stockObject.getMBR().getYMid();
+                  return (int) (yi - yj);
+                } catch (IOException e) {
+                  e.printStackTrace();
+                }
+                return 0;
+              }
+            };
+          }
+
+          final IndexedSorter sorter = new QuickSort();
+          
+          final IndexedSortable[] sortables = new IndexedSortable[2];
+          sortables[SplitStruct.DIRECTION_X] = sortableX;
+          sortables[SplitStruct.DIRECTION_Y] = sortableY;
+          
+          sorter.sort(sortables[direction], index1, index2);
+
+          // Partition into maxEntries partitions (equally) and
+          // create a SplitStruct for each partition
+          int i1 = index1;
+          for (int iSplit = 0; iSplit < degree; iSplit++) {
+            int i2 = index1 + (index2 - index1) * (iSplit + 1) / degree;
+            SplitStruct newSplit = new SplitStruct(i1, i2, (byte)(1 - direction));
+            toBePartitioned.add(newSplit);
+            i1 = i2;
+          }
+        }
+      }
+      
+      // All nodes stored in level-order traversal
+      Vector<SplitStruct> nodes = new Vector<SplitStruct>();
+      int non_leaf_count = -1;
+      final Queue<SplitStruct> toBePartitioned = new LinkedList<SplitStruct>();
+      toBePartitioned.add(new SplitStruct(0, elementCount, SplitStruct.DIRECTION_X));
+      
+      while (!toBePartitioned.isEmpty()) {
+        SplitStruct split = toBePartitioned.poll();
+        if (split.index2 - split.index1 > degree) {
+          split.partition(toBePartitioned);
+        } else {
+          if (non_leaf_count == -1)
+            non_leaf_count = nodes.size();
+        }
+        nodes.add(split);
+      }
+      
+      // Now we have our data sorted in the required order. Start building
+      // the tree.
+      // Store the offset of each leaf node in the tree
+      FSDataOutputStream fakeOut =
+          new FSDataOutputStream(new NullOutputStream(), null, TreeHeaderSize + nodes.size() * NodeSize);
+      for (int i_leaf = non_leaf_count, i=0; i_leaf < nodes.size(); i_leaf++) {
+        nodes.elementAt(i_leaf).offsetOfFirstElement = (int)fakeOut.getPos();
+        if (i != nodes.elementAt(i_leaf).index1) throw new RuntimeException();
+        long x1 = Long.MAX_VALUE;
+        long y1 = Long.MAX_VALUE;
+        long x2 = Long.MIN_VALUE;
+        long y2 = Long.MIN_VALUE;
+        while (i < nodes.elementAt(i_leaf).index2) {
+          in.seek(offsets[i]);
+          stockObject.readFields(in);
+          stockObject.write(fakeOut);
+          Rectangle mbr = stockObject.getMBR();
+          if (mbr.getX1() < x1) x1 = mbr.getX1();
+          if (mbr.getY1() < y1) y1 = mbr.getY1();
+          if (mbr.getX2() > x2) x2 = mbr.getX2();
+          if (mbr.getY2() > y2) y2 = mbr.getY2();
+          i++;
+        }
+        nodes.elementAt(i_leaf).set(x1, y1, x2-x1, y2-y1);
+      }
+      fakeOut.close(); fakeOut = null;
+      
+      // Calculate MBR and offsetOfFirstElement for non-leaves
+      for (int i_node = non_leaf_count-1; i_node >= 0; i_node--) {
+        int i_first_child = i_node * degree + 1;
+        nodes.elementAt(i_node).offsetOfFirstElement =
+            nodes.elementAt(i_first_child).offsetOfFirstElement;
+        long x1 = Long.MAX_VALUE;
+        long y1 = Long.MAX_VALUE;
+        long x2 = Long.MIN_VALUE;
+        long y2 = Long.MIN_VALUE;
+        for (int i_child = 0; i_child < degree; i_child++) {
+          Rectangle mbr = nodes.elementAt(i_first_child + i_child);
+          if (mbr.getX1() < x1) x1 = mbr.getX1();
+          if (mbr.getY1() < y1) y1 = mbr.getY1();
+          if (mbr.getX2() > x2) x2 = mbr.getX2();
+          if (mbr.getY2() > y2) y2 = mbr.getY2();
+        }
+        nodes.elementAt(i_node).set(x1, y1, x2-x1, y2-y1);
+      }
+      
+      // Start writing the tree
+      // write tree header (including size)
+      // Total tree size. (== Total bytes written - 8 bytes for the size itself)
+      dataOut.writeInt(TreeHeaderSize + NodeSize * nodes.size() + len);
+      // Tree height
+      dataOut.writeInt((int) Math.ceil(Math.log(nodes.size()+1)/Math.log(degree)));
+      // Degree
+      dataOut.writeInt(degree);
+      dataOut.writeInt(elementCount);
+      
+      // write nodes
+      for (SplitStruct node : nodes) {
+        node.write(dataOut);
+      }
+      // write elements
+      for (int element_i = 0; element_i < elementCount; element_i++) {
+        in.seek(offsets[element_i]);
+        stockObject.readFields(in);
+        stockObject.write(dataOut);
+      }
+      
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+    System.gc();
+  }
+  
   /**
    * Builds the RTree by loading all given objects. The maximum fan-out of any
    * node in the tree should be maxEntries. We try as much as we can to use
@@ -190,7 +470,7 @@ public class RTree<T extends Shape> implements Writable {
 
           @Override
           public int compare(int i, int j) {
-            return (int) (elements[i].getMBR().x - elements[j].getMBR().x);
+            return (int) (elements[i].getMBR().getXMid() - elements[j].getMBR().getXMid());
           }
         };
 
@@ -204,7 +484,7 @@ public class RTree<T extends Shape> implements Writable {
 
           @Override
           public int compare(int i, int j) {
-            return (int) (elements[i].getMBR().y - elements[j].getMBR().y);
+            return (int) (elements[i].getMBR().getYMid() - elements[j].getMBR().getYMid());
           }
         };
 
@@ -271,8 +551,7 @@ public class RTree<T extends Shape> implements Writable {
       if (nodeCount != getNodeCount())
         throw new RuntimeException("Node count "+nodeCount+" != "+getNodeCount());
       
-      offsetOfFirstElement = TreeHeaderSize +
-          NodeSize * nodeCount;
+      offsetOfFirstElement = TreeHeaderSize + NodeSize * nodeCount;
       
       // Start writing elements from the root
       toBeWritten.add(root);
@@ -623,10 +902,65 @@ public class RTree<T extends Shape> implements Writable {
   }
   
   public static void main(String[] args) throws IOException {
+/*    
+    final int block_size = 64*1024*1024;
+    byte[] elements = new byte[block_size];
+    MemoryOutputStream mout = new MemoryOutputStream(elements);
+    for (int trial = 0; trial < 1; trial++) {
+      System.out.println(trial);
+      long t1, t2;
+      Configuration conf = new Configuration();
+      FileSystem fs = FileSystem.getLocal(conf);
+      Path testfile = new Path("test_1.rtree");
+      Random random = new Random();
+      // Test the size of RTree serialization
+      final int degree = 11; // degree fan out
+      final int record_size = 40;
+      // Total number of records
+      final int record_count = getBlockCapacity(block_size, degree, record_size);
+      System.out.println("Generating "+record_count+" records");
+      
+      Rectangle mbr = new Rectangle(0, 0, 10000, 10000);
+      final Rectangle query = new Rectangle(mbr.x, mbr.y, 100, 100);
+      
+      t1 = System.currentTimeMillis();
+      mout.clear();
+      DataOutputStream out = new DataOutputStream(mout);
+      TigerShape s = new TigerShape();
+      for (int i = 0; i < record_count; i++) {
+        
+        // Generate a random rectangle
+        s.x = Math.abs(random.nextLong() % mbr.width) + mbr.x;
+        s.y = Math.abs(random.nextLong() % mbr.height) + mbr.y;
+        s.width = Math.min(Math.abs(random.nextLong() % 100) + 1,
+            mbr.width + mbr.x - s.x);
+        s.height = Math.min(Math.abs(random.nextLong() % 100) + 1,
+            mbr.height + mbr.y - s.y);
+        s.id = i;
+        
+        s.write(out);
+      }
+      out.close();
+      RTree<TigerShape> rtree = new RTree<TigerShape>();
+      rtree.setStockObject(s);
+      t2 = System.currentTimeMillis();
+      System.out.println("Generated rectangles in: "+(t2-t1)+" millis");
+      
+      FSDataOutputStream diskOut = fs.create(testfile, true);
+      t1 = System.currentTimeMillis();
+      rtree.bulkLoad(elements, 0, mout.getLength(), degree, diskOut);
+      diskOut.close();
+      t2 = System.currentTimeMillis();
+      System.out.println("Time for bulk loading: "+(t2-t1)+" millis");
+
+    }
+    */
+    
     long t1, t2;
     Configuration conf = new Configuration();
     FileSystem fs = FileSystem.getLocal(conf);
     Path testfile = new Path("test.rtree");
+    Path testfile2 = new Path("test2.rtree");
     Random random = new Random();
     // Test the size of RTree serialization
     final int degree = 11; // degree fan out
@@ -638,6 +972,12 @@ public class RTree<T extends Shape> implements Writable {
     
     Rectangle mbr = new Rectangle(0, 0, 10000, 10000);
     final Rectangle query = new Rectangle(mbr.x, mbr.y, 100, 100);
+
+    // Serialize elements to a byte array
+    byte[] elements = new byte[block_size];
+    MemoryOutputStream mout = new MemoryOutputStream(elements);
+    mout.clear();
+    DataOutputStream out = new DataOutputStream(mout);
     
     RTree<TigerShape> rtree = new RTree<TigerShape>();
     TigerShape[] values = new TigerShape[record_count];
@@ -653,8 +993,9 @@ public class RTree<T extends Shape> implements Writable {
       s.height = Math.min(Math.abs(random.nextLong() % 100) + 1,
           mbr.height + mbr.y - s.y);
       s.id = i;
-
+      
       values[i] = s;
+      s.write(out);
     }
     t2 = System.currentTimeMillis();
     System.out.println("Generated rectangles in: "+(t2-t1)+" millis");
@@ -664,7 +1005,7 @@ public class RTree<T extends Shape> implements Writable {
     t2 = System.currentTimeMillis();
     values = null;
     System.out.println("Time for bulk loading: "+(t2-t1)+" millis");
-
+    
     // Write to disk
     t1 = System.currentTimeMillis();
     FSDataOutputStream dataout = fs.create(testfile, true);
@@ -672,6 +1013,15 @@ public class RTree<T extends Shape> implements Writable {
     dataout.close();
     t2 = System.currentTimeMillis();
     System.out.println("Time for disk write: "+(t2-t1)+" millis");
+
+    // Write to disk using second version
+    FSDataOutputStream dataout2 = fs.create(testfile2, true);
+    rtree.setStockObject(new TigerShape());
+    t1 = System.currentTimeMillis();
+    rtree.bulkLoadWrite(elements, 0, mout.getLength(), degree, dataout2, false);
+    dataout2.close();
+    t2 = System.currentTimeMillis();
+    System.out.println("Time for load+write: "+(t2-t1)+" millis");
     
     int resultCount = rtree.search(query, null);
     int height = (int)Math.ceil(Math.log(record_count)/Math.log(degree)); // Number of nodes
@@ -699,7 +1049,7 @@ public class RTree<T extends Shape> implements Writable {
     RTree<TigerShape> rtree2 = new RTree<TigerShape>();
     rtree2.setStockObject(new TigerShape());
     
-    FSDataInputStream datain = fs.open(testfile);
+    FSDataInputStream datain = fs.open(testfile2);
     rtree2.readFields(datain);
     datain.close();
     
