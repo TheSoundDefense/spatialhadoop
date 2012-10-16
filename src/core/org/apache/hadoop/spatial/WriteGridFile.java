@@ -111,6 +111,7 @@ public class WriteGridFile {
    */
   public static Rectangle getMBR(FileSystem fileSystem, Path path) throws IOException {
     FileStatus fileStatus = fileSystem.getFileStatus(path);
+    LOG.info("gridInfo stored in file: "+fileStatus.getGridInfo());
     return fileStatus.getGridInfo() == null ? calculateMBR(fileSystem, path) : fileStatus.getGridInfo().getMBR();
   }
   
@@ -126,7 +127,7 @@ public class WriteGridFile {
     if (gridInfo == null) {
       Rectangle mbr = getMBR(inFileSystem, path);
       LOG.info("MBR: "+mbr);
-      gridInfo = new GridInfo(mbr.x, mbr.y, mbr.width, mbr.height, 0, 0);
+      gridInfo = new GridInfo(mbr.x, mbr.y, mbr.width, mbr.height);
       LOG.info("GridInfo: "+gridInfo);
     }
     if (gridInfo.columns == 0) {
@@ -173,6 +174,7 @@ public class WriteGridFile {
     List<Point> samplePoints = new ArrayList<Point>();
 
     long totalSampleSize = inTotalSize / 500;
+    LOG.info("Going to pick a sample of size: "+totalSampleSize+" bytes");
     long totalBytesToSample = totalSampleSize;
     long lastTime = System.currentTimeMillis();
 
@@ -230,7 +232,7 @@ public class WriteGridFile {
     }
     
     Point[] samples = samplePoints.toArray(new Point[samplePoints.size()]);
-    
+    LOG.info("Picked a sample of size: "+samples.length);
     return samples;
   }
 

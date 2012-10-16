@@ -6,7 +6,6 @@ import java.io.IOException;
 
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.TextSerializable;
-import org.apache.hadoop.io.TextSerializerHelper;
 import org.apache.hadoop.io.Writable;
 
 /**
@@ -25,13 +24,13 @@ public class GridInfo implements Writable, TextSerializable {
   }
   
   public GridInfo(long xOrigin, long yOrigin, long gridWidth,
-      long gridHeight, long cellWidth, long cellHeight) {
+      long gridHeight) {
     this.xOrigin = xOrigin;
     this.yOrigin = yOrigin;
     this.gridWidth = gridWidth;
     this.gridHeight = gridHeight;
-    this.columns = (int) Math.ceil((float)gridWidth / cellWidth);
-    this.rows = (int) Math.ceil((float)gridHeight / cellHeight);
+    this.columns = 0;
+    this.rows = 0;
   }
 
   @Override
@@ -63,11 +62,11 @@ public class GridInfo implements Writable, TextSerializable {
   }
   
   public long getAverageCellHeight() {
-    return gridHeight / rows;
+    return gridHeight / Math.max(rows, 1);
   }
 
   public long getAverageCellWidth() {
-    return gridWidth / columns;
+    return gridWidth / Math.max(columns, 1);
   }
 
   @Override

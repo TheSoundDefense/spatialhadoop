@@ -242,6 +242,10 @@ public class GridRecordWriter implements ShapeRecordWriter {
       }
     }
 
+    if (pathsToConcat.size() == 0) {
+      LOG.warn("No output of the grid file: "+outFile);
+      return;
+    }
     LOG.info("Closing... Merging "+pathsToConcat.size());
     if (pathsToConcat.size() == 1) {
       fileSystem.rename(pathsToConcat.firstElement(), outFile);
@@ -339,12 +343,12 @@ public class GridRecordWriter implements ShapeRecordWriter {
     // Check if we need to write empty lines
     long blockSize =
         fileSystem.getFileStatus(getCellFilePath(cellIndex)).getBlockSize();
-    LOG.info("Current size: "+currSize);
+    LOG.info("Cell #"+cellIndex+" current size: "+currSize);
     // Stuff the open stream with empty lines until it becomes of size blockSize
     long remainingBytes = (blockSize - currSize % blockSize) % blockSize;
     
     if (remainingBytes > 0) {
-      LOG.info("Stuffing file " + cellIndex +  " with new lines: " + remainingBytes);
+      LOG.info("Cell #"+cellIndex+" stuffing file with "+remainingBytes+" new lines");
       if (cellStream == null) {
         // Open for append. An exception is throws if FS doesn't support append
         cellStream = createCellFileStream(cellIndex);
@@ -364,7 +368,7 @@ public class GridRecordWriter implements ShapeRecordWriter {
       cellStreams[cellIndex] = null;
     }
     // Now getFileSize should work because the file is closed
-    LOG.info("Actual size: "+fileSystem.getFileStatus(getCellFilePath(cellIndex)).getLen());
+    LOG.info("Cell #"+cellIndex+" actual size: "+fileSystem.getFileStatus(getCellFilePath(cellIndex)).getLen());
   }
 
   /**
