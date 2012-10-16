@@ -264,7 +264,7 @@ public class RawLocalFileSystem extends FileSystem {
       CellInfo cellInfo,
       Progressable progress) throws IOException {
     FSDataOutputStream out = create(f,
-        overwrite, bufferSize, replication, blockSize, cellInfo, progress);
+        overwrite, bufferSize, replication, blockSize, progress);
     setPermission(f, permission);
     return out;
   }
