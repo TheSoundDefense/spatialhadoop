@@ -137,7 +137,8 @@ public class RangeQuery {
       throws IOException {
     JobConf job = new JobConf(FileMBR.class);
     
-    Path outputPath = new Path(file.toUri().getPath()+".rangequery");
+    Path outputPath = new Path(file.toUri().getPath()+
+        ".rangequery_"+(int)(Math.random() * 10000));
     FileSystem outFs = outputPath.getFileSystem(job);
     outFs.delete(outputPath, true);
     

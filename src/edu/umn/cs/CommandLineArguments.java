@@ -156,7 +156,21 @@ public class CommandLineArguments {
   public long getSize() {
     for (String arg : args) {
       if (arg.startsWith("size:")) {
-        return Long.parseLong(arg.split(":")[1]);
+        String size_str = arg.split(":")[1];
+        if (size_str.indexOf(',') == -1)
+          return Long.parseLong(size_str);
+        String[] size_parts = size_str.split(".", 2);
+        long size = Long.parseLong(size_parts[0]);
+        size_parts[1] = size_parts[1].toLowerCase();
+        if (size_parts[1].startsWith("k"))
+          size *= 1024;
+        else if (size_parts[1].startsWith("m"))
+          size *= 1024 * 1024;
+        else if (size_parts[1].startsWith("g"))
+          size *= 1024 * 1024 * 1024;
+        else if (size_parts[1].startsWith("t"))
+          size *= 1024 * 1024 * 1024 * 1024;
+        return size;
       }
     }
     return 0;
