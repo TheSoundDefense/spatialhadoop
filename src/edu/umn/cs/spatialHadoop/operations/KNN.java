@@ -215,10 +215,12 @@ public class KNN {
       throws IOException {
     JobConf job = new JobConf(FileMBR.class);
     
-    Path outputPath = new Path(file.toUri().getPath()+
-        ".knn_"+(int)(Math.random() * 10000));
-    FileSystem outFs = outputPath.getFileSystem(job);
-    outFs.delete(outputPath, true);
+    Path outputPath;
+    FileSystem outFs = file.getFileSystem(job);
+    do {
+      outputPath = new Path(file.toUri().getPath()+
+          ".knn_"+(int)(Math.random() * 1000000));
+    } while (outFs.exists(outputPath));
     
     job.setJobName("KNN");
     job.setMapperClass(Map.class);
