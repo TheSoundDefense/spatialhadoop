@@ -7,17 +7,16 @@ import java.util.Vector;
 
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.io.Writable;
+import org.apache.hadoop.io.WritableComparable;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.OutputCollector;
-import org.apache.hadoop.mapred.RecordReader;
-import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.spatial.SpatialAlgorithms;
 import org.apache.hadoop.spatial.TigerShape;
 
-import edu.umn.cs.spatialHadoop.SpatialAlgorithms;
-import edu.umn.cs.spatialHadoop.operations.PairOfFileSplits;
 
 /**
  * An input format that reads a pair of files simultaneously and returns
@@ -25,15 +24,9 @@ import edu.umn.cs.spatialHadoop.operations.PairOfFileSplits;
  * @author eldawy
  *
  */
-public class PairInputFormat<K, V> extends FileInputFormat<K, Pair<V>> {
+public abstract class PairInputFormat<K extends WritableComparable, V extends Writable>
+    extends FileInputFormat<PairWritableComparable<K>, PairWritable<V>> {
 
-  @Override
-  public RecordReader<K, Pair<V>> getRecordReader(InputSplit split,
-      JobConf job, Reporter reporter) throws IOException {
-    reporter.setStatus(split.toString());
-    return new PairRecordReader<K, V>((PairOfFileSplits)split, job, reporter);
-  }
-  
   @Override
   public InputSplit[] getSplits(JobConf job, int numSplits) throws IOException {
     // Get a list of all input files. There should be exactly two files.
@@ -54,6 +47,7 @@ public class PairInputFormat<K, V> extends FileInputFormat<K, Pair<V>> {
 
     for (int file_i = 0; file_i < inputFiles.length; file_i++) {
       spatialSplits[file_i] = new Vector<TigerShape>();
+      heapSplits[file_i] = new Vector<Integer>();
       // Extract all blocks for this file
       BlockLocation[] blockLocations = inputFiles[file_i].getPath()
           .getFileSystem(job)

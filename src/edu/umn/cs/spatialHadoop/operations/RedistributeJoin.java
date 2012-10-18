@@ -2,24 +2,37 @@ package edu.umn.cs.spatialHadoop.operations;
 
 import java.io.IOException;
 
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.ByteWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapred.FileSplit;
+import org.apache.hadoop.mapred.InputSplit;
+import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.MapReduceBase;
 import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
+import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.TigerShape;
+import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.CommandLineArguments;
+import edu.umn.cs.spatialHadoop.mapReduce.Pair;
+import edu.umn.cs.spatialHadoop.mapReduce.PairInputFormat;
+import edu.umn.cs.spatialHadoop.mapReduce.PairOfFileSplits;
+import edu.umn.cs.spatialHadoop.mapReduce.PairRecordReader;
+import edu.umn.cs.spatialHadoop.mapReduce.PairShape;
+import edu.umn.cs.spatialHadoop.mapReduce.PairWritable;
+import edu.umn.cs.spatialHadoop.mapReduce.PairWritableComparable;
+import edu.umn.cs.spatialHadoop.mapReduce.RTreeRecordReader;
 import edu.umn.cs.spatialHadoop.mapReduce.STextOutputFormat;
-import edu.umn.cs.spatialHadoop.mapReduce.ShapeInputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
-import edu.umn.cs.spatialHadoop.mapReduce.SplitCalculator;
 
 /**
  * Performs a spatial join between two or more files using the redistribute-join
@@ -31,15 +44,51 @@ public class RedistributeJoin {
 
   /**The map function for the redistribute join*/
   public static class Map extends MapReduceBase
-  implements Mapper<CellInfo, Pair<RTree<Shape>>, CellInfo, Pair<Shape>> {
+  implements Mapper<PairWritableComparable<CellInfo>, PairWritable<RTree<Shape>>, PairWritableComparable<CellInfo>, PairWritable<? extends Shape>> {
     @Override
-    public void map(CellInfo key, Pair<RTree<Shape>> value,
-        OutputCollector<CellInfo, Pair<Shape>> output, Reporter reporter)
-        throws IOException {
+    public void map(
+        PairWritableComparable<CellInfo> key,
+        PairWritable<RTree<Shape>> value,
+        OutputCollector<PairWritableComparable<CellInfo>, PairWritable<? extends Shape>> output,
+        Reporter reporter) throws IOException {
       // TODO Auto-generated method stub
     }
   }
   
+  /**
+   * Record reader that reads pair of cell infos and pair of RTrees
+   * @author eldawy
+   *
+   */
+  public static class DJRecordReader extends PairRecordReader<CellInfo, RTree<Shape>> {
+    public DJRecordReader(Configuration conf, PairOfFileSplits fileSplits) throws IOException {
+      this.conf = conf;
+      this.splits = fileSplits;
+      this.internalReaders = new Pair<RecordReader<CellInfo,RTree<Shape>>>();
+      this.internalReaders.first = createRecordReader(this.conf, this.splits.first);
+      this.internalReaders.second = createRecordReader(this.conf, this.splits.second);
+    }
+    
+    @Override
+    protected RecordReader<CellInfo, RTree<Shape>> createRecordReader(
+        Configuration conf, FileSplit split) throws IOException {
+      return new RTreeRecordReader(conf, split);
+    }
+  }
+
+  /**
+   * An input format that creates record readers that read a pair of cells
+   * and a pair of RTrees.
+   * @author eldawy
+   *
+   */
+  public static class DJInputFormat extends PairInputFormat<CellInfo, RTree<Shape>> {
+    @Override
+    public RecordReader<PairWritableComparable<CellInfo>, PairWritable<RTree<Shape>>> getRecordReader(
+        InputSplit split, JobConf job, Reporter reporter) throws IOException {
+      return new DJRecordReader(job, (PairOfFileSplits)split);
+    }
+  }
 
   /**
    * Performs a redistribute join between the given files using the redistribute
@@ -50,8 +99,8 @@ public class RedistributeJoin {
    * @return
    * @throws IOException 
    */
-  public static int redistributeJoin(FileSystem fs, Path[] files,
-      OutputCollector<CellInfo, Pair<Shape>> output) throws IOException {
+  public static long redistributeJoin(FileSystem fs, Path[] files,
+      OutputCollector<PairShape<CellInfo>, PairShape<? extends Shape>> output) throws IOException {
     JobConf job = new JobConf(RedistributeJoin.class);
     
     Path outputPath =
@@ -61,20 +110,65 @@ public class RedistributeJoin {
     
     job.setJobName("RedistributeJoin");
     job.setMapperClass(Map.class);
-    job.setMapOutputKeyClass(CellInfo.class);
-    job.setMapOutputValueClass(Pair.class);
+    job.setMapOutputKeyClass(PairWritableComparable.class);
+    job.setMapOutputValueClass(PairWritable.class);
+    job.setNumMapTasks(0); // No reduce needed for this task
 
-    job.setInputFormat(ShapeInputFormat.class);
+    job.setInputFormat(DJInputFormat.class);
     job.set(ShapeRecordReader.SHAPE_CLASS, TigerShape.class.getName());
-    String query_point_distance = queryPoint.x+","+queryPoint.y+","+0;
-    job.set(SplitCalculator.QUERY_POINT_DISTANCE, query_point_distance);
     job.setOutputFormat(STextOutputFormat.class);
+    
+    String commaSeparatedFiles = "";
+    for (int i = 0; i < files.length; i++) {
+      if (i > 0)
+        commaSeparatedFiles += ',';
+      commaSeparatedFiles += files[i].toUri().toString();
+    }
+    DJInputFormat.addInputPaths(job, commaSeparatedFiles);
+    STextOutputFormat.setOutputPath(job, outputPath);
+    
+    JobClient.runJob(job);
 
-    return 0;
+    // Read job result
+    FileStatus[] results = outFs.listStatus(outputPath);
+    long resultCount = 0;
+    for (FileStatus fileStatus : results) {
+      if (fileStatus.getLen() > 0 && fileStatus.getPath().getName().startsWith("part-")) {
+        resultCount += RecordCount.recordCountLocal(outFs, fileStatus.getPath());
+        if (output != null) {
+          // Report every single result as a pair of shapes
+          PairShape<CellInfo> cells =
+              new PairShape<CellInfo>(new CellInfo(), new CellInfo());
+          PairShape<? extends Shape> shapes =
+              new PairShape<TigerShape>(new TigerShape(), new TigerShape());
+          LineReader lineReader = new LineReader(outFs.open(fileStatus.getPath()));
+          Text text = new Text();
+          if (lineReader.readLine(text) > 0) {
+            String str = text.toString();
+            String[] parts = str.split("\t", 2);
+            cells.readFromString(parts[0]);
+            shapes.readFromString(parts[1]);
+            output.collect(cells, shapes);
+          }
+          lineReader.close();
+        }
+      }
+    }
+    
+    outFs.delete(outputPath, true);
+    
+    return resultCount;
   }
   
-  public static void main(String[] args) {
+  public static void main(String[] args) throws IOException {
     CommandLineArguments cla = new CommandLineArguments(args);
-    
+    Path[] inputPaths = cla.getInputPaths();
+    JobConf conf = new JobConf(RedistributeJoin.class);
+    FileSystem fs = inputPaths[0].getFileSystem(conf);
+    long t1 = System.currentTimeMillis();
+    long resultSize = redistributeJoin(fs, inputPaths, null);
+    long t2 = System.currentTimeMillis();
+    System.out.println("Total time: "+(t2-t1)+" millis");
+    System.out.println("Result size: "+resultSize);
   }
 }

@@ -23,11 +23,11 @@ import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Rectangle;
+import org.apache.hadoop.spatial.SpatialAlgorithms;
 import org.apache.hadoop.spatial.TigerShape;
 import org.apache.hadoop.spatial.WriteGridFile;
 
 import edu.umn.cs.CommandLineArguments;
-import edu.umn.cs.spatialHadoop.SpatialAlgorithms;
 import edu.umn.cs.spatialHadoop.TigerShapeWithIndex;
 import edu.umn.cs.spatialHadoop.mapReduce.GridOutputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.SJInputFormat;
