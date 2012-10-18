@@ -9,7 +9,9 @@ import java.io.DataOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Queue;
 import java.util.Random;
 import java.util.Stack;
@@ -22,6 +24,7 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.io.MemoryInputStream;
 import org.apache.hadoop.io.Writable;
+import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.util.IndexedSortable;
 import org.apache.hadoop.util.IndexedSorter;
 import org.apache.hadoop.util.QuickSort;
@@ -33,7 +36,7 @@ import org.apache.hadoop.util.QuickSort;
  * @author eldawy
  *
  */
-public class RTree<T extends Shape> implements Writable {
+public class RTree<T extends Shape> implements Writable, Iterable<T> {
   /**Logger*/
   private static final Log LOG = LogFactory.getLog(RTree.class);
   
@@ -451,6 +454,74 @@ public class RTree<T extends Shape> implements Writable {
     }
     return rectangles;
   }
+  
+  /**
+   * An iterator that goes over all elements in the tree in no particular order
+   * @author eldawy
+   *
+   */
+  class RTreeIterator implements Iterator<T> {
+    
+    /**An input stream that reads underlying records*/
+    DataInputStream _dataIn;
+    
+    /**A stock object to read from stream*/
+    T _stockObject;
+    
+    RTreeIterator() throws IOException {
+      _dataIn = new DataInputStream(new ByteArrayInputStream(serializedTree));
+      int height = _dataIn.readInt();
+      if (height == 0) {
+        // Empty tree. No results
+        _dataIn.close();
+        _dataIn = null;
+        return;
+      }
+      /*degree = */_dataIn.readInt();
+      /*int elementCount =*/ _dataIn.readInt();
+      int startOffset = _dataIn.readInt();
+      _dataIn.reset();
+      _dataIn.skip(startOffset);
+      _stockObject = (T) RTree.this.stockObject.clone();
+    }
+
+    @Override
+    public boolean hasNext() {
+      try {
+        return _dataIn != null && _dataIn.available() > 0;
+      } catch (IOException e) {
+        return false;
+      }
+    }
+
+    @Override
+    public T next() {
+      if (_dataIn == null)
+        return null;
+      try {
+        _stockObject.readFields(_dataIn);
+        return _stockObject;
+      } catch (IOException e) {
+        return null;
+      }
+    }
+
+    @Override
+    public void remove() {
+      throw new RuntimeException("Not supported");
+    }
+    
+  }
+
+  @Override
+  public Iterator<T> iterator() {
+    try {
+      return new RTreeIterator();
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+    return null;
+  }
 
   /**
    * Used to collect all results from a range or point query.
@@ -627,6 +698,30 @@ public class RTree<T extends Shape> implements Writable {
   public static interface ResultCollector2<T1, T2> {
     void add(T1 x, T2 y);
   }
+  
+  public static<S1 extends Shape, S2 extends Shape> int spatialJoin(
+      final RTree<S1> R,
+      final RTree<S2> S,
+      final ResultCollector2<S1, S2> output)
+      throws IOException {
+    List<S1> rs = new Vector<S1>();
+    for (S1 r : R)
+      rs.add((S1) r.clone());
+    List<S2> ss = new Vector<S2>();
+    for (S2 s : S)
+      ss.add((S2) s.clone());
+    if (output == null) {
+      return SpatialAlgorithms.SpatialJoin_planeSweep(rs, ss, null);
+    } else {
+      return SpatialAlgorithms.SpatialJoin_planeSweep(rs, ss, new OutputCollector<S1, S2>() {
+
+        @Override
+        public void collect(S1 r, S2 s) throws IOException {
+          output.add(r, s);
+        }
+      });
+    }
+  }
 
   /**
    * Performs a spatial join between the two given R trees. It uses the
@@ -637,7 +732,7 @@ public class RTree<T extends Shape> implements Writable {
    * @return
    * @throws IOException
    */
-  public static<S1 extends Shape, S2 extends Shape> int spatialJoin(
+  /*public static<S1 extends Shape, S2 extends Shape> int spatialJoin(
       final RTree<S1> R,
       final RTree<S2> S,
       final ResultCollector2<S1, S2> output)
@@ -670,6 +765,9 @@ public class RTree<T extends Shape> implements Writable {
     Rectangle mbrr = new Rectangle();
     Rectangle mbrs = new Rectangle();
     
+    long x=0, x1;
+    long y=0, y1;
+    
     while (!toBeSearchedR.isEmpty()) {
       int searchR = toBeSearchedR.pop();
       int searchS = toBeSearchedS.pop();
@@ -677,6 +775,7 @@ public class RTree<T extends Shape> implements Writable {
       int mbrsToTestS = searchS == 0 ? 1 : S.degree;
       
       if (searchR < R.nodeCount) {
+        x1 = System.currentTimeMillis();
         // R is still searching nodes. This implies that S is searching nodes
         if (searchS >= S.nodeCount) throw new RuntimeException();
         long nodeOffsetR = TreeHeaderSize + NodeSize * searchR;
@@ -709,7 +808,7 @@ public class RTree<T extends Shape> implements Writable {
               
               if (searchS < S.nonLeafNodeCount) {
                 // Search child nodes
-                toBeSearchedS.add((searchS + r) * S.degree + 1);
+                toBeSearchedS.add((searchS + s) * S.degree + 1);
               } else {
                 // Search all elements in this node
                 toBeSearchedS.add(dataOffsetS);
@@ -720,7 +819,9 @@ public class RTree<T extends Shape> implements Writable {
           }
           dataOffsetR = lastOffsetR;
         }
+        x+= System.currentTimeMillis() - x1;
       } else {
+        y1 = System.currentTimeMillis();
         int lastOffsetR = searchR;
         int firstOffsetR = toBeSearchedR.pop();
         
@@ -752,6 +853,7 @@ public class RTree<T extends Shape> implements Writable {
             result_count += S.search(R.stockObject, results, firstOffsetS, lastOffsetS);
           }
         }
+        y += System.currentTimeMillis() - y1;
       }
     }
     
@@ -759,7 +861,7 @@ public class RTree<T extends Shape> implements Writable {
     S.endQuery();
     
     return result_count;
-  }
+  }*/
   
   public static RTree<Rectangle> buildRTree(Rectangle mbr, int size,
       int degree) throws IOException {
@@ -802,7 +904,7 @@ public class RTree<T extends Shape> implements Writable {
   public static void main(String[] args) throws IOException {
     long t1, t2;
     Rectangle mbr = new Rectangle(0,0,10000,10000);
-    int size = 1000;
+    int size = 500000;
     int degree = 10;
     t1 = System.currentTimeMillis();
     RTree<Rectangle> R = buildRTree(mbr, size, degree);
@@ -810,10 +912,46 @@ public class RTree<T extends Shape> implements Writable {
     t2 = System.currentTimeMillis();
     System.out.println("Generated rtrees in "+(t2-t1)+" millis");
     
+    int count = 0;
+
+    /*List<Rectangle> rs = new Vector<Rectangle>();
+    List<Rectangle> ss = new Vector<Rectangle>();
+    for (Rectangle r : R) {
+      rs.add(r.clone());
+    }
+    for (Rectangle s : S) {
+      ss.add(s.clone());
+    }
     t1 = System.currentTimeMillis();
-    int result_count = spatialJoin(R, S, null);
+    count = SpatialAlgorithms.SpatialJoin_planeSweep(rs, ss, null);
     t2 = System.currentTimeMillis();
-    System.out.println("Performed the spatial join in "+(t2-t1)+" millis");
-    System.out.println("Found: "+result_count+" results");
+    
+    System.out.println("Plane-sweep finished in "+(t2-t1)+" millis");
+    System.out.println("Found "+count+" results");
+    */
+    /*count = 0;
+    t1 = System.currentTimeMillis();
+    for (Rectangle r : R) {
+      for (Rectangle s : S) {
+        if (r.isIntersected(s)) {
+          count++;
+        }
+      }
+    }
+    t2 = System.currentTimeMillis();
+    System.out.println("Brute force finished in "+(t2-t1)+" millis");
+    System.out.println("Found "+count+" results");
+    */
+    t1 = System.currentTimeMillis();
+    count = spatialJoin(R, S, new ResultCollector2<Rectangle, Rectangle>() {
+
+      @Override
+      public void add(Rectangle x, Rectangle y) {
+        //System.out.println(x+" : "+y);
+      }
+    });
+    t2 = System.currentTimeMillis();
+    System.out.println("RTree spatial join in "+(t2-t1)+" millis");
+    System.out.println("Found: "+count+" results");
   }
 }
