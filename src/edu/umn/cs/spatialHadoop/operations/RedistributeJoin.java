@@ -47,11 +47,23 @@ public class RedistributeJoin {
   implements Mapper<PairWritableComparable<CellInfo>, PairWritable<RTree<Shape>>, PairWritableComparable<CellInfo>, PairWritable<? extends Shape>> {
     @Override
     public void map(
-        PairWritableComparable<CellInfo> key,
-        PairWritable<RTree<Shape>> value,
-        OutputCollector<PairWritableComparable<CellInfo>, PairWritable<? extends Shape>> output,
+        final PairWritableComparable<CellInfo> key,
+        final PairWritable<RTree<Shape>> value,
+        final OutputCollector<PairWritableComparable<CellInfo>, PairWritable<? extends Shape>> output,
         Reporter reporter) throws IOException {
-      // TODO Auto-generated method stub
+      final PairWritable<Shape> output_value = new PairWritable<Shape>();
+      RTree.spatialJoin(value.first, value.second, new RTree.ResultCollector2<Shape, Shape>() {
+        @Override
+        public void add(Shape x, Shape y) {
+          output_value.first = x;
+          output_value.second = y;
+          try {
+            output.collect(key, output_value);
+          } catch (IOException e) {
+            e.printStackTrace();
+          }
+        }
+      });
     }
   }
   
@@ -162,7 +174,7 @@ public class RedistributeJoin {
   
   public static void main(String[] args) throws IOException {
     CommandLineArguments cla = new CommandLineArguments(args);
-    Path[] inputPaths = cla.getInputPaths();
+    Path[] inputPaths = cla.getPaths();
     JobConf conf = new JobConf(RedistributeJoin.class);
     FileSystem fs = inputPaths[0].getFileSystem(conf);
     long t1 = System.currentTimeMillis();

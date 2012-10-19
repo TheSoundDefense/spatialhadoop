@@ -166,5 +166,6 @@ public class Estimator<Y> {
     });
     
     Estimator.Range<Integer> line_count = lineEstimator.getEstimate();
+    System.out.println("Lines: "+line_count);
   }
 }

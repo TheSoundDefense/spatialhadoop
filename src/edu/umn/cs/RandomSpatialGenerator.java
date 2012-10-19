@@ -14,9 +14,10 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.GridRecordWriter;
+import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Rectangle;
-import org.apache.hadoop.spatial.TigerShape;
 import org.apache.hadoop.spatial.ShapeRecordWriter;
+import org.apache.hadoop.spatial.TigerShape;
 
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridRecordWriter;
 import edu.umn.cs.spatialHadoop.operations.Repartition;
@@ -53,25 +54,69 @@ public class RandomSpatialGenerator {
    * @throws IOException
    */
   public static void generateGridFile(FileSystem outFS, Path outFilePath,
-      Rectangle mbr, long totalSize, boolean overwrite, boolean rtree) throws IOException {
+      final Rectangle mbr, final long totalSize, boolean overwrite, boolean rtree) throws IOException {
     GridInfo gridInfo = new GridInfo(mbr.x, mbr.y, mbr.width, mbr.height);
     Configuration conf = outFS.getConf();
-    gridInfo.calculateCellDimensions((long)(totalSize *
-        (1+conf.getFloat(Repartition.REPLICATION_OVERHEAD, 0.002f))),
-        outFS.getDefaultBlockSize());
+    final double ReplicationOverhead =
+        conf.getFloat(Repartition.REPLICATION_OVERHEAD, 0.002f);
+    // Serialize one shape and see how many characters it takes
+    final TigerShape randomShape = new TigerShape();
+    randomShape.id = Long.MAX_VALUE / 2;
+    final Random random = new Random();
+    final int MaxShapeWidth = 100;
+    final int MaxShapeHeight = 100;
+    final Text text = new Text();
+    int num_of_cells;
+    if (rtree) {
+      final int RTreeDegree = conf.getInt(RTreeGridRecordWriter.RTREE_DEGREE, 11);
+      int record_size = RTreeGridRecordWriter.calculateRecordSize(TigerShape.class);
+      long blockSize = conf.getLong(RTreeGridRecordWriter.RTREE_BLOCK_SIZE,
+          outFS.getDefaultBlockSize());
+      final int records_per_block =
+          RTree.getBlockCapacity(blockSize, RTreeDegree, record_size);
+      // Estimate number of cells according to RTree
+      Estimator<Integer> estimator = new Estimator<Integer>(0.01);
+      estimator.setRandomSample(new Estimator.RandomSample() {
+        @Override
+        public double next() {
+          randomShape.x = Math.abs(random.nextLong()) % (mbr.width - MaxShapeWidth) + mbr.x;
+          randomShape.y = Math.abs(random.nextLong()) % (mbr.height - MaxShapeHeight) + mbr.y;
+          randomShape.width = Math.abs(random.nextLong()) % MaxShapeWidth;
+          randomShape.height = Math.abs(random.nextLong()) % MaxShapeHeight;
+          text.clear();
+          randomShape.toText(text);
+          return text.getLength();
+        }
+      });
+      estimator.setUserFunction(new Estimator.UserFunction<Integer>() {
+        @Override
+        public Integer calculate(double x) {
+          double lineCount = totalSize / x;
+          double indexedRecordCount = lineCount * (1.0 + ReplicationOverhead);
+          return (int) Math.ceil(indexedRecordCount / records_per_block);
+        }
+      });
+      estimator.setQualityControl(new Estimator.QualityControl<Integer>() {
+        @Override
+        public boolean isAcceptable(Integer y1, Integer y2) {
+          return (double)Math.abs(y2 - y1) / Math.min(y1, y2) < 0.01;
+        }
+      });
+      Estimator.Range<Integer> blockCount = estimator.getEstimate();
+      num_of_cells = Math.max(blockCount.limit1, blockCount.limit2);
+    } else {
+      num_of_cells = (int) (totalSize * (1+ReplicationOverhead) /
+          outFS.getDefaultBlockSize());
+    }
+    
+    gridInfo.calculateCellDimensions(num_of_cells);
     ShapeRecordWriter recordWriter = rtree ?
         new RTreeGridRecordWriter(outFS, outFilePath, gridInfo.getAllCells(), overwrite)
         : new GridRecordWriter(outFS, outFilePath, gridInfo.getAllCells(), overwrite);
 
     long generatedSize = 0;
-    TigerShape randomShape = new TigerShape();
-    randomShape.id = Long.MAX_VALUE / 2;
-    Random random = new Random();
-    Text text = new Text();
     
     long t1 = System.currentTimeMillis();
-    final int MaxShapeWidth = 100;
-    final int MaxShapeHeight = 100;
     while (true) {
       // Generate a random rectangle
       randomShape.x = Math.abs(random.nextLong()) % (mbr.width - MaxShapeWidth) + mbr.x;
@@ -159,7 +204,7 @@ public class RandomSpatialGenerator {
   public static void main(String[] args) throws IOException {
     JobConf conf = new JobConf(RandomSpatialGenerator.class);
     CommandLineArguments cla = new CommandLineArguments(args);
-    Path outputFile = cla.getFilePath();
+    Path outputFile = cla.getPath();
     FileSystem fs = outputFile != null? outputFile.getFileSystem(conf) : null;
     GridInfo grid = cla.getGridInfo();
     Rectangle mbr = cla.getRectangle();

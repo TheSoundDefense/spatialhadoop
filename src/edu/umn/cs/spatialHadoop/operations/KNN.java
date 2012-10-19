@@ -315,7 +315,7 @@ public class KNN {
   public static void main(String[] args) throws IOException {
     CommandLineArguments cla = new CommandLineArguments(args);
     JobConf conf = new JobConf(FileMBR.class);
-    Path inputFile = cla.getFilePath();
+    Path inputFile = cla.getPath();
     PointWithK queryPoint = cla.getPointWithK();
     System.out.println("Query: "+queryPoint);
     FileSystem fs = inputFile.getFileSystem(conf);

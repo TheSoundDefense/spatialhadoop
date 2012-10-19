@@ -162,7 +162,7 @@ public class FileMBR {
   public static void main(String[] args) throws IOException {
     CommandLineArguments cla = new CommandLineArguments(args);
     JobConf conf = new JobConf(FileMBR.class);
-    Path inputFile = cla.getFilePath();
+    Path inputFile = cla.getPath();
     FileSystem fs = inputFile.getFileSystem(conf);
     Rectangle mbr = fileMBRLocal(fs, inputFile);
     System.out.println("MBR of records in file "+inputFile+" is "+mbr);

@@ -205,7 +205,7 @@ public class RecordCount {
   public static void main(String[] args) throws IOException {
     CommandLineArguments cla = new CommandLineArguments(args);
     JobConf conf = new JobConf(RecordCount.class);
-    Path inputFile = cla.getFilePath();
+    Path inputFile = cla.getPath();
     FileSystem fs = inputFile.getFileSystem(conf);
     long lineCount = recordCountMapReduce(fs, inputFile);
     System.out.println("Count of records in "+inputFile+" is "+lineCount);

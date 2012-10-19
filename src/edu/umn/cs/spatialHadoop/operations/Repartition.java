@@ -313,8 +313,8 @@ public class Repartition {
 	 */
 	public static void main(String[] args) throws Exception {
     CommandLineArguments cla = new CommandLineArguments(args);
-    Path inputPath = cla.getInputPath();
-    Path outputPath = cla.getOutputPath();
+    Path inputPath = cla.getPaths()[0];
+    Path outputPath = cla.getPaths()[1];
     
     GridInfo gridInfo = cla.getGridInfo();
     

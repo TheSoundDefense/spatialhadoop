@@ -13,7 +13,6 @@ import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
-import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.spatial.SpatialAlgorithms;
 import org.apache.hadoop.spatial.TigerShape;
 
@@ -83,9 +82,9 @@ public abstract class PairInputFormat<K extends WritableComparable, V extends Wr
     // Now we need to join the two spatial splits list to find all pairs
     // of overlapping splits
     final Set<String> takenPairs = new HashSet<String>();
-    OutputCollector<TigerShape, TigerShape> output = new OutputCollector<TigerShape, TigerShape>() {
+    SpatialAlgorithms.ResultCollector2<TigerShape, TigerShape> output = new SpatialAlgorithms.ResultCollector2<TigerShape, TigerShape>() {
       @Override
-      public void collect(TigerShape r, TigerShape s) throws IOException {
+      public void add(TigerShape r, TigerShape s) {
         // Generate a combined file split for each pair of splits
         // Check that this pair was not taken before
         String thisPair = r.id+","+r.id;
