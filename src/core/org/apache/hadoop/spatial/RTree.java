@@ -24,7 +24,6 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.io.MemoryInputStream;
 import org.apache.hadoop.io.Writable;
-import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.util.IndexedSortable;
 import org.apache.hadoop.util.IndexedSorter;
 import org.apache.hadoop.util.QuickSort;
@@ -54,17 +53,26 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
    */
   byte[] serializedTree;
 
+  /**Input stream to tree data*/
   private DataInputStream dataIn;
 
+  /**Height of the tree (number of levels)*/
   private int height;
 
+  /**Degree of internal nodes in the tree*/
   private int degree;
 
+  /**Total number of nodes in the tree*/
   private int nodeCount;
 
+  /**Number of leaf nodes*/
   private int leafNodeCount;
 
+  /**Number of non-leaf nodes*/
   private int nonLeafNodeCount;
+
+  /**Number of elements in the tree*/
+  private int elementCount;
 
   public RTree() {
   }
@@ -372,6 +380,34 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
       serializedTree = new byte[treeSize];
       in.readFully(serializedTree);
     }
+    readHeader();
+  }
+
+  private void readHeader() throws IOException {
+    startQuery();
+    endQuery();
+  }
+
+  /**
+   * Returns total number of elements
+   * @return
+   */
+  public int getElementCount() {
+    return elementCount;
+  }
+  
+  /**
+   * Reads and returns the element with the given index
+   * @param i
+   * @return
+   * @throws IOException 
+   */
+  public T readElement(int i) {
+    Iterator<T> iter = iterator();
+    while (i-- > 0 && iter.hasNext()) {
+      iter.next();
+    }
+    return iter.next();
   }
 
   public void setStockObject(T stockObject) {
@@ -510,7 +546,6 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
     public void remove() {
       throw new RuntimeException("Not supported");
     }
-    
   }
 
   @Override
@@ -570,7 +605,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
     nodeCount = (int) ((Math.pow(degree, height) - 1) / (degree - 1));
     leafNodeCount = (int) Math.pow(degree, height - 1);
     nonLeafNodeCount = nodeCount - leafNodeCount;
-    /*int elementCount =*/ dataIn.readInt();
+    elementCount = dataIn.readInt();
   }
   
   /**
@@ -713,10 +748,9 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
     if (output == null) {
       return SpatialAlgorithms.SpatialJoin_planeSweep(rs, ss, null);
     } else {
-      return SpatialAlgorithms.SpatialJoin_planeSweep(rs, ss, new OutputCollector<S1, S2>() {
-
+      return SpatialAlgorithms.SpatialJoin_planeSweep(rs, ss, new SpatialAlgorithms.ResultCollector2<S1, S2>() {
         @Override
-        public void collect(S1 r, S2 s) throws IOException {
+        public void add(S1 r, S2 s) {
           output.add(r, s);
         }
       });

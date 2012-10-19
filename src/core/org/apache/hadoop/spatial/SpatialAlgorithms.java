@@ -7,7 +7,6 @@ import java.util.TreeSet;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.mapred.OutputCollector;
 
 
 /**
@@ -58,9 +57,20 @@ class TOPK {
 
 public class SpatialAlgorithms {
   public static final Log LOG = LogFactory.getLog(SpatialAlgorithms.class);
+  
+  /**
+   * Used to collect the results of a spatial join.
+   * @author eldawy
+   *
+   * @param <T1>
+   * @param <T2>
+   */
+  public static interface ResultCollector2<T1, T2> {
+    void add(T1 x, T2 y);
+  }
 
   public static<S1 extends Shape, S2 extends Shape> int SpatialJoin_planeSweep(List<S1> R,
-      List<S2> S, OutputCollector<S1, S2> output)
+      List<S2> S, ResultCollector2<S1, S2> output)
       throws IOException {
     int count = 0;
     
@@ -81,7 +91,7 @@ public class SpatialAlgorithms {
             && ((s = S.get(jj)).getMBR().getX1() <= r.getMBR().getX2())) {
           if (r.isIntersected(s)) {
             if (output != null)
-              output.collect(r, s);
+              output.add(r, s);
             count++;
           }
           jj++;
@@ -95,7 +105,7 @@ public class SpatialAlgorithms {
             && ((r = R.get(ii)).getMBR().getX1() <= s.getMBR().getX2())) {
           if (r.isIntersected(s)) {
             if (output != null)
-              output.collect(r, s);
+              output.add(r, s);
             count++;
           }
           ii++;

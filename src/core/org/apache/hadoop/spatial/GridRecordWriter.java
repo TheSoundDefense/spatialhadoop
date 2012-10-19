@@ -198,7 +198,6 @@ public class GridRecordWriter implements ShapeRecordWriter {
    */
   public synchronized void close() throws IOException {
     final Vector<Path> pathsToConcat = new Vector<Path>();
-    final int MaxConcurrentThreads = 10;
     final Vector<Thread> closingThreads = new Vector<Thread>();
     
     // Close all output files
@@ -220,27 +219,34 @@ public class GridRecordWriter implements ShapeRecordWriter {
             }
           }
         });
-        closingThreads.lastElement().start();
-        
-        // Limit number of concurrent threads to save memory
-        if (closingThreads.size() > MaxConcurrentThreads) {
-          try {
-            closingThreads.firstElement().join();
-            closingThreads.remove(0);
-          } catch (InterruptedException e) {
-            e.printStackTrace();
-          }
-        }
       }
     }
 
-    for (Thread closingThread : closingThreads) {
-      try {
-        closingThread.join();
-      } catch (InterruptedException e) {
-        e.printStackTrace();
+    do {
+      // Ensure that there is at least MaxConcurrentThreads running
+      int i = 0;
+      while (i < getMaxConcurrentThreads() && i < closingThreads.size()) {
+        Thread.State state = closingThreads.elementAt(i).getState(); 
+        if (state == Thread.State.TERMINATED) {
+          // Thread already terminated, remove from the queue
+          closingThreads.remove(i);
+        } else if (state == Thread.State.NEW) {
+          // Start the thread and move to next one
+          closingThreads.elementAt(i++).start();
+        } else {
+          // Thread is still running, skip over it
+          i++;
+        }
       }
-    }
+      if (!closingThreads.isEmpty()) {
+        try {
+          // Sleep for 10 seconds or until the first thread terminates
+          closingThreads.firstElement().join(10000);
+        } catch (InterruptedException e) {
+          e.printStackTrace();
+        }
+      }
+    } while (!closingThreads.isEmpty());
 
     if (pathsToConcat.size() == 0) {
       LOG.warn("No output of the grid file: "+outFile);
@@ -262,6 +268,11 @@ public class GridRecordWriter implements ShapeRecordWriter {
       LOG.info("Concatenated files into: "+outFile);
     }
     LOG.info("Final file size: "+fileSystem.getFileStatus(outFile).getLen());
+  }
+
+  /**Returns maximum number of concurrent threads when closing the file*/
+  protected int getMaxConcurrentThreads() {
+    return 10;
   }
 
   // Create a buffer filled with new lines

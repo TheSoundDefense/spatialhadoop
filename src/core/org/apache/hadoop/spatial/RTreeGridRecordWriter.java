@@ -35,7 +35,6 @@ public class RTreeGridRecordWriter extends GridRecordWriter {
   /**Temporary streams to cells for writing element data*/
   protected OutputStream[] tempCellStreams;
   
-  
   static {
     Configuration.addDefaultResource("spatial-default.xml");
     Configuration.addDefaultResource("spatial-site.xml");
@@ -130,6 +129,12 @@ public class RTreeGridRecordWriter extends GridRecordWriter {
   @Override
   protected boolean isCellEmpty(int cellIndex) {
     return super.isCellEmpty(cellIndex) && tempCellStreams[cellIndex] == null;
+  }
+
+  @Override
+  protected int getMaxConcurrentThreads() {
+    // Since the closing cell is memory intensive, limit it to one
+    return 1;
   }
   
   @Override
