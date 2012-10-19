@@ -41,86 +41,125 @@ public class Sampler {
     long file_length = fs.getFileStatus(file).getLen();
     FSDataInputStream in = fs.open(file);
     int records_read = 0;
+    LongWritable elementId = new LongWritable(); // Key for returned elements
     
-    if (in.readLong() == RTreeGridRecordWriter.RTreeFileMarker) {
-      // Sampling from an RTree
-      LongWritable elementId = new LongWritable();
-      RTree<T> rtree = new RTree<T>();
-      rtree.setStockObject(stockObject);
-      
-      long block_size = fs.getFileStatus(file).getBlockSize();
-      int block_count = (int) (file_length / block_size);
-      int i_block = 0;
-      while (records_read < count) {
-        // Skip to next block
-        long pos = in.getPos();
-        in.skip((block_size - (pos - 8) % block_size)%block_size);
+    // Generate offsets to read from and make sure they are ordered to minimze
+    // seeks between different HDFS blocks
+    long[] positions = new long[count];
+    for (int i = 0; i < positions.length; i++) {
+      positions[i] = (long) (Math.random() * file_length);
+    }
+    
+    Arrays.sort(positions);
+    long block_size = fs.getFileStatus(file).getBlockSize();
+    
+    while (records_read < count) {
+      long block_start_offset = positions[records_read] -
+          (positions[records_read]  % block_size);
+      // Seek to this block and check its type
+      in.seek(block_start_offset);
+      if (in.readLong() == RTreeGridRecordWriter.RTreeFileMarker) {
+        // This block is an RTree block
+        RTree<T> rtree = new RTree<T>();
+        rtree.setStockObject(stockObject);
         rtree.readFields(in);
-        
-        int limit = ++i_block * count / block_count;
-        // Read items in order to ensure one pass over records
-        int ids[] = new int[limit - records_read];
-        for (int i = 0; i < ids.length; i++) {
-          ids[i] = (int) (Math.random() * rtree.getElementCount());
-        }
-        Arrays.sort(ids);
+
         Iterator<T> iter = rtree.iterator();
-        int current_pos = 0;
-        for (int i = 0; i < ids.length; i++) {
-          while (current_pos < ids[i]) {
-            current_pos++;
+        int iterator_index = 0;
+        
+        // Consider all positions in this block
+        while (records_read < count &&
+            positions[records_read] < block_start_offset + block_size) {
+          // Map file position to element index in this tree assuming fixed
+          // size records
+          int element_index = (int) ((positions[records_read] - block_start_offset) *
+              rtree.getElementCount() / block_size);
+          while (iterator_index++ < element_index)
             iter.next();
-          }
           stockObject = iter.next();
           if (output != null) {
-            elementId.set(ids[i]);
+            elementId.set(element_index);
             output.collect(elementId, stockObject);
           }
           records_read++;
         }
-      }
-    } else {
-      // Sampling a non-local-indexed file (text lines)
-      LongWritable line_offset = new LongWritable();
-      Text line = new Text();
-      byte[] line_bytes = new byte[MAX_LINE_LENGTH];
-
-      // Reads items in order to ensure records in the same block are read
-      // together
-      long[] poss = new long[count];
-      for (int i = 0; i < poss.length; i++) {
-        poss[i] = (long) (Math.random() * file_length);
-      }
-      Arrays.sort(poss);
-      
-      for (int i = 0; i < count; i++) {
-        int line_length = 0;
-        in.seek(poss[i]);
-        // Skip until the first end of line
-        // Skip the rest of this line
-        do {
-          line_bytes[line_length] = in.readByte();
-        } while (in.available() > 0 && line_bytes[line_length] != '\n' && line_bytes[line_length] != '\r');
-        
-        // Skip if that was the last line in file
-        if (in.available() == 0)
-          continue;
-        
-        line_offset.set(in.getPos());
-        
-        do {
-          line_bytes[line_length] = in.readByte();
-          if (line_bytes[line_length] == '\n' || line_bytes[line_length] == '\r')
+      } else {
+        // Non local-indexed file
+        // It might be a part of a grid file and the block is stuffed with
+        // empty new lines at the end.
+        // We need first to find the last offset in the block that has real
+        // data (not empty lines).
+        // We perform an exponential search starting from the last offset in
+        // block
+        long last_non_empty_offset = Math.min(block_start_offset + block_size,
+            file_length);
+        int check_offset = 1;
+        while (check_offset < block_size) {
+          in.seek(last_non_empty_offset - check_offset * 2);
+          byte b1 = in.readByte();
+          byte b2 = in.readByte();
+          if (b1 != '\n' || b2 != '\n') {
+            // We found a non-empty line. Perform a binary search till we find
+            // the last non-empty line
+            long l = last_non_empty_offset - check_offset * 2;
+            long h = last_non_empty_offset - check_offset;
+            while (l < h) {
+              long m = (l + h) / 2;
+              in.seek(m);
+              b1 = in.readByte(); b2 = in.readByte();
+              if (b1 == '\n' && b2 == '\n') {
+                // This is an empty line, check before that
+                h = m-1;
+              } else {
+                // This is a non-empty line, check after that
+                l = m+1;
+              }
+            }
+            last_non_empty_offset = l;
             break;
-          line_length++;
-        } while (in.available() > 0);
-        
-        if (output != null) {
-          line.set(line_bytes, 0, line_length);
-          stockObject.fromText(line);
-          output.collect(line_offset, stockObject);
+          }
+          check_offset *= 2;
         }
-        records_read++;
+        
+        long block_fill_size = last_non_empty_offset - block_start_offset;
+        // Consider all positions in this block
+        while (records_read < count &&
+            positions[records_read] < block_start_offset + block_size) {
+          // Map file position to element index in this tree assuming fixed
+          // size records
+          long element_offset = (positions[records_read] - block_start_offset) *
+              block_fill_size / block_size;
+          in.seek(element_offset);
+          // Read the first line after that offset
+          Text line = new Text();
+          byte[] line_bytes = new byte[MAX_LINE_LENGTH];
+          
+          // Skip the rest of this line
+          int line_length = 0;
+          do {
+            line_bytes[line_length] = in.readByte();
+          } while (in.getPos() < last_non_empty_offset && line_bytes[line_length] != '\n' && line_bytes[line_length] != '\r');
+          
+          elementId.set(in.getPos());
+          
+          do {
+            line_bytes[line_length] = in.readByte();
+            if (line_bytes[line_length] == '\n' || line_bytes[line_length] == '\r')
+              break;
+            line_length++;
+          } while (in.getPos() < last_non_empty_offset);
+          
+          // Skip very short lines (probably an empty line)
+          if (line_length < 5)
+            continue;
+          
+          if (output != null) {
+            line.set(line_bytes, 0, line_length);
+            stockObject.fromText(line);
+            output.collect(elementId, stockObject);
+          }
+          records_read++;
+        }
       }
     }
     in.close();
@@ -137,7 +176,7 @@ public class Sampler {
       @Override
       public void collect(LongWritable key, TigerShape value)
           throws IOException {
-        //System.out.println(key+": "+value);
+//        System.out.println(key+": "+value);
       }
     }, new TigerShape());
     System.out.println("Sampled "+record_count+" records");
