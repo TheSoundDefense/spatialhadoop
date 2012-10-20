@@ -122,6 +122,15 @@ public class CommandLineArguments {
     }
     return 1;
   }
+  
+  public int getK() {
+    for (String arg : args) {
+      if (arg.startsWith("k:")) {
+        return Integer.parseInt(arg.substring(arg.indexOf(':')+1));
+      }
+    }
+    return 0;
+  }
 
   public float getSelectionRatio() {
     for (String arg : args) {

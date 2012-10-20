@@ -4,6 +4,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.Vector;
 
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -315,13 +316,77 @@ public class KNN {
   public static void main(String[] args) throws IOException {
     CommandLineArguments cla = new CommandLineArguments(args);
     JobConf conf = new JobConf(FileMBR.class);
-    Path inputFile = cla.getPath();
+    final Path inputFile = cla.getPath();
     PointWithK queryPoint = cla.getPointWithK();
     System.out.println("Query: "+queryPoint);
-    FileSystem fs = inputFile.getFileSystem(conf);
-    long resultCount = 
-        knnMapReduce(fs, inputFile, queryPoint, new TigerShape(), null);
-    System.out.println("Found "+resultCount+" results");
+    final FileSystem fs = inputFile.getFileSystem(conf);
+    final int k = cla.getK();
+    int count = cla.getCount();
+    int concurrency = cla.getConcurrency();
+    
+    final Vector<Long> results = new Vector<Long>();
+    
+    if (queryPoint != null) {
+      // User provided a query, use it
+      long resultCount = 
+          knnMapReduce(fs, inputFile, queryPoint, new TigerShape(), null);
+      System.out.println("Found "+resultCount+" results");
+    } else {
+      // Generate query at random points
+      final Vector<Thread> threads = new Vector<Thread>();
+      Sampler.sampleLocal(fs, inputFile, count, new OutputCollector<LongWritable, TigerShape>(){
+        @Override
+        public void collect(final LongWritable key, final TigerShape value) throws IOException {
+          threads.add(new Thread() {
+            @Override
+            public void run() {
+              try {
+                PointWithK query_point = new PointWithK();
+                query_point.k = k;
+                query_point.x = value.x;
+                query_point.y = value.y;
+                long result_count = knnMapReduce(fs, inputFile,
+                        query_point, new TigerShape(), null);
+                results.add(result_count);
+              } catch (IOException e) {
+                e.printStackTrace();
+              }
+            }
+          });
+        }
+      }, new TigerShape());
+
+      long t1 = System.currentTimeMillis();
+      do {
+        // Ensure that there is at least MaxConcurrentThreads running
+        int i = 0;
+        while (i < concurrency && i < threads.size()) {
+          Thread.State state = threads.elementAt(i).getState(); 
+          if (state == Thread.State.TERMINATED) {
+            // Thread already terminated, remove from the queue
+            threads.remove(i);
+          } else if (state == Thread.State.NEW) {
+            // Start the thread and move to next one
+            threads.elementAt(i++).start();
+          } else {
+            // Thread is still running, skip over it
+            i++;
+          }
+        }
+        if (!threads.isEmpty()) {
+          try {
+            // Sleep for 10 seconds or until the first thread terminates
+            threads.firstElement().join(10000);
+          } catch (InterruptedException e) {
+            e.printStackTrace();
+          }
+        }
+      } while (!threads.isEmpty());
+      long t2 = System.currentTimeMillis();
+      System.out.println("Time for "+count+" jobs is "+(t2-t1)+" millis");
+      System.out.println("Results: "+results);
+    }
+    
   }
 
 }

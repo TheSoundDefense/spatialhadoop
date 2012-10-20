@@ -184,7 +184,8 @@ public class SplitCalculator {
 			KNNBlocksInRange(fs, path, queryPoint, distance, blocksToBeProcessed);
 
 			for (BlockLocation blockLocation : blocksToBeProcessed) {
-			  LOG.info("Going to process the block at: "+blockLocation.getCellInfo());
+			  if (blockLocation.getCellInfo() != null)
+			    LOG.info("Going to process the block at: "+blockLocation.getCellInfo());
 			  ranges.add(new FileRange(path, blockLocation.getOffset(), blockLocation.getLength()));
 			}
 			// TODO merge consecutive ranges in the same file
