@@ -24,7 +24,9 @@ import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
+import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.RTree;
+import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.TigerShape;
 import org.apache.hadoop.spatial.WriteGridFile;
@@ -241,8 +243,8 @@ public class Repartition {
       gridInfo.calculateCellDimensions(num_cells);
     }
     CellInfo[] cellsInfo = pack ?
-        WriteGridFile.packInRectangles(inFs, inFile, outFs, gridInfo) :
-          gridInfo.getAllCells();
+        packInRectangles(inFs, inFile, outFs, gridInfo) :
+        gridInfo.getAllCells();
   
     // Overwrite output file
     if (inFs.exists(outPath)) {
@@ -300,6 +302,35 @@ public class Repartition {
           pathsToConcat.toArray(new Path[pathsToConcat.size()]));
       outFs.rename(target, outPath);
     }
+  }
+  
+  public static CellInfo[] packInRectangles(FileSystem inFileSystem, Path inputPath,
+      FileSystem outFileSystem, GridInfo gridInfo) throws IOException {
+    return packInRectangles(inFileSystem, new Path[] {inputPath}, outFileSystem, gridInfo);
+  }
+  public static CellInfo[] packInRectangles(FileSystem fs, Path[] files,
+      FileSystem outFileSystem, GridInfo gridInfo) throws IOException {
+    final Vector<Point> sample = new Vector<Point>();
+    long total_size = 0;
+    for (Path file : files) {
+      total_size += fs.getFileStatus(file).getLen();
+    }
+    long sample_size = total_size / 500;
+    LOG.info("Reading a sample of size: "+sample_size + " bytes");
+    Sampler.sampleLocalWithSize(fs, files, sample_size , new OutputCollector<LongWritable, TigerShape>(){
+      @Override
+      public void collect(LongWritable key, TigerShape value)
+          throws IOException {
+        sample.add(new Point(value.getX1(), value.getX2()));
+      }
+    }, new TigerShape());
+    LOG.info("Finished reading a sample of size: "+sample.size()+" records");
+    Rectangle[] rectangles = RTree.packInRectangles(gridInfo,
+            sample.toArray(new Point[sample.size()]));
+    CellInfo[] cellsInfo = new CellInfo[rectangles.length];
+    for (int i = 0; i < rectangles.length; i++)
+      cellsInfo[i] = new CellInfo(i, rectangles[i]);
+    return cellsInfo;
   }
 
   /**
