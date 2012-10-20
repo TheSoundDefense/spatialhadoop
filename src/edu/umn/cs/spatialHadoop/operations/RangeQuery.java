@@ -251,20 +251,25 @@ public class RangeQuery {
     
     if (ratio >= 0.0 && ratio <= 1.0f) {
       final Vector<Thread> threads = new Vector<Thread>();
+      final Vector<Rectangle> query_rectangles = new Vector<Rectangle>();
       Sampler.sampleLocal(fs, inputFile, count, new OutputCollector<LongWritable, TigerShape>(){
         @Override
         public void collect(final LongWritable key, final TigerShape value) throws IOException {
+          System.out.println(value);
+          Rectangle query_rectangle = new Rectangle();
+          query_rectangle.width = (long) (queryRange.width * ratio);
+          query_rectangle.height = (long) (queryRange.height * ratio);
+          query_rectangle.x = value.x - query_rectangle.width / 2;
+          query_rectangle.y = value.y - query_rectangle.height / 2;
+          query_rectangles.add(query_rectangle);
           threads.add(new Thread() {
             @Override
             public void run() {
               try {
-                Rectangle query_rectangle = new Rectangle();
-                query_rectangle.width = (long) (queryRange.width * ratio);
-                query_rectangle.height = (long) (queryRange.height * ratio);
-                query_rectangle.x = value.x - query_rectangle.width / 2;
-                query_rectangle.y = value.y - query_rectangle.height / 2;
+                int thread_i = threads.indexOf(this);
                 long result_count = rangeQueryMapReduce(fs, inputFile,
-                    query_rectangle, new TigerShape(), null);
+                    query_rectangles.elementAt(thread_i), new TigerShape(),
+                    null);
                 results.add(result_count);
               } catch (IOException e) {
                 e.printStackTrace();

@@ -186,16 +186,17 @@ public class Sampler {
             check_offset *= 2;
           }
           
+          
           long block_fill_size = last_non_empty_offset - current_block_start_offset;
           // Consider all positions in this block
           while (record_i < count &&
               offsets[record_i] < current_block_start_offset + current_file_block_size) {
             // Map file position to element index in this tree assuming fixed
             // size records
-            long element_offset =
+            long element_offset_in_block =
                 (offsets[record_i] - current_block_start_offset) *
                 block_fill_size / current_file_block_size;
-            current_file_in.seek(element_offset);
+            current_file_in.seek(current_block_start_offset + element_offset_in_block);
             // Read the first line after that offset
             Text line = new Text();
             byte[] line_bytes = new byte[MAX_LINE_LENGTH];
