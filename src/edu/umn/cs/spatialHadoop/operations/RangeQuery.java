@@ -18,6 +18,7 @@ import org.apache.hadoop.mapred.MapReduceBase;
 import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Rectangle;
@@ -28,7 +29,6 @@ import org.apache.hadoop.util.LineReader;
 import edu.umn.cs.CommandLineArguments;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridRecordWriter;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeInputFormat;
-import edu.umn.cs.spatialHadoop.mapReduce.STextOutputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeInputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
 import edu.umn.cs.spatialHadoop.mapReduce.SplitCalculator;
@@ -170,10 +170,10 @@ public class RangeQuery {
     job.set(ShapeRecordReader.SHAPE_CLASS, TigerShape.class.getName());
     in.close();
     
-    job.setOutputFormat(STextOutputFormat.class);
+    job.setOutputFormat(TextOutputFormat.class);
     
     ShapeInputFormat.setInputPaths(job, file);
-    STextOutputFormat.setOutputPath(job, outputPath);
+    TextOutputFormat.setOutputPath(job, outputPath);
     
     // Submit the job
     JobClient.runJob(job);
@@ -261,8 +261,8 @@ public class RangeQuery {
                 Rectangle query_rectangle = new Rectangle();
                 query_rectangle.width = (long) (queryRange.width * ratio);
                 query_rectangle.height = (long) (queryRange.height * ratio);
-                query_rectangle.x = value.x;
-                query_rectangle.y = value.y;
+                query_rectangle.x = value.x - query_rectangle.width / 2;
+                query_rectangle.y = value.y - query_rectangle.height / 2;
                 long result_count = rangeQueryMapReduce(fs, inputFile,
                     query_rectangle, new TigerShape(), null);
                 results.add(result_count);

@@ -21,13 +21,13 @@ import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.TigerShape;
 import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.CommandLineArguments;
 import edu.umn.cs.spatialHadoop.PointWithK;
-import edu.umn.cs.spatialHadoop.mapReduce.STextOutputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeInputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
 import edu.umn.cs.spatialHadoop.mapReduce.SplitCalculator;
@@ -235,10 +235,10 @@ public class KNN {
     job.set(ShapeRecordReader.SHAPE_CLASS, TigerShape.class.getName());
     String query_point_distance = queryPoint.x+","+queryPoint.y+","+0;
     job.set(SplitCalculator.QUERY_POINT_DISTANCE, query_point_distance);
-    job.setOutputFormat(STextOutputFormat.class);
+    job.setOutputFormat(TextOutputFormat.class);
     
     ShapeInputFormat.setInputPaths(job, file);
-    STextOutputFormat.setOutputPath(job, outputPath);
+    TextOutputFormat.setOutputPath(job, outputPath);
     
     // Submit the job
     JobClient.runJob(job);
