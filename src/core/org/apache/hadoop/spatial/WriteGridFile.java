@@ -150,7 +150,7 @@ public class WriteGridFile {
   }
   public static CellInfo[] packInRectangles(FileSystem inFileSystem, Path[] inputPaths,
       FileSystem outFileSystem, GridInfo gridInfo) throws IOException {
-    Point[] samples = pickRandomSample(inFileSystem, inputPaths, outFileSystem, gridInfo);
+    Point[] samples = pickRandomSample(inFileSystem, inputPaths);
     Rectangle[] rectangles = RTree.packInRectangles(gridInfo, samples);
     CellInfo[] cellsInfo = new CellInfo[rectangles.length];
     for (int i = 0; i < rectangles.length; i++)
@@ -158,8 +158,8 @@ public class WriteGridFile {
     return cellsInfo;
   }
 
-  private static Point[] pickRandomSample(FileSystem inFileSystem, Path[] inputPaths,
-      FileSystem outFileSystem, GridInfo gridInfo) throws IOException {
+  private static Point[] pickRandomSample(FileSystem inFileSystem,
+      Path[] inputPaths) throws IOException {
     LOG.info("Picking a random sample from file");
     Random random = new Random();
     long inTotalSize = 0;
