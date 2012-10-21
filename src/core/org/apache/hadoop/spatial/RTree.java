@@ -625,7 +625,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
    * it searches only the object found there.
    * It is assumed that the openQuery() has been called before this function
    * and that endQuery() will be called afterwards.
-   * @param query
+   * @param query_mbr
    * @param output
    * @param start - where to start searching
    * @param end - where to end searching. Only used when start is an offset of
@@ -633,10 +633,10 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
    * @return
    * @throws IOException 
    */
-  protected int search(Shape query, ResultCollector<T> output, int start,
+  protected int search(Shape query_shape, ResultCollector<T> output, int start,
       int end)
       throws IOException {
-    
+    Rectangle query_mbr = query_shape.getMBR();
     int resultSize = 0;
     // Special case for an empty tree
     if (height == 0)
@@ -649,7 +649,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
       toBeSearched.push(end);
     }
 
-    Rectangle mbr = new Rectangle();
+    Rectangle node_mbr = new Rectangle();
 
     while (!toBeSearched.isEmpty()) {
       int searchNumber = toBeSearched.pop();
@@ -661,16 +661,34 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
         int dataOffset = dataIn.readInt();
 
         for (int i = 0; i < mbrsToTest; i++) {
-          mbr.readFields(dataIn);
+          node_mbr.readFields(dataIn);
           int lastOffset = (searchNumber+i) == nodeCount - 1 ?
               serializedTree.length : dataIn.readInt();
-          if (mbr.isIntersected(query)) {
+          if (query_mbr.contains(node_mbr)) {
+            // The node is full contained in the query range.
+            // Save the time and do full scan for this node
+            toBeSearched.push(dataOffset);
+            // Checks if this node is the last node in its level
+            // This can be easily detected because the next node in the level
+            // order traversal will be the first node in the next level
+            // which means it will have an offset less than this node
+            if (lastOffset <= dataOffset)
+              lastOffset = serializedTree.length;
+            toBeSearched.push(lastOffset);
+          } else if (query_mbr.isIntersected(node_mbr)) {
+            // Node partially overlaps with query. Go deep under this node
             if (searchNumber < nonLeafNodeCount) {
               // Search child nodes
               toBeSearched.push((searchNumber + i) * degree + 1);
             } else {
               // Search all elements in this node
               toBeSearched.push(dataOffset);
+              // Checks if this node is the last node in its level
+              // This can be easily detected because the next node in the level
+              // order traversal will be the first node in the next level
+              // which means it will have an offset less than this node
+              if (lastOffset <= dataOffset)
+                lastOffset = serializedTree.length;
               toBeSearched.push(lastOffset);
             }
           }
@@ -681,15 +699,14 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
         // Search for data items (records)
         lastOffset = searchNumber;
         firstOffset = toBeSearched.pop();
-
+        
         // Seek to firstOffset
         dataIn.reset(); dataIn.skip(firstOffset);
         long avail = dataIn.available();
         // while (bytes read so far < total bytes that need to be read)
         while ((avail - dataIn.available()) < (lastOffset - firstOffset)) {
           stockObject.readFields(dataIn);
-          LOG.info("Comparing with the leaf object: "+stockObject);
-          if (stockObject.isIntersected(query)) {
+          if (stockObject.isIntersected(query_shape)) {
             resultSize++;
             if (output != null)
               output.add(stockObject);
@@ -942,50 +959,27 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
     int degree = 10;
     t1 = System.currentTimeMillis();
     RTree<Rectangle> R = buildRTree(mbr, size, degree);
-    RTree<Rectangle> S = buildRTree(mbr, size, degree);
+//    RTree<Rectangle> S = buildRTree(mbr, size, degree);
     t2 = System.currentTimeMillis();
     System.out.println("Generated rtrees in "+(t2-t1)+" millis");
     
-    int count = 0;
-
-    /*List<Rectangle> rs = new Vector<Rectangle>();
-    List<Rectangle> ss = new Vector<Rectangle>();
-    for (Rectangle r : R) {
-      rs.add(r.clone());
-    }
-    for (Rectangle s : S) {
-      ss.add(s.clone());
-    }
+    mbr.width /= 2;
+    mbr.height /= 2;
     t1 = System.currentTimeMillis();
-    count = SpatialAlgorithms.SpatialJoin_planeSweep(rs, ss, null);
+    int selection = R.search(mbr, null);
     t2 = System.currentTimeMillis();
-    
-    System.out.println("Plane-sweep finished in "+(t2-t1)+" millis");
-    System.out.println("Found "+count+" results");
-    */
-    /*count = 0;
+    System.out.println("Finished query in "+(t2-t1)+" millis");
+    System.out.println("selection "+selection);
+
+    // A query using full scan
+    selection = 0;
     t1 = System.currentTimeMillis();
     for (Rectangle r : R) {
-      for (Rectangle s : S) {
-        if (r.isIntersected(s)) {
-          count++;
-        }
-      }
+      if (r.isIntersected(mbr))
+        selection++;
     }
     t2 = System.currentTimeMillis();
-    System.out.println("Brute force finished in "+(t2-t1)+" millis");
-    System.out.println("Found "+count+" results");
-    */
-    t1 = System.currentTimeMillis();
-    count = spatialJoin(R, S, new ResultCollector2<Rectangle, Rectangle>() {
-
-      @Override
-      public void add(Rectangle x, Rectangle y) {
-        //System.out.println(x+" : "+y);
-      }
-    });
-    t2 = System.currentTimeMillis();
-    System.out.println("RTree spatial join in "+(t2-t1)+" millis");
-    System.out.println("Found: "+count+" results");
+    System.out.println("Finished query using full scan in "+(t2-t1)+" millis");
+    System.out.println("selection "+selection);
   }
 }
