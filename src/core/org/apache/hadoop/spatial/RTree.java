@@ -397,6 +397,25 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
   }
   
   /**
+   * Returns the MBR of the root
+   * @return
+   */
+  public Rectangle getMBR() {
+    Rectangle mbr = null;
+    try {
+      startQuery();
+      dataIn.reset(); dataIn.skip(TreeHeaderSize);
+      mbr = new Rectangle();
+      /*int offset = */dataIn.readInt();
+      mbr.readFields(dataIn);
+      endQuery();
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+    return mbr;
+  }
+  
+  /**
    * Reads and returns the element with the given index
    * @param i
    * @return
@@ -954,32 +973,19 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
   
   public static void main(String[] args) throws IOException {
     long t1, t2;
-    Rectangle mbr = new Rectangle(0,0,10000,10000);
-    int size = 500000;
+    Rectangle mbr = new Rectangle(0,0,0x1000000,0x1000000);
+    int size = 1127000;
     int degree = 10;
     t1 = System.currentTimeMillis();
     RTree<Rectangle> R = buildRTree(mbr, size, degree);
-//    RTree<Rectangle> S = buildRTree(mbr, size, degree);
+    RTree<Rectangle> S = buildRTree(mbr, size, degree);
     t2 = System.currentTimeMillis();
     System.out.println("Generated rtrees in "+(t2-t1)+" millis");
     
-    mbr.width /= 2;
-    mbr.height /= 2;
     t1 = System.currentTimeMillis();
-    int selection = R.search(mbr, null);
+    int selection = spatialJoin(R, S, null);
     t2 = System.currentTimeMillis();
     System.out.println("Finished query in "+(t2-t1)+" millis");
-    System.out.println("selection "+selection);
-
-    // A query using full scan
-    selection = 0;
-    t1 = System.currentTimeMillis();
-    for (Rectangle r : R) {
-      if (r.isIntersected(mbr))
-        selection++;
-    }
-    t2 = System.currentTimeMillis();
-    System.out.println("Finished query using full scan in "+(t2-t1)+" millis");
     System.out.println("selection "+selection);
   }
 }
