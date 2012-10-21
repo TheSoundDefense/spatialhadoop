@@ -144,6 +144,7 @@ public class RangeQuery {
       outputPath = new Path(file.toUri().getPath()+
           ".rangequery_"+(int)(Math.random() * 1000000));
     } while (outFs.exists(outputPath));
+    outFs.deleteOnExit(outputPath);
     
     job.setJobName("RangeQuery");
     job.set(QUERY_SHAPE_CLASS, queryShape.getClass().getName());
@@ -198,8 +199,6 @@ public class RangeQuery {
         }
       }
     }
-    
-    outFs.delete(outputPath, true);
     
     return resultCount;
   }
