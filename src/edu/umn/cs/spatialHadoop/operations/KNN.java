@@ -222,6 +222,7 @@ public class KNN {
       outputPath = new Path(file.toUri().getPath()+
           ".knn_"+(int)(Math.random() * 1000000));
     } while (outFs.exists(outputPath));
+    outFs.deleteOnExit(outputPath);
     
     job.setJobName("KNN");
     job.setMapperClass(Map.class);
@@ -266,8 +267,6 @@ public class KNN {
         }
       }
     }
-    
-    outFs.delete(outputPath, true);
     
     return resultCount;
   }
@@ -334,17 +333,21 @@ public class KNN {
     } else {
       // Generate query at random points
       final Vector<Thread> threads = new Vector<Thread>();
+      final Vector<PointWithK> query_points = new Vector<PointWithK>();
       Sampler.sampleLocal(fs, inputFile, count, new OutputCollector<LongWritable, TigerShape>(){
         @Override
         public void collect(final LongWritable key, final TigerShape value) throws IOException {
+          PointWithK query_point = new PointWithK();
+          query_point.k = k;
+          query_point.x = value.x;
+          query_point.y = value.y;
+          query_points.add(query_point);
           threads.add(new Thread() {
             @Override
             public void run() {
               try {
-                PointWithK query_point = new PointWithK();
-                query_point.k = k;
-                query_point.x = value.x;
-                query_point.y = value.y;
+                PointWithK query_point =
+                    query_points.elementAt(threads.indexOf(this));
                 long result_count = knnMapReduce(fs, inputFile,
                         query_point, new TigerShape(), null);
                 results.add(result_count);

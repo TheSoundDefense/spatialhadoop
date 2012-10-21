@@ -2,6 +2,8 @@ package edu.umn.cs.spatialHadoop.operations;
 
 import java.io.IOException;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -16,6 +18,7 @@ import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Shape;
@@ -31,7 +34,6 @@ import edu.umn.cs.spatialHadoop.mapReduce.PairShape;
 import edu.umn.cs.spatialHadoop.mapReduce.PairWritable;
 import edu.umn.cs.spatialHadoop.mapReduce.PairWritableComparable;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeRecordReader;
-import edu.umn.cs.spatialHadoop.mapReduce.STextOutputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
 
 /**
@@ -41,6 +43,7 @@ import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
  *
  */
 public class RedistributeJoin {
+  private static final Log LOG = LogFactory.getLog(RedistributeJoin.class);
 
   /**The map function for the redistribute join*/
   public static class Map extends MapReduceBase
@@ -52,7 +55,10 @@ public class RedistributeJoin {
         final OutputCollector<PairWritableComparable<CellInfo>, PairWritable<? extends Shape>> output,
         Reporter reporter) throws IOException {
       final PairWritable<Shape> output_value = new PairWritable<Shape>();
-      RTree.spatialJoin(value.first, value.second, new RTree.ResultCollector2<Shape, Shape>() {
+      LOG.info("Joining RTree in "+value.first.getMBR()+
+          " with an RTree in "+value.second.getMBR());
+      int result_size = RTree.spatialJoin(value.first, value.second,
+          new RTree.ResultCollector2<Shape, Shape>() {
         @Override
         public void add(Shape x, Shape y) {
           output_value.first = x;
@@ -64,6 +70,7 @@ public class RedistributeJoin {
           }
         }
       });
+      LOG.info("Found: "+result_size+" pairs");
     }
   }
   
@@ -124,11 +131,11 @@ public class RedistributeJoin {
     job.setMapperClass(Map.class);
     job.setMapOutputKeyClass(PairWritableComparable.class);
     job.setMapOutputValueClass(PairWritable.class);
-    job.setNumMapTasks(0); // No reduce needed for this task
+    job.setNumReduceTasks(0); // No reduce needed for this task
 
     job.setInputFormat(DJInputFormat.class);
     job.set(ShapeRecordReader.SHAPE_CLASS, TigerShape.class.getName());
-    job.setOutputFormat(STextOutputFormat.class);
+    job.setOutputFormat(TextOutputFormat.class);
     
     String commaSeparatedFiles = "";
     for (int i = 0; i < files.length; i++) {
@@ -137,7 +144,7 @@ public class RedistributeJoin {
       commaSeparatedFiles += files[i].toUri().toString();
     }
     DJInputFormat.addInputPaths(job, commaSeparatedFiles);
-    STextOutputFormat.setOutputPath(job, outputPath);
+    TextOutputFormat.setOutputPath(job, outputPath);
     
     JobClient.runJob(job);
 

@@ -21,6 +21,9 @@ import org.apache.hadoop.mapred.RecordReader;
 public abstract class PairRecordReader<K extends WritableComparable, V extends Writable>
     implements RecordReader<PairWritableComparable<K>, PairWritable<V>> {
   
+  /**A flag that is set before the first record is read*/
+  protected boolean firstTime = true;
+  
   /**The internal readers that actually do the parsing*/
   protected Pair<RecordReader<K, V>> internalReaders;
   
@@ -40,6 +43,10 @@ public abstract class PairRecordReader<K extends WritableComparable, V extends W
   
   @Override
   public boolean next(PairWritableComparable<K> key, PairWritable<V> value) throws IOException {
+    if (firstTime) {
+      internalReaders.first.next(key.first, value.first);
+      firstTime = false;
+    }
     if (internalReaders.second.next(key.second, value.second)) {
       return true;
     }
