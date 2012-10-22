@@ -184,7 +184,7 @@ public class RangeQuery {
     long resultCount = 0;
     for (FileStatus fileStatus : results) {
       if (fileStatus.getLen() > 0 && fileStatus.getPath().getName().startsWith("part-")) {
-        resultCount = RecordCount.recordCountLocal(outFs, fileStatus.getPath());
+        resultCount += RecordCount.recordCountLocal(outFs, fileStatus.getPath());
         if (output != null) {
           // Report every single result
           LineReader lineReader = new LineReader(outFs.open(fileStatus.getPath()));
@@ -214,12 +214,12 @@ public class RangeQuery {
    * @return number of results found
    * @throws IOException
    */
-  public static long rangeQueryLocal(FileSystem fs, Path file,
-      Shape queryRange, Shape shape, OutputCollector<LongWritable, Shape> output)
+  public static<S extends Shape> long rangeQueryLocal(FileSystem fs, Path file,
+      Shape queryRange, S shape, OutputCollector<LongWritable, S> output)
       throws IOException {
     long file_size = fs.getFileStatus(file).getLen();
-    ShapeRecordReader shapeReader =
-        new ShapeRecordReader(fs.open(file), 0, file_size);
+    ShapeRecordReader<S> shapeReader =
+        new ShapeRecordReader<S>(fs.open(file), 0, file_size);
 
     long resultCount = 0;
     LongWritable key = shapeReader.createKey();
@@ -254,7 +254,6 @@ public class RangeQuery {
       Sampler.sampleLocal(fs, inputFile, count, new OutputCollector<LongWritable, TigerShape>(){
         @Override
         public void collect(final LongWritable key, final TigerShape value) throws IOException {
-          System.out.println(value);
           Rectangle query_rectangle = new Rectangle();
           query_rectangle.width = (long) (queryRange.width * ratio);
           query_rectangle.height = (long) (queryRange.height * ratio);

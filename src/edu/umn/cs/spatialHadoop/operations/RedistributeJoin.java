@@ -122,10 +122,13 @@ public class RedistributeJoin {
       OutputCollector<PairShape<CellInfo>, PairShape<? extends Shape>> output) throws IOException {
     JobConf job = new JobConf(RedistributeJoin.class);
     
-    Path outputPath =
-        new Path(files[0].toUri().getPath()+".dj_"+Math.random()*10000);
-    FileSystem outFs = outputPath.getFileSystem(job);
-    outFs.delete(outputPath, true);
+    Path outputPath;
+    FileSystem outFs = files[0].getFileSystem(job);
+    do {
+      outputPath = new Path(files[0].toUri().getPath()+
+          ".dj_"+(int)(Math.random() * 1000000));
+    } while (outFs.exists(outputPath));
+    outFs.deleteOnExit(outputPath);
     
     job.setJobName("RedistributeJoin");
     job.setMapperClass(Map.class);

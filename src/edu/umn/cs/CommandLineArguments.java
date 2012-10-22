@@ -4,9 +4,8 @@ import java.util.Vector;
 
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.spatial.GridInfo;
+import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Rectangle;
-
-import edu.umn.cs.spatialHadoop.PointWithK;
 
 public class CommandLineArguments {
   private String[] args;
@@ -55,11 +54,11 @@ public class CommandLineArguments {
     return grid;
   }
 
-  public PointWithK getPointWithK() {
-    PointWithK point = null;
+  public Point getPoint() {
+    Point point = null;
     for (String arg : args) {
       if (arg.startsWith("point:")) {
-        point = new PointWithK();
+        point = new Point();
         point.readFromString(arg.substring(arg.indexOf(':')+1));
       }
     }

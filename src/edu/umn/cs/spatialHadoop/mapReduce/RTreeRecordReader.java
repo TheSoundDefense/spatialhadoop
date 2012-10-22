@@ -22,8 +22,6 @@ import org.apache.hadoop.spatial.RTreeGridRecordWriter;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.TigerShape;
 
-import edu.umn.cs.spatialHadoop.TigerShapeWithIndex;
-
 
 /**
  * Reads a file as a list of RTrees
@@ -43,7 +41,6 @@ public class RTreeRecordReader  implements RecordReader<CellInfo, RTree<Shape>>{
   private Decompressor decompressor;
   
   private static String ShapeClassName;
-  private int index;
 
   private FileSystem fs;
 
@@ -73,12 +70,6 @@ public class RTreeRecordReader  implements RecordReader<CellInfo, RTree<Shape>>{
     this.filePosition = fileIn;
     
     this.pos = start;
-  }
-
-  public RTreeRecordReader(Configuration job, FileSplit split, int index)
-  throws IOException {
-    this(job, split);
-    this.index = index;
   }
 
   @Override
@@ -121,8 +112,6 @@ public class RTreeRecordReader  implements RecordReader<CellInfo, RTree<Shape>>{
       RTree<Shape> rtree = new RTree<Shape>();
       try {
         Shape shape = shapeClass.newInstance();
-        if (shape instanceof TigerShapeWithIndex)
-          ((TigerShapeWithIndex) shape).index = index;
         LOG.info("Stock object in the RTree is: "+shape);
         rtree.setStockObject(shape);
       } catch (InstantiationException e) {

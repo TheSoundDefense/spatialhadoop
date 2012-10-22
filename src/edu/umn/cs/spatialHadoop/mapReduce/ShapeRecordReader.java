@@ -14,13 +14,13 @@ import org.apache.hadoop.spatial.Shape;
  * @author eldawy
  *
  */
-public class ShapeRecordReader extends STextRecordReader<Shape> {
+public class ShapeRecordReader<S extends Shape> extends STextRecordReader<S> {
   /**Configuration line to set the default shape class to use if not set*/
   public static final String SHAPE_CLASS =
       "edu.umn.cs.spatialHadoop.ShapeRecordReader.ShapeClass.default";
 
   /**A stock shape to use for deserialization (value)*/
-  private Shape stockShape;
+  private S stockShape;
   
   public ShapeRecordReader(Configuration job, FileSplit split)
       throws IOException {
@@ -33,17 +33,17 @@ public class ShapeRecordReader extends STextRecordReader<Shape> {
   }
 
   @Override
-  public Shape createValue() {
+  public S createValue() {
     return stockShape;
   }
 
-  private static Shape createStockShape(Configuration job) {
-    Shape stockShape = null;
+  private S createStockShape(Configuration job) {
+    S stockShape = null;
     String shapeClassName = job.get(SHAPE_CLASS, Point.class.getName());
     try {
       Class<? extends Shape> shapeClass =
           Class.forName(shapeClassName).asSubclass(Shape.class);
-      stockShape = shapeClass.newInstance();
+      stockShape = (S) shapeClass.newInstance();
     } catch (ClassNotFoundException e) {
       e.printStackTrace();
     } catch (InstantiationException e) {

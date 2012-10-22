@@ -92,6 +92,4 @@ public abstract class PairRecordReader<K extends WritableComparable, V extends W
     return (internalReaders.first.getProgress() +
         internalReaders.second.getProgress()) / 2;
   }
-
-
 }

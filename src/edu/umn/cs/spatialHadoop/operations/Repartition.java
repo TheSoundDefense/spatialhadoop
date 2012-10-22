@@ -74,7 +74,7 @@ public class Repartition {
       super.configure(job);
     }
 
-    static IntWritable cellId = new IntWritable();
+    private IntWritable cellId = new IntWritable();
     public void map(
         LongWritable id,
         TigerShape shape,
@@ -229,12 +229,8 @@ public class Repartition {
   public static void repartitionMapReduce(Path inFile, Path outPath,
       GridInfo gridInfo, boolean pack, boolean rtree, boolean overwrite)
           throws IOException {
-    JobConf conf = new JobConf(Repartition.class);
-    conf.setJobName("Repartition");
-    
-    FileSystem inFs = inFile.getFileSystem(conf);
-    FileSystem outFs = outPath.getFileSystem(conf);
-  
+    FileSystem inFs = inFile.getFileSystem(new Configuration());
+    FileSystem outFs = outPath.getFileSystem(new Configuration());
     if (gridInfo == null)
       gridInfo = WriteGridFile.getGridInfo(inFs, inFile, outFs);
     if (gridInfo.columns == 0 || rtree) {
@@ -242,12 +238,31 @@ public class Repartition {
       int num_cells = calculateNumberOfPartitions(inFs, inFile, outFs, rtree);
       gridInfo.calculateCellDimensions(num_cells);
     }
-    CellInfo[] cellsInfo = pack ?
+    CellInfo[] cellInfos = pack ?
         packInRectangles(inFs, inFile, outFs, gridInfo) :
         gridInfo.getAllCells();
+        
+    repartitionMapReduce(inFile, outPath, cellInfos, pack, rtree, overwrite);
+  }
   
+  /**
+   * Repartitions an input file according to the given list of cells.
+   * @param inFile
+   * @param outPath
+   * @param cellInfos
+   * @param pack
+   * @param rtree
+   * @param overwrite
+   * @throws IOException
+   */
+  public static void repartitionMapReduce(Path inFile, Path outPath,
+      CellInfo[] cellInfos, boolean pack, boolean rtree, boolean overwrite) throws IOException {
+    JobConf job = new JobConf(Repartition.class);
+    job.setJobName("Repartition");
+    FileSystem outFs = outPath.getFileSystem(job);
+    
     // Overwrite output file
-    if (inFs.exists(outPath)) {
+    if (outFs.exists(outPath)) {
       if (overwrite)
         outFs.delete(outPath, true);
       else
@@ -255,30 +270,30 @@ public class Repartition {
             + "' already exists and overwrite flag is not set");
     }
   
-    conf.setInputFormat(ShapeInputFormat.class);
-    ShapeInputFormat.setInputPaths(conf, inFile);
-    conf.setMapOutputKeyClass(IntWritable.class);
-    conf.setMapOutputValueClass(TigerShape.class);
+    job.setInputFormat(ShapeInputFormat.class);
+    ShapeInputFormat.setInputPaths(job, inFile);
+    job.setMapperClass(Map.class);
+    job.setMapOutputKeyClass(IntWritable.class);
+    job.setMapOutputValueClass(TigerShape.class);
   
-    conf.setMapperClass(Map.class);
-    conf.setReducerClass(Reduce.class);
-    ClusterStatus clusterStatus = new JobClient(conf).getClusterStatus();
-    conf.setNumReduceTasks(clusterStatus.getMaxReduceTasks());
+    job.setReducerClass(Reduce.class);
+    ClusterStatus clusterStatus = new JobClient(job).getClusterStatus();
+    job.setNumReduceTasks(Math.max(1, clusterStatus.getMaxReduceTasks()));
   
     // Set default parameters for reading input file
-    conf.set(ShapeRecordReader.SHAPE_CLASS, TigerShape.class.getName());
+    job.set(ShapeRecordReader.SHAPE_CLASS, TigerShape.class.getName());
   
-    FileOutputFormat.setOutputPath(conf,outPath);
-    conf.setOutputFormat(rtree ? RTreeGridOutputFormat.class : GridOutputFormat.class);
-    conf.set(GridOutputFormat.OUTPUT_CELLS,
-        GridOutputFormat.encodeCells(cellsInfo));
-    conf.setBoolean(GridOutputFormat.OVERWRITE, overwrite);
+    FileOutputFormat.setOutputPath(job,outPath);
+    job.setOutputFormat(rtree ? RTreeGridOutputFormat.class : GridOutputFormat.class);
+    job.set(GridOutputFormat.OUTPUT_CELLS,
+        GridOutputFormat.encodeCells(cellInfos));
+    job.setBoolean(GridOutputFormat.OVERWRITE, overwrite);
   
-    JobClient.runJob(conf);
+    JobClient.runJob(job);
     
     // Combine all output files into one file as we do with grid files
     Vector<Path> pathsToConcat = new Vector<Path>();
-    FileStatus[] resultFiles = inFs.listStatus(outPath);
+    FileStatus[] resultFiles = outFs.listStatus(outPath);
     for (int i = 0; i < resultFiles.length; i++) {
       FileStatus resultFile = resultFiles[i];
       if (resultFile.getLen() > 0 &&

@@ -12,14 +12,14 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.Shape;
 
 
-public class ShapeInputFormat extends FileInputFormat<LongWritable, Shape> {
+public class ShapeInputFormat<S extends Shape> extends FileInputFormat<LongWritable, S> {
 
   @Override
-  public RecordReader<LongWritable, Shape> getRecordReader(InputSplit split,
+  public RecordReader<LongWritable, S> getRecordReader(InputSplit split,
       JobConf job, Reporter reporter) throws IOException {
     // Create record reader
     reporter.setStatus(split.toString());
-    return new ShapeRecordReader(job, (FileSplit)split);
+    return new ShapeRecordReader<S>(job, (FileSplit)split);
   }
 
   @Override
