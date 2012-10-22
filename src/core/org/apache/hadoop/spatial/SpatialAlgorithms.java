@@ -113,7 +113,7 @@ public class SpatialAlgorithms {
         j++;
       }
     }
-    
+    LOG.info("Finished plane sweep and found "+count+" pairs");
     return count;
 	}
 }
