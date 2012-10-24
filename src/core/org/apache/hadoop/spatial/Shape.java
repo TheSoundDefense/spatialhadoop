@@ -16,43 +16,12 @@ public interface Shape extends WritableComparable<Shape>, Cloneable, TextSeriali
   public Rectangle getMBR();
   
   /**
-   * Returns the center point for this shape.
+   * Gets the distance of this shape to the given point.
+   * @param x
+   * @param y
    * @return
    */
-  public Point getCenterPoint();
-  
-  /**
-   * Return Centroid (similar to CenterPoint).
-   * @return
-   */
-  public Point getCentroid();
-  
-  /**
-   * Returns minimum distance to another shape
-   * @return
-   */
-  public double getMinDistanceTo(final Shape s);
-  
-  /**
-   * Returns the maximum distance to another shape
-   * @param p
-   * @return
-   */
-  public double getMaxDistanceTo(final Shape s);
-  
-  /**
-   * Returns average distance to another shape
-   * @param p
-   * @return
-   */
-  public double getAvgDistanceTo(final Shape s);
-  
-  /**
-   * Returns the intersection between this shape and another shape
-   * @param s
-   * @return
-   */
-  public Shape getIntersection(final Shape s);
+  public double distanceTo(long x, long y);
   
   /**
    * Returns true if this shape is intersected with the given shape
@@ -61,13 +30,6 @@ public interface Shape extends WritableComparable<Shape>, Cloneable, TextSeriali
    */
   public boolean isIntersected(final Shape s);
   
-  /**
-   * Returns the union between this shape and another shape.
-   * @param s
-   * @return
-   */
-  public Shape union(final Shape s);
-
   /**
    * Returns a clone of this shape
    * @return

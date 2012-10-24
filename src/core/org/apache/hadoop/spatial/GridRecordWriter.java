@@ -14,7 +14,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 
-public class GridRecordWriter implements ShapeRecordWriter {
+public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
   public static final Log LOG = LogFactory.getLog(GridRecordWriter.class);
   /**An output stream for each grid cell*/
   protected CellInfo[] cells;
@@ -22,6 +22,9 @@ public class GridRecordWriter implements ShapeRecordWriter {
   protected final Path outFile;
   protected final FileSystem fileSystem;
   private Text text;
+  
+  /**A stock object used for serialization/deserialization*/
+  protected S stockObject;
 
   /**
    * New line marker
@@ -68,8 +71,13 @@ public class GridRecordWriter implements ShapeRecordWriter {
     text = new Text();
   }
   
+  public void setStockObject(S stockObject) {
+    this.stockObject = stockObject;
+  }
+  
+  
   @Override
-  public synchronized void write(LongWritable dummyId, Shape shape) throws IOException {
+  public synchronized void write(LongWritable dummyId, S shape) throws IOException {
     text.clear();
     shape.toText(text);
     write(dummyId, shape, text);
@@ -88,7 +96,7 @@ public class GridRecordWriter implements ShapeRecordWriter {
    * @throws IOException
    */
   @Override
-  public synchronized void write(LongWritable dummyId, Shape shape, Text text) throws IOException {
+  public synchronized void write(LongWritable dummyId, S shape, Text text) throws IOException {
     // Write to all possible grid cells
     Rectangle mbr = shape.getMBR();
     for (int cellIndex = 0; cellIndex < cells.length; cellIndex++) {
@@ -107,7 +115,7 @@ public class GridRecordWriter implements ShapeRecordWriter {
    * @throws IOException
    */
   @Override
-  public synchronized void write(CellInfo cellInfo, Shape shape) throws IOException {
+  public synchronized void write(CellInfo cellInfo, S shape) throws IOException {
     if (shape == null) {
       closeCell(locateCell(cellInfo));
       return;
@@ -118,7 +126,7 @@ public class GridRecordWriter implements ShapeRecordWriter {
   }
 
   @Override
-  public synchronized void write(CellInfo cellInfo, Shape shape, Text text) throws IOException {
+  public synchronized void write(CellInfo cellInfo, S shape, Text text) throws IOException {
     // Write to the cell given
     int cellIndex = locateCell(cellInfo);
     writeInternal(cellIndex, shape, text);
@@ -130,7 +138,7 @@ public class GridRecordWriter implements ShapeRecordWriter {
    * @param shape
    * @throws IOException
    */
-  protected synchronized void writeInternal(int cellIndex, Shape shape, Text text) throws IOException {
+  protected synchronized void writeInternal(int cellIndex, S shape, Text text) throws IOException {
     if (text == null) {
       text = this.text;
       shape.toText(text);

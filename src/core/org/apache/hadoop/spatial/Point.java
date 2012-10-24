@@ -14,11 +14,6 @@ import org.apache.hadoop.io.Writable;
  *
  */
 public class Point extends AbstractShape implements Writable, Cloneable {
-	/**
-	 * Auto generated
-	 */
-	private static final long serialVersionUID = 7801822896513739736L;
-	
 	public long x;
 	public long y;
 
@@ -80,16 +75,12 @@ public class Point extends AbstractShape implements Writable, Cloneable {
   }
 
   @Override
-  public double getMinDistanceTo(Shape s) {
-    return distanceTo(s.getCenterPoint());
+  public double distanceTo(long px, long py) {
+    long dx = x - px;
+    long dy = y - py;
+    return Math.sqrt((double)dx * dx + (double) dy * dy);
   }
 
-  @Override
-  public double getMaxDistanceTo(Shape s) {
-    return distanceTo(s.getCenterPoint());
-  }
-
-  @Override
   public Shape getIntersection(Shape s) {
     return getMBR().getIntersection(s);
   }
@@ -99,11 +90,6 @@ public class Point extends AbstractShape implements Writable, Cloneable {
     return getMBR().isIntersected(s);
   }
 
-  @Override
-  public Shape union(Shape s) {
-    return getMBR().union(s);
-  }
-  
   public long mortonOrder() {
     return Point.mortonOrder(x, y);
   }

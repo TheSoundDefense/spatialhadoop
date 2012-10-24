@@ -6,14 +6,14 @@ import java.io.IOException;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 
-public interface ShapeRecordWriter extends Closeable {
+public interface ShapeRecordWriter<S extends Shape> extends Closeable {
   /**
    * Writes the given shape to the file to all cells it overlaps with
    * @param dummyId
    * @param shape
    * @throws IOException
    */
-  public void write(LongWritable dummyId, Shape shape) throws IOException;
+  public void write(LongWritable dummyId, S shape) throws IOException;
   
   /**
    * Writes the given shape to the file to all cells it overlaps with.
@@ -23,7 +23,7 @@ public interface ShapeRecordWriter extends Closeable {
    * @param text
    * @throws IOException
    */
-  public void write(LongWritable dummyId, Shape shape, Text text) throws IOException;
+  public void write(LongWritable dummyId, S shape, Text text) throws IOException;
   
   /**
    * Writes the given shape only to the given cell even if it overlaps
@@ -34,7 +34,7 @@ public interface ShapeRecordWriter extends Closeable {
    * @param shape
    * @throws IOException
    */
-  public void write(CellInfo cellInfo, Shape shape) throws IOException;
+  public void write(CellInfo cellInfo, S shape) throws IOException;
 
   /**
    * Writes the given shape only to the given cell even if it overlaps.
@@ -44,5 +44,12 @@ public interface ShapeRecordWriter extends Closeable {
    * @param text
    * @throws IOException
    */
-  public void write(CellInfo cellInfo, Shape shape, Text text) throws IOException;
+  public void write(CellInfo cellInfo, S shape, Text text) throws IOException;
+  
+  /**
+   * Sets a stock object used to serialize/deserialize objects when written to
+   * disk.
+   * @param shape
+   */
+  public void setStockObject(S shape);
 }

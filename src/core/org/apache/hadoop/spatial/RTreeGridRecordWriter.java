@@ -18,7 +18,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
 
-public class RTreeGridRecordWriter extends GridRecordWriter {
+public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> {
   public static final Log LOG = LogFactory.getLog(RTreeGridRecordWriter.class);
   
   /**The default RTree degree used for local indexing*/
@@ -56,11 +56,11 @@ public class RTreeGridRecordWriter extends GridRecordWriter {
    * the block.
    * TODO change this to hold the maximum total size in bytes for elements
    */
-  private final long rtreeLimit;
+  private long rtreeLimit;
   
   /**Whether to use the fast mode for building RTree or not*/
   protected boolean fastRTree;
-
+  
   /**
    * Maximum size of an RTree. Written files should have this as a block size.
    * Once number of records reach the maximum limit of this block size, records
@@ -83,10 +83,14 @@ public class RTreeGridRecordWriter extends GridRecordWriter {
     this.rtreeDegree = fileSystem.getConf().getInt(RTREE_DEGREE, 11);
     this.blockSize = fileSystem.getConf().getLong(RTREE_BLOCK_SIZE,
         fileSystem.getDefaultBlockSize());
+    this.fastRTree = fileSystem.getConf().get(RTREE_BUILD_MODE, "fast").equals("fast");
+  }
+  
+  public void setStockObject(S stockObject) {
+    super.setStockObject(stockObject);
     // The 8 is subtracted because we reserve it for the RTreeFileMarker
     this.rtreeLimit = RTree.getBlockCapacity(this.blockSize - 8, rtreeDegree,
-        calculateRecordSize(TigerShape.class));
-    this.fastRTree = fileSystem.getConf().get(RTREE_BUILD_MODE, "fast").equals("fast");
+        calculateRecordSize(stockObject));
   }
   
   /**
@@ -96,26 +100,22 @@ public class RTreeGridRecordWriter extends GridRecordWriter {
    * @param klass
    * @return
    */
-  public static int calculateRecordSize(Class<? extends Writable> klass) {
+  public static int calculateRecordSize(Writable s) {
     int size = -1;
     try {
       ByteArrayOutputStream bout = new ByteArrayOutputStream();
       DataOutputStream out = new DataOutputStream(bout);
-      klass.newInstance().write(out);
+      s.write(out);
       out.close();
       size = bout.toByteArray().length;
     } catch (IOException e) {
-      e.printStackTrace();
-    } catch (InstantiationException e) {
-      e.printStackTrace();
-    } catch (IllegalAccessException e) {
       e.printStackTrace();
     }
     return size;
   }
 
   @Override
-  protected synchronized void writeInternal(int cellIndex, Shape shape, Text text)
+  protected synchronized void writeInternal(int cellIndex, S shape, Text text)
       throws IOException {
     DataOutput cellOutput = getTempCellStream(cellIndex);
     shape.write(cellOutput);
@@ -139,8 +139,7 @@ public class RTreeGridRecordWriter extends GridRecordWriter {
   
   @Override
   protected void flushCell(int cellIndex) throws IOException {
-    System.out.println("Writing the RTree at cell #"+cellIndex);
-    LOG.info(this+"Writing the RTree at cell #"+cellIndex);
+    LOG.info("Writing the RTree at cell #"+cellIndex);
     if (tempCellStreams[cellIndex] == null)
       return;
     // Read element data
@@ -155,8 +154,8 @@ public class RTreeGridRecordWriter extends GridRecordWriter {
     fileSystem.delete(getTempCellFilePath(cellIndex), false);
     
     // Create the RTree using the element data
-    RTree<TigerShape> rtree = new RTree<TigerShape>();
-    rtree.setStockObject(new TigerShape());
+    RTree<S> rtree = new RTree<S>();
+    rtree.setStockObject(stockObject);
     FSDataOutputStream cellStream = getCellStream(cellIndex);
     cellStream.writeLong(RTreeFileMarker);
     rtree.bulkLoadWrite(cellData, 0, fileSize, rtreeDegree, cellStream, fastRTree);
@@ -253,14 +252,15 @@ public class RTreeGridRecordWriter extends GridRecordWriter {
     gridInfo.columns = 16;
     gridInfo.rows = 16;
     CellInfo[] cells = gridInfo.getAllCells();
-    RTreeGridRecordWriter recordWriter = new RTreeGridRecordWriter(fs, outFile,
+    RTreeGridRecordWriter<Rectangle> recordWriter = new RTreeGridRecordWriter<Rectangle>(fs, outFile,
         cells, true);
+    recordWriter.setStockObject(new Rectangle());
     long rtreeLimit = recordWriter.rtreeLimit;
     long recordCount = rtreeLimit * 9 / 10;
     Random random = new Random();
     System.out.println("Creating "+recordCount+" records");
     long t1 = System.currentTimeMillis();
-    TigerShape s = new TigerShape();
+    Rectangle s = new Rectangle();
     for (CellInfo cellInfo : cells) {
       Rectangle mbr = cellInfo;
       for (int i = 0; i < recordCount; i++) {
@@ -271,7 +271,6 @@ public class RTreeGridRecordWriter extends GridRecordWriter {
             mbr.width + mbr.x - s.x);
         s.height = Math.min(Math.abs(random.nextLong() % 100) + 1,
             mbr.height + mbr.y - s.y);
-        s.id = i;
         
         recordWriter.write(cellInfo, s);
       }

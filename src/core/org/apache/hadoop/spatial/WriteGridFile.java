@@ -14,7 +14,12 @@ import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.util.LineReader;
 
-
+/**
+ * 
+ * @author eldawy
+ * @deprecated - Use Repartition class instead
+ */
+@Deprecated
 public class WriteGridFile {
   public static final Log LOG = LogFactory.getLog(WriteGridFile.class);
 
@@ -36,20 +41,20 @@ public class WriteGridFile {
    * @throws InstantiationException
    * @throws IllegalAccessException
    */
-  public static void writeGridFile(FileSystem inFileSystem, Path inputPath,
-      FileSystem outFileSystem, Path outputPath, GridInfo gridInfo,
-      TigerShape shape, boolean pack, boolean rtree, boolean overwrite)
+  public static<S extends Shape> void writeGridFile(FileSystem inFileSystem,
+      Path inputPath, FileSystem outFileSystem, Path outputPath, GridInfo gridInfo,
+      S shape, boolean pack, boolean rtree, boolean overwrite)
       throws IOException {
-    gridInfo = calculateGridInfo(inFileSystem, inputPath, outFileSystem, gridInfo);
+    gridInfo = calculateGridInfo(inFileSystem, inputPath, outFileSystem, gridInfo, shape);
     if (rtree)
       gridInfo.calculateCellDimensions(inFileSystem.getFileStatus(inputPath).getLen() * 4, outFileSystem.getDefaultBlockSize());
-    CellInfo[] cells = pack ? packInRectangles(inFileSystem, inputPath, outFileSystem, gridInfo) :
+    CellInfo[] cells = pack ? packInRectangles(inFileSystem, inputPath, outFileSystem, gridInfo, shape) :
       gridInfo.getAllCells();
 
     // Prepare grid file writer
-    ShapeRecordWriter rrw = rtree ?
-        new RTreeGridRecordWriter(outFileSystem, outputPath, cells, overwrite):
-        new GridRecordWriter(outFileSystem, outputPath, cells, overwrite);
+    ShapeRecordWriter<S> rrw = rtree ?
+        new RTreeGridRecordWriter<S>(outFileSystem, outputPath, cells, overwrite):
+        new GridRecordWriter<S>(outFileSystem, outputPath, cells, overwrite);
 
     // Open input file
     LineReader reader = new LineReader(inFileSystem.open(inputPath));
@@ -78,10 +83,9 @@ public class WriteGridFile {
    * @return
    * @throws IOException
    */
-  private static Rectangle calculateMBR(FileSystem fileSystem, Path path) throws IOException {
+  private static<S extends Shape> Rectangle calculateMBR(FileSystem fileSystem, Path path, S shape) throws IOException {
     LineReader inFile = new LineReader(fileSystem.open(path));
     Rectangle rectangle = new Rectangle();
-    TigerShape shape = new TigerShape(rectangle, 0);
     Text line = new Text();
     long x1 = Long.MAX_VALUE;
     long x2 = Long.MIN_VALUE;
@@ -109,10 +113,12 @@ public class WriteGridFile {
    * @return
    * @throws IOException
    */
-  public static Rectangle getMBR(FileSystem fileSystem, Path path) throws IOException {
+  public static <S extends Shape> Rectangle getMBR(FileSystem fileSystem,
+      Path path, S shape) throws IOException {
     FileStatus fileStatus = fileSystem.getFileStatus(path);
-    LOG.info("gridInfo stored in file: "+fileStatus.getGridInfo());
-    return fileStatus.getGridInfo() == null ? calculateMBR(fileSystem, path) : fileStatus.getGridInfo().getMBR();
+    LOG.info("gridInfo stored in file: " + fileStatus.getGridInfo());
+    return fileStatus.getGridInfo() == null ?
+        calculateMBR(fileSystem, path, shape) : fileStatus.getGridInfo().getMBR();
   }
   
   /**
@@ -122,10 +128,10 @@ public class WriteGridFile {
    * @return
    * @throws IOException
    */
-  public static GridInfo calculateGridInfo(FileSystem inFileSystem, Path path,
-      FileSystem outFileSystem, GridInfo gridInfo) throws IOException {
+  public static<S extends Shape> GridInfo calculateGridInfo(FileSystem inFileSystem, Path path,
+      FileSystem outFileSystem, GridInfo gridInfo, S shape) throws IOException {
     if (gridInfo == null) {
-      Rectangle mbr = getMBR(inFileSystem, path);
+      Rectangle mbr = getMBR(inFileSystem, path, shape);
       LOG.info("MBR: "+mbr);
       gridInfo = new GridInfo(mbr.x, mbr.y, mbr.width, mbr.height);
       LOG.info("GridInfo: "+gridInfo);
@@ -137,20 +143,25 @@ public class WriteGridFile {
     return gridInfo;
   }
   
-  public static GridInfo getGridInfo(FileSystem inFileSystem, Path path, FileSystem outFileSystem) throws IOException {
+  public static<S extends Shape> GridInfo getGridInfo(FileSystem inFileSystem,Path path,
+      FileSystem outFileSystem, S shape) throws IOException {
     FileStatus fileStatus = inFileSystem.getFileStatus(path);
-    return calculateGridInfo(inFileSystem, path, outFileSystem, fileStatus.getGridInfo());
+    return calculateGridInfo(inFileSystem, path, outFileSystem,
+        fileStatus.getGridInfo(), shape);
   }
   
   private static final int MaxLineLength = 200;
   
-  public static CellInfo[] packInRectangles(FileSystem inFileSystem, Path inputPath,
-      FileSystem outFileSystem, GridInfo gridInfo) throws IOException {
-    return packInRectangles(inFileSystem, new Path[] {inputPath}, outFileSystem, gridInfo);
+  public static <S extends Shape> CellInfo[] packInRectangles(
+      FileSystem inFileSystem, Path inputPath, FileSystem outFileSystem,
+      GridInfo gridInfo, S shape) throws IOException {
+    return packInRectangles(inFileSystem, new Path[] { inputPath },
+        outFileSystem, gridInfo, shape);
   }
-  public static CellInfo[] packInRectangles(FileSystem inFileSystem, Path[] inputPaths,
-      FileSystem outFileSystem, GridInfo gridInfo) throws IOException {
-    Point[] samples = pickRandomSample(inFileSystem, inputPaths);
+
+  public static<S extends Shape> CellInfo[] packInRectangles(FileSystem inFileSystem, Path[] inputPaths,
+      FileSystem outFileSystem, GridInfo gridInfo, S shape) throws IOException {
+    Point[] samples = pickRandomSample(inFileSystem, inputPaths, shape);
     Rectangle[] rectangles = RTree.packInRectangles(gridInfo, samples);
     CellInfo[] cellsInfo = new CellInfo[rectangles.length];
     for (int i = 0; i < rectangles.length; i++)
@@ -158,8 +169,8 @@ public class WriteGridFile {
     return cellsInfo;
   }
 
-  private static Point[] pickRandomSample(FileSystem inFileSystem,
-      Path[] inputPaths) throws IOException {
+  private static<S extends Shape> Point[] pickRandomSample(FileSystem inFileSystem,
+      Path[] inputPaths, S shape) throws IOException {
     LOG.info("Picking a random sample from file");
     Random random = new Random();
     long inTotalSize = 0;
@@ -168,8 +179,6 @@ public class WriteGridFile {
       inputSize[fileIndex] = inFileSystem.getFileStatus(inputPaths[fileIndex]).getLen();
       inTotalSize += inputSize[fileIndex];
     }
-
-    TigerShape shape = new TigerShape();
 
     List<Point> samplePoints = new ArrayList<Point>();
 
@@ -223,7 +232,7 @@ public class WriteGridFile {
         continue;
       shape.readFromString(new String(readLine, 0, readLineIndex));
 
-      samplePoints.add(shape.getCenterPoint());
+      samplePoints.add(shape.getMBR().getCenterPoint());
       totalBytesToSample -= readLineIndex;
     }
     

@@ -15,11 +15,6 @@ import org.apache.hadoop.io.TextSerializerHelper;
  *
  */
 public class Rectangle extends AbstractShape {
-  /**
-   * Auto generated
-   */
-  private static final long serialVersionUID = 7801822896513739736L;
-
   public long x;
   public long y;
   public long width;
@@ -102,29 +97,27 @@ public class Rectangle extends AbstractShape {
     return result;
   }
 
-  public double distanceTo(Rectangle s) {
-    return this.getLocation().distanceTo(s.getLocation());
+  @Override
+  public double distanceTo(long px, long py) {
+    return this.getMaxDistanceTo(px, py);
   }
 
-  public double getMaxDistanceTo(Shape s) {
-    Point p = s.getCenterPoint();
-    double dx = Math.max(p.x - this.x, this.x + this.width - p.x);
-    double dy = Math.max(p.y - this.y, this.y + this.height - p.y);
+  public double getMaxDistanceTo(long px, long py) {
+    double dx = Math.max(px - this.x, this.x + this.width - px);
+    double dy = Math.max(py - this.y, this.y + this.height - py);
 
     return Math.sqrt(dx*dx+dy*dy);
   }
 
-  public double getMinDistanceTo(Shape s) {
-    Point p = s.getCenterPoint(); 
-    
-    if (this.contains(p))
+  public double getMinDistanceTo(long px, long py) {
+    if (this.contains(px, py))
       return 0;
     
-    long dx = Math.min(Math.abs(p.x - this.x), Math.abs(this.x + this.width - p.x));
-    long dy = Math.min(Math.abs(p.y - this.y), Math.abs(this.y + this.height - p.y));
+    long dx = Math.min(Math.abs(px - this.x), Math.abs(this.x + this.width - px));
+    long dy = Math.min(Math.abs(py - this.y), Math.abs(this.y + this.height - py));
 
-    if ((p.x < this.x || p.x > this.x + this.width) &&
-        (p.y < this.y || p.y > this.y + this.height)) {
+    if ((px < this.x || px > this.x + this.width) &&
+        (py < this.y || py > this.y + this.height)) {
       return Math.sqrt((double)dx * dx + (double)dy * dy);
     }
     

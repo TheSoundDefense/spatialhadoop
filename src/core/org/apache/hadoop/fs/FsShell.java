@@ -42,7 +42,7 @@ import org.apache.hadoop.io.WritableComparable;
 import org.apache.hadoop.ipc.RPC;
 import org.apache.hadoop.ipc.RemoteException;
 import org.apache.hadoop.spatial.GridInfo;
-import org.apache.hadoop.spatial.TigerShape;
+import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.WriteGridFile;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.hadoop.util.StringUtils;
@@ -235,7 +235,7 @@ public class FsShell extends Configured implements Tool {
     FileSystem fileSystem = dstPath.getFileSystem(getConf());
 
     WriteGridFile.writeGridFile(FileSystem.getLocal(getConf()), srcPath,
-        fileSystem, dstPath, gridInfo, new TigerShape(), pack, rtree, overwrite);
+        fileSystem, dstPath, gridInfo, new Rectangle(), pack, rtree, overwrite);
   }
 
   /**

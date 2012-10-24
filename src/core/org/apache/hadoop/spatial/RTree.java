@@ -17,7 +17,6 @@ import java.util.Random;
 import java.util.Stack;
 import java.util.Vector;
 
-import org.apache.commons.io.output.NullOutputStream;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FSDataInputStream;
@@ -37,6 +36,7 @@ import org.apache.hadoop.util.QuickSort;
  */
 public class RTree<T extends Shape> implements Writable, Iterable<T> {
   /**Logger*/
+  @SuppressWarnings("unused")
   private static final Log LOG = LogFactory.getLog(RTree.class);
   
   /**Size of tree header on disk. Height + Degree + Number of records*/
@@ -102,10 +102,12 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
         stockObject.readFields(in);
         elementCount++;
       }
+      LOG.info("Bulk loading an RTree with "+elementCount+" elements");
       
-      int height = (int) Math.ceil(Math.log(elementCount)/Math.log(degree));
+      int height = Math.max(1, 
+          (int) Math.ceil(Math.log(elementCount)/Math.log(degree)));
       int leafNodeCount = (int) Math.pow(degree, height - 1);
-      if (elementCount <  2 * leafNodeCount) {
+      if (elementCount <  2 * leafNodeCount && height > 1) {
         height--;
         leafNodeCount = (int) Math.pow(degree, height - 1);
       }
@@ -291,13 +293,29 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
         nodes.add(split);
       }
       
-      if (nodes.size() != nodeCount) throw new RuntimeException();
+      if (nodes.size() != nodeCount) {
+        throw new RuntimeException("Expected node count: "+nodeCount+". Real node count: "+nodes.size());
+      }
       
       // Now we have our data sorted in the required order. Start building
       // the tree.
       // Store the offset of each leaf node in the tree
       FSDataOutputStream fakeOut =
-          new FSDataOutputStream(new NullOutputStream(), null, TreeHeaderSize + nodes.size() * NodeSize);
+          new FSDataOutputStream(new java.io.OutputStream() {
+            // Null output stream
+            @Override
+            public void write(int b) throws IOException {
+              // Do nothing
+            }
+            @Override
+            public void write(byte[] b, int off, int len) throws IOException {
+              // Do nothing
+            }
+            @Override
+            public void write(byte[] b) throws IOException {
+              // Do nothing
+            }
+          }, null, TreeHeaderSize + nodes.size() * NodeSize);
       for (int i_leaf = nonLeafNodeCount, i=0; i_leaf < nodes.size(); i_leaf++) {
         nodes.elementAt(i_leaf).offsetOfFirstElement = (int)fakeOut.getPos();
         if (i != nodes.elementAt(i_leaf).index1) throw new RuntimeException();
