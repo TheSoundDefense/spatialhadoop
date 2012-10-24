@@ -136,7 +136,7 @@ public class SplitCalculator {
 	      LOG.info("Heap block matched with distance");
 	      matchedBlocks.add(blockLocation);
 	    } else {
-	      double minDistanceToBlock = blockMBR.getMinDistanceTo(queryPoint);
+	      double minDistanceToBlock = blockMBR.getMinDistanceTo(queryPoint.x, queryPoint.y);
 	      LOG.info("Minimum distance for block "+blockMBR+" is "+minDistanceToBlock);
 	      if (minDistanceToBlock <= distance) {
 	        LOG.info("Block "+blockLocation.getCellInfo()+" matched with distance: "+minDistanceToBlock);

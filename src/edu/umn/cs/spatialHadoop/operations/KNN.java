@@ -25,10 +25,10 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Shape;
-import org.apache.hadoop.spatial.TigerShape;
 import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.CommandLineArguments;
+import edu.umn.cs.spatialHadoop.TigerShape;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeInputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
 import edu.umn.cs.spatialHadoop.mapReduce.SplitCalculator;
@@ -39,7 +39,7 @@ import edu.umn.cs.spatialHadoop.mapReduce.SplitCalculator;
  *
  */
 public class KNN {
-  /**Configration line name for query point*/
+  /**Configuration line name for query point*/
   public static final String QUERY_POINT =
       "edu.umn.cs.spatialHadoop.operations.KNN.QueryPoint";
 
@@ -192,7 +192,7 @@ public class KNN {
         OutputCollector<ByteWritable, ShapeWithDistance<S>> output,
         Reporter reporter) throws IOException {
       temp.shape = shape;
-      temp.distance = (long)shape.getAvgDistanceTo(queryPoint);
+      temp.distance = (long)shape.distanceTo(queryPoint.x, queryPoint.y);
       output.collect(ONE, temp);
     }
   }
@@ -340,7 +340,7 @@ public class KNN {
     ShapeWithDistance<S>[] knn = new ShapeWithDistance[queryPoint.k];
 
     while (shapeReader.next(key, shape)) {
-      double distance = shape.getAvgDistanceTo(queryPoint);
+      double distance = shape.distanceTo(queryPoint.x, queryPoint.y);
       int i = queryPoint.k - 1;
       while (i >= 0 && (knn[i] == null || knn[i].distance > distance)) {
         i--;

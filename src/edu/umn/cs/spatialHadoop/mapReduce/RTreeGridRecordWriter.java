@@ -9,9 +9,9 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.Shape;
 
-public class RTreeGridRecordWriter
-    extends org.apache.hadoop.spatial.RTreeGridRecordWriter
-    implements RecordWriter<CellInfo, Shape> {
+public class RTreeGridRecordWriter<S extends Shape>
+    extends org.apache.hadoop.spatial.RTreeGridRecordWriter<S>
+    implements RecordWriter<CellInfo, S> {
 
   public RTreeGridRecordWriter(FileSystem fileSystem, Path outFile, CellInfo[] cells, boolean overwrite) throws IOException {
     super(fileSystem, outFile, cells, overwrite);

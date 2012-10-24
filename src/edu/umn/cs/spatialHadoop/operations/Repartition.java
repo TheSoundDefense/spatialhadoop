@@ -28,11 +28,11 @@ import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.Shape;
-import org.apache.hadoop.spatial.TigerShape;
 import org.apache.hadoop.spatial.WriteGridFile;
 
 import edu.umn.cs.CommandLineArguments;
 import edu.umn.cs.Estimator;
+import edu.umn.cs.spatialHadoop.TigerShape;
 import edu.umn.cs.spatialHadoop.mapReduce.GridOutputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridOutputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridRecordWriter;
@@ -152,7 +152,14 @@ public class Repartition {
       Class<? extends Shape> recordClass =
           conf.getClass(ShapeRecordReader.SHAPE_CLASS, TigerShape.class).
           asSubclass(Shape.class);
-      int record_size = RTreeGridRecordWriter.calculateRecordSize(recordClass);
+      int record_size = 0;
+      try {
+        record_size = RTreeGridRecordWriter.calculateRecordSize(recordClass.newInstance());
+      } catch (InstantiationException e1) {
+        e1.printStackTrace();
+      } catch (IllegalAccessException e1) {
+        e1.printStackTrace();
+      }
       long blockSize = conf.getLong(RTreeGridRecordWriter.RTREE_BLOCK_SIZE,
           outFs.getDefaultBlockSize());
       
@@ -229,10 +236,11 @@ public class Repartition {
   public static void repartitionMapReduce(Path inFile, Path outPath,
       GridInfo gridInfo, boolean pack, boolean rtree, boolean overwrite)
           throws IOException {
+    
     FileSystem inFs = inFile.getFileSystem(new Configuration());
     FileSystem outFs = outPath.getFileSystem(new Configuration());
     if (gridInfo == null)
-      gridInfo = WriteGridFile.getGridInfo(inFs, inFile, outFs);
+      gridInfo = WriteGridFile.getGridInfo(inFs, inFile, outFs, new TigerShape());
     if (gridInfo.columns == 0 || rtree) {
       // Recalculate grid dimensions
       int num_cells = calculateNumberOfPartitions(inFs, inFile, outFs, rtree);

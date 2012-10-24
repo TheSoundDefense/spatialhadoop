@@ -22,10 +22,10 @@ import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Shape;
-import org.apache.hadoop.spatial.TigerShape;
 import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.CommandLineArguments;
+import edu.umn.cs.spatialHadoop.TigerShape;
 import edu.umn.cs.spatialHadoop.mapReduce.Pair;
 import edu.umn.cs.spatialHadoop.mapReduce.PairInputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.PairOfFileSplits;
@@ -79,19 +79,19 @@ public class RedistributeJoin {
    * @author eldawy
    *
    */
-  public static class DJRecordReader extends PairRecordReader<CellInfo, RTree<Shape>> {
+  public static class DJRecordReader<S extends Shape> extends PairRecordReader<CellInfo, RTree<S>> {
     public DJRecordReader(Configuration conf, PairOfFileSplits fileSplits) throws IOException {
       this.conf = conf;
       this.splits = fileSplits;
-      this.internalReaders = new Pair<RecordReader<CellInfo,RTree<Shape>>>();
+      this.internalReaders = new Pair<RecordReader<CellInfo,RTree<S>>>();
       this.internalReaders.first = createRecordReader(this.conf, this.splits.first);
       this.internalReaders.second = createRecordReader(this.conf, this.splits.second);
     }
     
     @Override
-    protected RecordReader<CellInfo, RTree<Shape>> createRecordReader(
+    protected RecordReader<CellInfo, RTree<S>> createRecordReader(
         Configuration conf, FileSplit split) throws IOException {
-      return new RTreeRecordReader(conf, split);
+      return new RTreeRecordReader<S>(conf, split);
     }
   }
 
@@ -101,11 +101,11 @@ public class RedistributeJoin {
    * @author eldawy
    *
    */
-  public static class DJInputFormat extends PairInputFormat<CellInfo, RTree<Shape>> {
+  public static class DJInputFormat<S extends Shape> extends PairInputFormat<CellInfo, RTree<S>> {
     @Override
-    public RecordReader<PairWritableComparable<CellInfo>, PairWritable<RTree<Shape>>> getRecordReader(
+    public RecordReader<PairWritableComparable<CellInfo>, PairWritable<RTree<S>>> getRecordReader(
         InputSplit split, JobConf job, Reporter reporter) throws IOException {
-      return new DJRecordReader(job, (PairOfFileSplits)split);
+      return new DJRecordReader<S>(job, (PairOfFileSplits)split);
     }
   }
 

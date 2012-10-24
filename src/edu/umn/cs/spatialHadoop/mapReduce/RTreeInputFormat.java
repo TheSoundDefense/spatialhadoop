@@ -20,14 +20,14 @@ import edu.umn.cs.FileRange;
  * @author eldawy
  *
  */
-public class RTreeInputFormat extends FileInputFormat<CellInfo, RTree<Shape>> {
+public class RTreeInputFormat<S extends Shape> extends FileInputFormat<CellInfo, RTree<S>> {
 
 	@Override
-	public RecordReader<CellInfo, RTree<Shape>> getRecordReader(InputSplit split,
+	public RecordReader<CellInfo, RTree<S>> getRecordReader(InputSplit split,
 			JobConf job, Reporter reporter) throws IOException {
 		// Create record reader
 	    reporter.setStatus(split.toString());
-		return new RTreeRecordReader(job, (FileSplit)split);
+		return new RTreeRecordReader<S>(job, (FileSplit)split);
 	}
 	
 	@Override

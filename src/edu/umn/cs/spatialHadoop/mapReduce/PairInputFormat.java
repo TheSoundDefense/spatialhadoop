@@ -14,7 +14,8 @@ import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.spatial.SpatialAlgorithms;
-import org.apache.hadoop.spatial.TigerShape;
+
+import edu.umn.cs.spatialHadoop.TigerShape;
 
 
 /**
@@ -63,19 +64,21 @@ public abstract class PairInputFormat<K extends WritableComparable, V extends Wr
                 && fileSplit.getStart() < blockLocation.getOffset()
                 + blockLocation.getLength()) {
               if (blockLocation.getCellInfo() == null) {
-                heapSplits[file_i].add(splitIndex);
+                if (!heapSplits[file_i].contains(splitIndex))
+                  heapSplits[file_i].add(splitIndex);
               } else {
                 // Part of this split overlaps this file block
                 TigerShape rect = new TigerShape(blockLocation.getCellInfo(),
                     splitIndex);
-                spatialSplits[file_i].add(rect);
+                if (!spatialSplits[file_i].contains(rect))
+                  spatialSplits[file_i].add(rect);
               }
             }
           }
         }
       }
     }
-    
+
     // This list will hold the pair of overlapping file splits
     final Vector<InputSplit> combinedSplits = new Vector<InputSplit>();
 
@@ -107,6 +110,7 @@ public abstract class PairInputFormat<K extends WritableComparable, V extends Wr
     // the other file
     for (int file_i = 0; file_i < heapSplits.length; file_i++) {
       for (int split_i : heapSplits[file_i]) {
+        LOG.info("Joining a heap block with every other block");
         for (int file_j = file_i + 1; file_j < heapSplits.length; file_j++) {
           // First, join with other heap splits
           for (int split_j : heapSplits[file_j]) {

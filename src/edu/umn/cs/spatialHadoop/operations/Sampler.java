@@ -13,9 +13,9 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Shape;
-import org.apache.hadoop.spatial.TigerShape;
 
 import edu.umn.cs.CommandLineArguments;
+import edu.umn.cs.spatialHadoop.TigerShape;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridRecordWriter;
 
 /**

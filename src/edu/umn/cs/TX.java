@@ -12,8 +12,8 @@ import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Rectangle;
-import org.apache.hadoop.spatial.TigerShape;
 
+import edu.umn.cs.spatialHadoop.TigerShape;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
 
 public class TX {
@@ -25,8 +25,8 @@ public class TX {
     Path outputFile = new Path("/home/eldawy/Desktop/tx.points");
     FileSystem fs = inputFile.getFileSystem(conf);
     long length = fs.getFileStatus(inputFile).getLen();
-    ShapeRecordReader reader =
-        new ShapeRecordReader(fs.open(inputFile), 0, length);
+    ShapeRecordReader<TigerShape> reader =
+        new ShapeRecordReader<TigerShape>(fs.open(inputFile), 0, length);
     LongWritable shapeId = reader.createKey();
     TigerShape shape = new TigerShape();
     Vector<Point> shapes = new Vector<Point>();

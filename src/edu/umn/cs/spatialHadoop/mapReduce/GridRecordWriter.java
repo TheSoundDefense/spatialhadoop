@@ -9,7 +9,8 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.Shape;
 
-public class GridRecordWriter extends org.apache.hadoop.spatial.GridRecordWriter implements RecordWriter<CellInfo, Shape> {
+public class GridRecordWriter<S extends Shape>
+extends org.apache.hadoop.spatial.GridRecordWriter<S> implements RecordWriter<CellInfo, S> {
 
   public GridRecordWriter(FileSystem fileSystem, Path outFile, CellInfo[] cells, boolean overwrite) throws IOException {
     super(fileSystem, outFile, cells,  overwrite);

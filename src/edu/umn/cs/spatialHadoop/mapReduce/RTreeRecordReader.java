@@ -20,7 +20,8 @@ import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.RTreeGridRecordWriter;
 import org.apache.hadoop.spatial.Shape;
-import org.apache.hadoop.spatial.TigerShape;
+
+import edu.umn.cs.spatialHadoop.TigerShape;
 
 
 /**
@@ -28,7 +29,7 @@ import org.apache.hadoop.spatial.TigerShape;
  * @author eldawy
  *
  */
-public class RTreeRecordReader  implements RecordReader<CellInfo, RTree<Shape>>{
+public class RTreeRecordReader<S extends Shape>  implements RecordReader<CellInfo, RTree<S>>{
   public static final Log LOG = LogFactory.getLog(RTreeRecordReader.class);
   
   private CompressionCodecFactory compressionCodecs = null;
@@ -73,7 +74,7 @@ public class RTreeRecordReader  implements RecordReader<CellInfo, RTree<Shape>>{
   }
 
   @Override
-  public boolean next(CellInfo key, RTree<Shape> value) throws IOException {
+  public boolean next(CellInfo key, RTree<S> value) throws IOException {
     if (fileIn.getPos() >= end)
       return false;
     LOG.info("Looking for an RTree at Pos: " + fileIn.getPos());
@@ -104,14 +105,14 @@ public class RTreeRecordReader  implements RecordReader<CellInfo, RTree<Shape>>{
   }
 
   @Override
-  public RTree<Shape> createValue() {
+  public RTree<S> createValue() {
     try {
       final Class<? extends Shape> shapeClass =
           Class.forName(ShapeClassName).asSubclass(Shape.class);
 
-      RTree<Shape> rtree = new RTree<Shape>();
+      RTree<S> rtree = new RTree<S>();
       try {
-        Shape shape = shapeClass.newInstance();
+        S shape = (S) shapeClass.newInstance();
         LOG.info("Stock object in the RTree is: "+shape);
         rtree.setStockObject(shape);
       } catch (InstantiationException e) {

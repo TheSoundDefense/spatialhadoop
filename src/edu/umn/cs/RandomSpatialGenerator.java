@@ -17,8 +17,8 @@ import org.apache.hadoop.spatial.GridRecordWriter;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.ShapeRecordWriter;
-import org.apache.hadoop.spatial.TigerShape;
 
+import edu.umn.cs.spatialHadoop.TigerShape;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridRecordWriter;
 import edu.umn.cs.spatialHadoop.operations.Repartition;
 
@@ -69,7 +69,7 @@ public class RandomSpatialGenerator {
     int num_of_cells;
     if (rtree) {
       final int RTreeDegree = conf.getInt(RTreeGridRecordWriter.RTREE_DEGREE, 11);
-      int record_size = RTreeGridRecordWriter.calculateRecordSize(TigerShape.class);
+      int record_size = RTreeGridRecordWriter.calculateRecordSize(new TigerShape());
       long blockSize = conf.getLong(RTreeGridRecordWriter.RTREE_BLOCK_SIZE,
           outFS.getDefaultBlockSize());
       final int records_per_block =
@@ -110,9 +110,10 @@ public class RandomSpatialGenerator {
     }
     
     gridInfo.calculateCellDimensions(num_of_cells);
-    ShapeRecordWriter recordWriter = rtree ?
-        new RTreeGridRecordWriter(outFS, outFilePath, gridInfo.getAllCells(), overwrite)
-        : new GridRecordWriter(outFS, outFilePath, gridInfo.getAllCells(), overwrite);
+    ShapeRecordWriter<TigerShape> recordWriter = rtree ?
+        new RTreeGridRecordWriter<TigerShape>(outFS, outFilePath, gridInfo.getAllCells(), overwrite)
+        : new GridRecordWriter<TigerShape>(outFS, outFilePath, gridInfo.getAllCells(), overwrite);
+    recordWriter.setStockObject(randomShape);
 
     long generatedSize = 0;
     
