@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.Vector;
 
+import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -28,7 +29,10 @@ import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.CommandLineArguments;
+import edu.umn.cs.spatialHadoop.SpatialSite;
 import edu.umn.cs.spatialHadoop.TigerShape;
+import edu.umn.cs.spatialHadoop.mapReduce.BlockFilter;
+import edu.umn.cs.spatialHadoop.mapReduce.DefaultBlockFilter;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeInputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
 import edu.umn.cs.spatialHadoop.mapReduce.SplitCalculator;
@@ -44,14 +48,7 @@ public class KNN {
       "edu.umn.cs.spatialHadoop.operations.KNN.QueryPoint";
 
   public static class PointWithK extends Point {
-    /**
-     * Generated UID
-     */
-    private static final long serialVersionUID = -4794848671765481819L;
-
-    /**
-     * K, number of nearest neighbors required to find
-     */
+    /** SK, number of nearest neighbors required to find */
     public int k;
 
     public PointWithK() {
@@ -102,7 +99,8 @@ public class KNN {
    * A simple inner type that stores a shape with its distance
    * @author eldawy
    */
-  public static class ShapeWithDistance<S extends Shape> implements TextSerializable, Writable {
+  public static class ShapeWithDistance<S extends Shape>
+      implements TextSerializable, Writable {
     public S shape;
     public long distance;
     
@@ -163,14 +161,31 @@ public class KNN {
     }
   }
   
+  public static class KNNFilter extends DefaultBlockFilter {
+    /**User query*/
+    private PointWithK queryPoint;
+    
+    @Override
+    public void configure(JobConf job) {
+      super.configure(job);
+      queryPoint = new PointWithK();
+      queryPoint.readFromString(job.get(QUERY_POINT));
+    }
+    
+    @Override
+    public boolean processBlock(BlockLocation blk) {
+      return (blk.getCellInfo() == null ||
+          blk.getCellInfo().contains(queryPoint.x, queryPoint.y));
+    }
+  }
+  
   /**
    * Mapper for KNN MapReduce. Calculates the distance between a shape and 
    * the query point.
    * @author eldawy
    *
    */
-  public static class KNNMap<S extends Shape> extends MapReduceBase
-  implements
+  public static class KNNMap<S extends Shape> extends MapReduceBase implements
       Mapper<LongWritable, S, ByteWritable, ShapeWithDistance<S>> {
     /**A dummy intermediate value used instead of recreating it again and gain*/
     private static final ByteWritable ONE = new ByteWritable((byte)1);
@@ -284,6 +299,7 @@ public class KNN {
     job.setMapOutputKeyClass(ByteWritable.class);
     job.setMapOutputValueClass(ShapeWithDistance.class);
     job.set(QUERY_POINT, queryPoint.writeToString());
+    job.setClass(SpatialSite.FilterClass, KNNFilter.class, BlockFilter.class);
     
     job.setReducerClass(KNNReduce.class);
     job.setCombinerClass(KNNReduce.class);

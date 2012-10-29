@@ -5,6 +5,7 @@ import java.util.Vector;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -26,7 +27,10 @@ import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.CommandLineArguments;
+import edu.umn.cs.spatialHadoop.SpatialSite;
 import edu.umn.cs.spatialHadoop.TigerShape;
+import edu.umn.cs.spatialHadoop.mapReduce.BlockFilter;
+import edu.umn.cs.spatialHadoop.mapReduce.DefaultBlockFilter;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridRecordWriter;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeInputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeInputFormat;
@@ -49,6 +53,34 @@ public class RangeQuery {
   /**Name of the config line that stores the query shape*/
   public static final String QUERY_SHAPE =
       "edu.umn.cs.spatialHadoop.operations.RangeQuery.QueryShape";
+  
+  public static class RangeFilter extends DefaultBlockFilter {
+    /**A shape that is used to filter input*/
+    private Shape queryShape;
+    
+    @Override
+    public void configure(JobConf job) {
+      super.configure(job);
+      try {
+        String queryShapeClassName = job.get(QUERY_SHAPE_CLASS);
+        Class<? extends Shape> queryShapeClass =
+            Class.forName(queryShapeClassName).asSubclass(Shape.class);
+        queryShape = queryShapeClass.newInstance();
+        queryShape.readFromString(job.get(QUERY_SHAPE));
+      } catch (ClassNotFoundException e) {
+        e.printStackTrace();
+      } catch (InstantiationException e) {
+        e.printStackTrace();
+      } catch (IllegalAccessException e) {
+        e.printStackTrace();
+      }
+    }
+    
+    @Override
+    public boolean processBlock(BlockLocation blk) {
+      return blk.getCellInfo() == null || queryShape.isIntersected(blk.getCellInfo());
+    }
+  }
   
   /**
    * The map function used for range query
@@ -150,6 +182,7 @@ public class RangeQuery {
     job.set(QUERY_SHAPE_CLASS, queryShape.getClass().getName());
     job.set(QUERY_SHAPE, queryShape.writeToString());
     job.setNumReduceTasks(0);
+    job.setClass(SpatialSite.FilterClass, RangeFilter.class, BlockFilter.class);
 
     job.setMapOutputKeyClass(ByteWritable.class);
     job.setMapOutputValueClass(shape.getClass());
