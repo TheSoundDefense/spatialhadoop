@@ -2,6 +2,7 @@ package org.apache.hadoop.spatial;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.TreeSet;
 
@@ -73,17 +74,24 @@ public class SpatialAlgorithms {
       List<S2> S, ResultCollector2<S1, S2> output)
       throws IOException {
     int count = 0;
-    
+
+    Comparator<Shape> comparator = new Comparator<Shape>() {
+      @Override
+      public int compare(Shape o1, Shape o2) {
+        return (int) (o1.getMBR().getX1() - o2.getMBR().getX1());
+      }
+    };
+
     LOG.info("Joining "+ R.size()+" with "+S.size());
-    Collections.sort(R);
-    Collections.sort(S);
+    Collections.sort(R, comparator);
+    Collections.sort(S, comparator);
 
 		int i = 0, j = 0;
 
     while (i < R.size() && j < S.size()) {
       S1 r;
       S2 s;
-      if (R.get(i).compareTo(S.get(j)) < 0) {
+      if (comparator.compare(R.get(i), S.get(j)) < 0) {
         r = R.get(i);
         int jj = j;
 

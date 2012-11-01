@@ -4,6 +4,8 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
+import org.apache.hadoop.io.WritableComparable;
+
 
 /**
  * Information about a specific cell in a grid.
@@ -13,7 +15,7 @@ import java.io.IOException;
  * @author aseldawy
  *
  */
-public class CellInfo extends Rectangle {
+public class CellInfo extends Rectangle implements WritableComparable<CellInfo> {
   
   /**
    * A unique ID for this cell in a file. This must be set initially when
@@ -94,5 +96,10 @@ public class CellInfo extends Rectangle {
   public void readFields(DataInput in) throws IOException {
     this.cellId = in.readLong();
     super.readFields(in);
+  }
+
+  @Override
+  public int compareTo(CellInfo c) {
+    return (int) (this.cellId - c.cellId);
   }
 }

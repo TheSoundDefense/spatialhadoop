@@ -1,14 +1,14 @@
 package org.apache.hadoop.spatial;
 
 import org.apache.hadoop.io.TextSerializable;
-import org.apache.hadoop.io.WritableComparable;
+import org.apache.hadoop.io.Writable;
 
 /**
  * A general 2D shape.
  * @author aseldawy
  *
  */
-public interface Shape extends WritableComparable<Shape>, Cloneable, TextSerializable {
+public interface Shape extends Writable, Cloneable, TextSerializable {
   /**
    * Returns minimum bounding rectangle for this shape.
    * @return

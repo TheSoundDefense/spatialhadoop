@@ -21,24 +21,9 @@ import org.apache.hadoop.io.Writable;
 public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> {
   public static final Log LOG = LogFactory.getLog(RTreeGridRecordWriter.class);
   
-  /**The default RTree degree used for local indexing*/
-  public static final String RTREE_DEGREE = "spatialHadoop.storage.RTreeDegree";
-  
-  /**Maximum size of an RTree.*/
-  public static final String RTREE_BLOCK_SIZE =
-      "spatialHadoop.storage.RTreeBlockSize";
-  
-  /**Whether to build the RTree in fast mode or slow (memory saving) mode.*/
-  public static final String RTREE_BUILD_MODE =
-      "spatialHadoop.storage.RTreeBuiltMode";
-  
   /**Temporary streams to cells for writing element data*/
   protected OutputStream[] tempCellStreams;
-  
-  static {
-    Configuration.addDefaultResource("spatial-default.xml");
-    Configuration.addDefaultResource("spatial-site.xml");
-  }
+
   
   /**
    * A marker put in the beginning of each block to indicate that this block
@@ -80,10 +65,10 @@ public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> 
     tempCellStreams = new OutputStream[cells.length];
     
     // Determine the size of each RTree to decide when to flush a cell
-    this.rtreeDegree = fileSystem.getConf().getInt(RTREE_DEGREE, 11);
-    this.blockSize = fileSystem.getConf().getLong(RTREE_BLOCK_SIZE,
+    this.rtreeDegree = fileSystem.getConf().getInt(SpatialSite.RTREE_DEGREE, 11);
+    this.blockSize = fileSystem.getConf().getLong(SpatialSite.RTREE_BLOCK_SIZE,
         fileSystem.getDefaultBlockSize());
-    this.fastRTree = fileSystem.getConf().get(RTREE_BUILD_MODE, "fast").equals("fast");
+    this.fastRTree = fileSystem.getConf().get(SpatialSite.RTREE_BUILD_MODE, "fast").equals("fast");
   }
   
   public void setStockObject(S stockObject) {
