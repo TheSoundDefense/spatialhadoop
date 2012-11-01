@@ -28,6 +28,7 @@ import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.Shape;
+import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.spatial.WriteGridFile;
 
 import edu.umn.cs.CommandLineArguments;
@@ -146,7 +147,7 @@ public class Repartition {
       long indexedFileSize = (long) (fileSize * (1 + ReplicationOverhead));
       return (int)Math.ceil((float)indexedFileSize / outFs.getDefaultBlockSize());
     } else {
-      final int RTreeDegree = conf.getInt(RTreeGridRecordWriter.RTREE_DEGREE, 11);
+      final int RTreeDegree = conf.getInt(SpatialSite.RTREE_DEGREE, 11);
       Estimator<Integer> estimator = new Estimator<Integer>(0.01);
       final FSDataInputStream in = inFs.open(file);
       Class<? extends Shape> recordClass =
@@ -160,7 +161,7 @@ public class Repartition {
       } catch (IllegalAccessException e1) {
         e1.printStackTrace();
       }
-      long blockSize = conf.getLong(RTreeGridRecordWriter.RTREE_BLOCK_SIZE,
+      long blockSize = conf.getLong(SpatialSite.RTREE_BLOCK_SIZE,
           outFs.getDefaultBlockSize());
       
       LOG.info("RTree block size: "+blockSize);

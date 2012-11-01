@@ -17,6 +17,7 @@ import org.apache.hadoop.spatial.GridRecordWriter;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.ShapeRecordWriter;
+import org.apache.hadoop.spatial.SpatialSite;
 
 import edu.umn.cs.spatialHadoop.TigerShape;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridRecordWriter;
@@ -68,9 +69,9 @@ public class RandomSpatialGenerator {
     final Text text = new Text();
     int num_of_cells;
     if (rtree) {
-      final int RTreeDegree = conf.getInt(RTreeGridRecordWriter.RTREE_DEGREE, 11);
+      final int RTreeDegree = conf.getInt(SpatialSite.RTREE_DEGREE, 11);
       int record_size = RTreeGridRecordWriter.calculateRecordSize(new TigerShape());
-      long blockSize = conf.getLong(RTreeGridRecordWriter.RTREE_BLOCK_SIZE,
+      long blockSize = conf.getLong(SpatialSite.RTREE_BLOCK_SIZE,
           outFS.getDefaultBlockSize());
       final int records_per_block =
           RTree.getBlockCapacity(blockSize, RTreeDegree, record_size);

@@ -14,12 +14,14 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Rectangle;
+import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.StringUtils;
 
 import edu.umn.cs.FileRange;
 
 public class SplitCalculator {
   public static final Log LOG = LogFactory.getLog(SplitCalculator.class);
+  
 	/**
 	 * Property name for records to read.
 	 * This property can be used to choose the blocks to read in one of four ways:
