@@ -37,6 +37,7 @@ import edu.umn.cs.spatialHadoop.TigerShape;
 import edu.umn.cs.spatialHadoop.mapReduce.GridOutputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridOutputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridRecordWriter;
+import edu.umn.cs.spatialHadoop.mapReduce.RTreeInputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeInputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
 
@@ -62,11 +63,12 @@ public class Repartition {
    * @author eldawy
    *
    */
-  public static class Map extends MapReduceBase
-  implements
-  Mapper<LongWritable, TigerShape, IntWritable, TigerShape> {
+  public static class RepartitionMap<T extends Shape> extends MapReduceBase {
     /**List of cells used by the mapper*/
     private CellInfo[] cellInfos;
+    
+    /**Used to output intermediate records*/
+    private IntWritable cellId = new IntWritable();
     
     @Override
     public void configure(JobConf job) {
@@ -74,12 +76,19 @@ public class Repartition {
       cellInfos = GridOutputFormat.decodeCells(cellsInfoStr);
       super.configure(job);
     }
-
-    private IntWritable cellId = new IntWritable();
+    
+    /**
+     * Map function
+     * @param dummy
+     * @param shape
+     * @param output
+     * @param reporter
+     * @throws IOException
+     */
     public void map(
-        LongWritable id,
-        TigerShape shape,
-        OutputCollector<IntWritable, TigerShape> output,
+        LongWritable dummy,
+        T shape,
+        OutputCollector<IntWritable, T> output,
         Reporter reporter) throws IOException {
 
       for (int cellIndex = 0; cellIndex < cellInfos.length; cellIndex++) {
@@ -89,7 +98,31 @@ public class Repartition {
         }
       }
     }
+  
+    /**
+     * Spatial map function
+     * @param cell
+     * @param shapes
+     * @param output
+     * @param reporter
+     * @throws IOException
+     */
+    public void map(CellInfo cell, RTree<T> shapes,
+        OutputCollector<IntWritable, T> output, Reporter reporter)
+            throws IOException {
+      for (T shape : shapes) {
+        map(null, shape, output, reporter);
+      }
+    }
   }
+  
+  /** Mapper for non-indexed blocks */
+  public static class Map1<T extends Shape> extends RepartitionMap<T> implements
+      Mapper<LongWritable, T, IntWritable, T> { }
+
+  /** Mapper for RTree indexed blocks */
+  public static class Map2<T extends Shape> extends RepartitionMap<T> implements
+      Mapper<CellInfo, RTree<T>, IntWritable, T> { }
   
   /**
    * The reducer writes records to the cell they belong to. It also  finializes
@@ -148,8 +181,6 @@ public class Repartition {
       return (int)Math.ceil((float)indexedFileSize / outFs.getDefaultBlockSize());
     } else {
       final int RTreeDegree = conf.getInt(SpatialSite.RTREE_DEGREE, 11);
-      Estimator<Integer> estimator = new Estimator<Integer>(0.01);
-      final FSDataInputStream in = inFs.open(file);
       Class<? extends Shape> recordClass =
           conf.getClass(ShapeRecordReader.SHAPE_CLASS, TigerShape.class).
           asSubclass(Shape.class);
@@ -169,56 +200,65 @@ public class Repartition {
           RTree.getBlockCapacity(blockSize, RTreeDegree, record_size);
       LOG.info("RTrees can hold up to: "+records_per_block+" recods");
       
-      estimator.setRandomSample(new Estimator.RandomSample() {
-        
-        @Override
-        public double next() {
-          int lineLength = 0;
-          try {
-            long randomFilePosition = (long)(Math.random() * fileSize);
-            in.seek(randomFilePosition);
-            
-            // Skip the rest of this line
-            byte lastReadByte;
-            do {
-              lastReadByte = in.readByte();
-            } while (lastReadByte != '\n' && lastReadByte != '\r');
-
-            while (in.getPos() < fileSize - 1) {
-              lastReadByte = in.readByte();
-              if (lastReadByte == '\n' || lastReadByte == '\r') {
-                break;
+      final FSDataInputStream in = inFs.open(file);
+      int blockCount;
+      if (in.readLong() == RTreeGridRecordWriter.RTreeFileMarker) {
+        blockCount = (int) Math.ceil((double)inFs.getFileStatus(file).getLen() /
+            inFs.getFileStatus(file).getBlockSize());
+      } else {
+        Estimator<Integer> estimator = new Estimator<Integer>(0.01);
+        estimator.setRandomSample(new Estimator.RandomSample() {
+          
+          @Override
+          public double next() {
+            int lineLength = 0;
+            try {
+              long randomFilePosition = (long)(Math.random() * fileSize);
+              in.seek(randomFilePosition);
+              
+              // Skip the rest of this line
+              byte lastReadByte;
+              do {
+                lastReadByte = in.readByte();
+              } while (lastReadByte != '\n' && lastReadByte != '\r');
+              
+              while (in.getPos() < fileSize - 1) {
+                lastReadByte = in.readByte();
+                if (lastReadByte == '\n' || lastReadByte == '\r') {
+                  break;
+                }
+                lineLength++;
               }
-              lineLength++;
+            } catch (IOException e) {
+              e.printStackTrace();
             }
-          } catch (IOException e) {
-            e.printStackTrace();
+            return lineLength+1;
           }
-          return lineLength+1;
-        }
-      });
-
-      estimator.setUserFunction(new Estimator.UserFunction<Integer>() {
-        @Override
-        public Integer calculate(double x) {
-          double lineCount = fileSize / x;
-          double indexedRecordCount = lineCount * (1.0 + ReplicationOverhead);
-          return (int) Math.ceil(indexedRecordCount / records_per_block);
-        }
-      });
-      
-      estimator.setQualityControl(new Estimator.QualityControl<Integer>() {
-        @Override
-        public boolean isAcceptable(Integer y1, Integer y2) {
-          return (double)Math.abs(y2 - y1) / Math.min(y1, y2) < 0.01;
-        }
-      });
-   
-      Estimator.Range<Integer> blockCount = estimator.getEstimate();
+        });
+        
+        estimator.setUserFunction(new Estimator.UserFunction<Integer>() {
+          @Override
+          public Integer calculate(double x) {
+            double lineCount = fileSize / x;
+            double indexedRecordCount = lineCount * (1.0 + ReplicationOverhead);
+            return (int) Math.ceil(indexedRecordCount / records_per_block);
+          }
+        });
+        
+        estimator.setQualityControl(new Estimator.QualityControl<Integer>() {
+          @Override
+          public boolean isAcceptable(Integer y1, Integer y2) {
+            return (double)Math.abs(y2 - y1) / Math.min(y1, y2) < 0.01;
+          }
+        });
+        
+        Estimator.Range<Integer> blockCountRange = estimator.getEstimate();
+        LOG.info("block count range ["+ blockCountRange.limit1 + ","
+            + blockCountRange.limit2 + "]");
+        blockCount = Math.max(blockCountRange.limit1, blockCountRange.limit2);
+      }
       in.close();
-      LOG.info("block count range ["+ blockCount.limit1 + ","
-          + blockCount.limit2 + "]");
-      return Math.max(blockCount.limit1, blockCount.limit2);
+      return blockCount;
     }
   }
 	
@@ -278,10 +318,25 @@ public class Repartition {
         throw new RuntimeException("Output file '" + outPath
             + "' already exists and overwrite flag is not set");
     }
-  
-    job.setInputFormat(ShapeInputFormat.class);
+    
+    // Decide which map function to use depending on how blocks are indexed
+    // And also which input format to use
+    FileSystem inFs = inFile.getFileSystem(job);
+    FSDataInputStream in = inFs.open(inFile);
+    if (in.readLong() == RTreeGridRecordWriter.RTreeFileMarker) {
+      // RTree indexed file
+      LOG.info("Searching an RTree indexed file");
+      job.setMapperClass(Map2.class);
+      job.setInputFormat(RTreeInputFormat.class);
+    } else {
+      // A file with no local index
+      LOG.info("Searching a non local-indexed file");
+      job.setMapperClass(Map1.class);
+      job.setInputFormat(ShapeInputFormat.class);
+    }
+    in.close();
     ShapeInputFormat.setInputPaths(job, inFile);
-    job.setMapperClass(Map.class);
+
     job.setMapOutputKeyClass(IntWritable.class);
     job.setMapOutputValueClass(TigerShape.class);
   

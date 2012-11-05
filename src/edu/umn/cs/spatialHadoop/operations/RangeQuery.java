@@ -88,7 +88,7 @@ public class RangeQuery {
    *
    * @param <T>
    */
-  public static class Map<T extends Shape> extends MapReduceBase {
+  public static class RangeQueryMap<T extends Shape> extends MapReduceBase {
     /**A shape that is used to filter input*/
     private Shape queryShape;
 
@@ -148,11 +148,11 @@ public class RangeQuery {
   }
   
   /** Mapper for non-indexed blocks */
-  public static class Map1<T extends Shape> extends Map<T> implements
+  public static class Map1<T extends Shape> extends RangeQueryMap<T> implements
       Mapper<LongWritable, T, ByteWritable, T> { }
 
   /** Mapper for RTree indexed blocks */
-  public static class Map2<T extends Shape> extends Map<T> implements
+  public static class Map2<T extends Shape> extends RangeQueryMap<T> implements
       Mapper<CellInfo, RTree<T>, ByteWritable, T> { }
   
   /**

@@ -44,7 +44,9 @@ public abstract class PairRecordReader<K extends WritableComparable, V extends W
   @Override
   public boolean next(PairWritableComparable<K> key, PairWritable<V> value) throws IOException {
     if (firstTime) {
-      internalReaders.first.next(key.first, value.first);
+      if (!internalReaders.first.next(key.first, value.first)) {
+        return false;
+      }
       firstTime = false;
     }
     if (internalReaders.second.next(key.second, value.second)) {

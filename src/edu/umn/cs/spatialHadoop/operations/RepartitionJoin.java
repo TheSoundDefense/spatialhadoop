@@ -30,6 +30,8 @@ public class RepartitionJoin {
   
   public static long repartitionJoin(FileSystem fs, Path[] files,
       OutputCollector<PairShape<CellInfo>, PairShape<? extends Shape>> output) throws IOException {
+    long t1, t2;
+    t1 = System.currentTimeMillis();
     // Determine which file to repartition (smaller file)
     Path smaller_file = null;
     Path larger_file = null;
@@ -74,16 +76,21 @@ public class RepartitionJoin {
     } while (outFs.exists(partitioned_file));
     Repartition.repartitionMapReduce(smaller_file,
         partitioned_file, cells.toArray(new CellInfo[cells.size()]), false, false, true);
+    t2 = System.currentTimeMillis();
+    LOG.info("Repartition time: "+(t2-t1)+" millis");
     
     if (!outFs.exists(partitioned_file)) {
       // This happens when the two files are disjoint
       return 0;
     }
     
+    t1 = System.currentTimeMillis();
     // Redistribute join the larger file and the partitioned file
     long result_size = RedistributeJoin.redistributeJoin(fs,
         new Path[] {larger_file, partitioned_file}, output);
     outFs.delete(partitioned_file, true);
+    t2 = System.currentTimeMillis();
+    LOG.info("Join time: "+(t2-t1)+" millis");
     return result_size;
   }
   

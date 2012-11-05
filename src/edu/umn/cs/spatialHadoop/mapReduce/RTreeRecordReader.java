@@ -40,6 +40,7 @@ public class RTreeRecordReader<S extends Shape>  implements RecordReader<CellInf
   private final Seekable filePosition;
   private CompressionCodec codec;
   private Decompressor decompressor;
+  private long blockSize;
   
   private static String ShapeClassName;
 
@@ -59,6 +60,7 @@ public class RTreeRecordReader<S extends Shape>  implements RecordReader<CellInf
 
     // open the file and seek to the start of the split
     this.fs = file.getFileSystem(job);
+    this.blockSize = fs.getFileStatus(file).getBlockSize(); 
     fileIn = fs.open(split.getPath());
     if (codec != null) {
       fileIn = new FSDataInputStream(codec.createInputStream(fileIn));
@@ -75,6 +77,8 @@ public class RTreeRecordReader<S extends Shape>  implements RecordReader<CellInf
 
   @Override
   public boolean next(CellInfo key, RTree<S> value) throws IOException {
+    long bytesToSkip = (blockSize - fileIn.getPos() % blockSize) % blockSize;
+    fileIn.skip(bytesToSkip);
     if (fileIn.getPos() >= end)
       return false;
     LOG.info("Looking for an RTree at Pos: " + fileIn.getPos());

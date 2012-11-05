@@ -167,7 +167,7 @@ public class SJMR {
       
       while (values.hasNext()) {
         IndexedShape<S> s = values.next();
-        shapeLists[s.index].add(s.shape);
+        shapeLists[s.index].add((S) s.shape.clone());
       }
       
       final PairShape<S> value = new PairShape<S>();
