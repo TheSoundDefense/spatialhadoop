@@ -132,11 +132,6 @@ public class Point extends AbstractShape implements Writable, Cloneable {
   }
   
   @Override
-  public Point getCenterPoint() {
-    return this;
-  }
-
-  @Override
   public void toText(Text text) {
     TextSerializerHelper.serializeLong(x, text, ',');
     TextSerializerHelper.serializeLong(y, text, '\0');
