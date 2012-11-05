@@ -71,4 +71,27 @@ public final class TextSerializerHelper {
     }
     return negative ? -i : i;
   }
+  
+  /**
+   * Deserializes and consumes a long from the given text. Consuming means all
+   * characters read for deserialization are removed from the given text.
+   * If separator is non-zero, a long is read and consumed up to the first
+   * occurence of this separator. The separator is also consumed.
+   * @param text
+   * @param separator
+   * @return
+   */
+  public static long consumeLong(Text text, char separator) {
+    int i = 0;
+    byte[] bytes = text.getBytes();
+    // Skip until the separator or end of text
+    while (i < text.getLength() && bytes[i] != separator)
+      i++;
+    long l = deserializeLong(bytes, 0, i);
+    if (separator != 0)
+      i++;
+    System.arraycopy(bytes, i, bytes, 0, text.getLength() - i);
+    text.set(bytes, 0, text.getLength() - i);
+    return l;
+  }
 }
