@@ -400,6 +400,29 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
     }
     readHeader();
   }
+  
+  /**
+   * Reads and skips the header of the tree returning the total number of
+   * elements stored in the tree. This is used as a preparatory function to
+   * read all elements in the tree without the index part.
+   * @param in
+   * @return
+   * @throws IOException
+   */
+  public static int skipHeader(DataInput in) throws IOException {
+    /*int treeSize = */in.readInt();
+    int height = in.readInt();
+    if (height == 0) {
+      // Empty tree. No results
+      return 0;
+    }
+    int degree = in.readInt();
+    int nodeCount = (int) ((Math.pow(degree, height) - 1) / (degree - 1));
+    int elementCount = in.readInt();
+    // Skip all nodes
+    in.skipBytes(nodeCount * NodeSize);
+    return elementCount;
+  }
 
   private void readHeader() throws IOException {
     startQuery();

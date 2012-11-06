@@ -6,14 +6,13 @@ import java.io.IOException;
 
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.TextSerializerHelper;
-import org.apache.hadoop.io.Writable;
 
 /**
  * A class that holds coordinates of a point.
  * @author aseldawy
  *
  */
-public class Point extends AbstractShape implements Writable, Cloneable {
+public class Point implements Shape {
 	public long x;
 	public long y;
 
@@ -113,28 +112,15 @@ public class Point extends AbstractShape implements Writable, Cloneable {
   }
 
   @Override
-  public String writeToString() {
-    return String.format("%s%x,%s%x", x < 0 ? "-" : "", Math.abs(x),
-        y < 0 ? "-" : "", Math.abs(y));
-
-  }
-  
-  @Override
-  public void readFromString(String s) {
-    String[] parts = s.split(",");
-    this.x = Long.parseLong(parts[0], 16);
-    this.y = Long.parseLong(parts[1], 16);
-  }
-
-  @Override
   public String toString() {
     return "Point: ("+x+","+y+")";
   }
   
   @Override
-  public void toText(Text text) {
+  public Text toText(Text text) {
     TextSerializerHelper.serializeLong(x, text, ',');
     TextSerializerHelper.serializeLong(y, text, '\0');
+    return text;
   }
   
   @Override

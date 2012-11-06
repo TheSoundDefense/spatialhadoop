@@ -4,6 +4,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.WritableComparable;
 
 
@@ -33,7 +34,7 @@ public class CellInfo extends Rectangle implements WritableComparable<CellInfo> 
   }
 
   public CellInfo(String in) {
-    this.readFromString(in);
+    this.fromText(new Text(in));
   }
 
   public CellInfo() {
@@ -72,18 +73,6 @@ public class CellInfo extends Rectangle implements WritableComparable<CellInfo> 
   @Override
   public int compareTo(Shape s) {
     return (int) (this.cellId - ((CellInfo)s).cellId);
-  }
-  
-  @Override
-  public String writeToString() {
-    return cellId+","+super.writeToString();
-  }
-  
-  @Override
-  public void readFromString(String s) {
-    String[] parts = s.split(",", 2);
-    this.cellId = Long.parseLong(parts[0]);
-    super.readFromString(parts[1]);
   }
   
   @Override

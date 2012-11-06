@@ -6,6 +6,7 @@ import java.io.IOException;
 
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.TextSerializable;
+import org.apache.hadoop.io.TextSerializerHelper;
 import org.apache.hadoop.io.Writable;
 
 /**
@@ -77,45 +78,6 @@ public class GridInfo implements Writable, TextSerializable {
         && this.columns == gi.columns && this.rows == gi.rows;
   }
   
-  /**
-   * Get CellInfo for the cell that contains the given point
-   * @param x
-   * @param y
-   * @return
-   */
-/*  public CellInfo getCellInfo(long x, long y) {
-    x -= xOrigin;
-    x -= x % cellWidth;
-    x += xOrigin;
-    
-    y -= yOrigin;
-    y -= y % cellHeight;
-    y += yOrigin;
-    
-    return new CellInfo(x, y, cellWidth, cellHeight);
-  }
-  */
-  public String writeToString() {
-    return String.format("%s%x,%s%x,%s%x,%s%x,%s%x,%s%x", xOrigin < 0 ? "-" : "", Math.abs(xOrigin),
-        yOrigin < 0 ? "-" : "", Math.abs(yOrigin),
-            gridWidth < 0 ? "-" : "", Math.abs(gridWidth),
-                gridHeight < 0 ? "-" : "", Math.abs(gridHeight),
-                  columns < 0 ? "-" : "", Math.abs(columns),
-                    rows < 0 ? "-" : "", Math.abs(rows));
-  }
-  
-  public void readFromString(String string) {
-    String[] parts = string.split(",");
-    this.xOrigin = Long.parseLong(parts[0], 16);
-    this.yOrigin = Long.parseLong(parts[1], 16);
-    this.gridWidth = Long.parseLong(parts[2], 16);
-    this.gridHeight = Long.parseLong(parts[3], 16);
-    if (parts.length > 4) {
-      this.columns = Integer.parseInt(parts[4], 16);
-      this.rows = Integer.parseInt(parts[5], 16);
-    }
-  }
-  
   public void calculateCellDimensions(long totalFileSize, long blockSize) {
     // An empirical number for the expected overhead in grid file due to
     // replication
@@ -139,14 +101,24 @@ public class GridInfo implements Writable, TextSerializable {
   }
 
   @Override
-  public void toText(Text text) {
-    String str = writeToString();
-    text.append(str.getBytes(), 0, str.length());
+  public Text toText(Text text) {
+    TextSerializerHelper.serializeLong(xOrigin, text, ',');
+    TextSerializerHelper.serializeLong(yOrigin, text, ',');
+    TextSerializerHelper.serializeLong(gridWidth, text, ',');
+    TextSerializerHelper.serializeLong(gridHeight, text, ',');
+    TextSerializerHelper.serializeLong(columns, text, ',');
+    TextSerializerHelper.serializeLong(rows, text, '\0');
+    return text;
   }
 
   @Override
   public void fromText(Text text) {
-    readFromString(text.toString());
+    xOrigin = TextSerializerHelper.consumeLong(text, ',');
+    yOrigin = TextSerializerHelper.consumeLong(text, ',');
+    gridWidth = TextSerializerHelper.consumeLong(text, ',');
+    gridHeight = TextSerializerHelper.consumeLong(text, ',');
+    columns = (int) TextSerializerHelper.consumeLong(text, ',');
+    rows = (int) TextSerializerHelper.consumeLong(text, '\0');
   }
 
   public Rectangle getMBR() {

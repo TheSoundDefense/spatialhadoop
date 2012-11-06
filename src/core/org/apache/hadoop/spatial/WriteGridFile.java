@@ -192,6 +192,7 @@ public class WriteGridFile {
       inputStreams[fileIndex] = inFileSystem.open(inputPaths[fileIndex]);
     }
     
+    Text text = new Text();
     while (totalBytesToSample > 0) {
       if (System.currentTimeMillis() - lastTime > 1000 * 60) {
         lastTime = System.currentTimeMillis();
@@ -230,7 +231,8 @@ public class WriteGridFile {
       // Skip an empty line
       if (readLineIndex < 4)
         continue;
-      shape.readFromString(new String(readLine, 0, readLineIndex));
+      text.set(readLine, 0, readLineIndex);
+      shape.fromText(text);
 
       samplePoints.add(shape.getMBR().getCenterPoint());
       totalBytesToSample -= readLineIndex;

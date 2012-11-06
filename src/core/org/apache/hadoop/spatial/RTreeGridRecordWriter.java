@@ -24,14 +24,6 @@ public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> 
   /**Temporary streams to cells for writing element data*/
   protected OutputStream[] tempCellStreams;
 
-  
-  /**
-   * A marker put in the beginning of each block to indicate that this block
-   * is stored as an RTree. It might be better to store this in the BlockInfo
-   * in a field (e.g. localIndexType).
-   */
-  public static final long RTreeFileMarker = -0x0123456;
-
   /**Keeps the number of elements written to each cell so far*/
   private int[] cellCount;
   /**The required degree of the rtree to be built*/
@@ -142,7 +134,7 @@ public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> 
     RTree<S> rtree = new RTree<S>();
     rtree.setStockObject(stockObject);
     FSDataOutputStream cellStream = getCellStream(cellIndex);
-    cellStream.writeLong(RTreeFileMarker);
+    cellStream.writeLong(SpatialSite.RTreeFileMarker);
     rtree.bulkLoadWrite(cellData, 0, fileSize, rtreeDegree, cellStream, fastRTree);
     cellData = null;
     long blockSize =

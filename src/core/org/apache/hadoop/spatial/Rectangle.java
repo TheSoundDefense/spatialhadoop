@@ -14,7 +14,7 @@ import org.apache.hadoop.io.TextSerializerHelper;
  * @author aseldawy
  *
  */
-public class Rectangle extends AbstractShape {
+public class Rectangle implements Shape {
   public long x;
   public long y;
   public long width;
@@ -387,53 +387,25 @@ public class Rectangle extends AbstractShape {
   }
 
   @Override
-  public String writeToString() {
-    return String.format("%s%x,%s%x,%s%x,%s%x", x < 0 ? "-" : "", Math.abs(x),
-        y < 0 ? "-" : "", Math.abs(y),
-        width < 0 ? "-" : "", Math.abs(width),
-        height < 0 ? "-" : "", Math.abs(height));
-  }
-  
-  @Override
-  public void readFromString(String s) {
-    String[] parts = s.split(",");
-    this.x = Long.parseLong(parts[0], 16);
-    this.y = Long.parseLong(parts[1], 16);
-    this.width = Long.parseLong(parts[2], 16);
-    this.height = Long.parseLong(parts[3], 16);
+  public Text toText(Text text) {
+    TextSerializerHelper.serializeLong(x, text, ',');
+    TextSerializerHelper.serializeLong(y, text, ',');
+    TextSerializerHelper.serializeLong(width, text, ',');
+    TextSerializerHelper.serializeLong(height, text, '\0');
+    return text;
   }
   
   @Override
   public void fromText(Text text) {
-    byte[] buf = text.getBytes();
-    int comma = 0;
-    while (buf[comma] != ',')
-      comma++;
-    x = TextSerializerHelper.deserializeLong(buf, 0, comma);
-    int begin = ++comma;
-    while (buf[comma] != ',')
-      comma++;
-    y = TextSerializerHelper.deserializeLong(buf, begin, comma - begin);
-    begin = ++comma;
-    while (buf[comma] != ',')
-      comma++;
-    width = TextSerializerHelper.deserializeLong(buf, begin, comma - begin);
-    begin = ++comma;
-    height = TextSerializerHelper.deserializeLong(buf, begin,
-        text.getLength() - begin);
+    x = TextSerializerHelper.consumeLong(text, ',');
+    y = TextSerializerHelper.consumeLong(text, ',');
+    width = TextSerializerHelper.consumeLong(text, ',');
+    height = TextSerializerHelper.consumeLong(text, '\0');
   }
 
   @Override
   public String toString() {
     return "Rectangle: ("+x+","+y+")-("+getX2()+","+getY2()+") "+width+"x"+height;
-  }
-
-  @Override
-  public void toText(Text text) {
-    TextSerializerHelper.serializeLong(x, text, ',');
-    TextSerializerHelper.serializeLong(y, text, ',');
-    TextSerializerHelper.serializeLong(width, text, ',');
-    TextSerializerHelper.serializeLong(height, text, '\0');
   }
 
 }

@@ -37,6 +37,7 @@ import org.apache.hadoop.io.DataInputBuffer;
 import org.apache.hadoop.io.DataOutputBuffer;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.SequenceFile;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.WritableComparable;
 import org.apache.hadoop.ipc.RPC;
@@ -228,7 +229,7 @@ public class FsShell extends Configured implements Tool {
     GridInfo gridInfo = null;
     if (gridstr != null) {
       gridInfo = new GridInfo();
-      gridInfo.readFromString(gridstr);
+      gridInfo.fromText(new Text(gridstr));
     }
     Path srcPath = new Path(srcstr);
     Path dstPath = new Path(dststr);
