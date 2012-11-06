@@ -5,6 +5,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.TextSerializerHelper;
 import org.apache.hadoop.io.WritableComparable;
 
 
@@ -90,5 +91,17 @@ public class CellInfo extends Rectangle implements WritableComparable<CellInfo> 
   @Override
   public int compareTo(CellInfo c) {
     return (int) (this.cellId - c.cellId);
+  }
+  
+  @Override
+  public Text toText(Text text) {
+    TextSerializerHelper.serializeLong(cellId, text, ',');
+    return super.toText(text);
+  }
+  
+  @Override
+  public void fromText(Text text) {
+    this.cellId = TextSerializerHelper.consumeLong(text, ',');
+    super.fromText(text);
   }
 }
