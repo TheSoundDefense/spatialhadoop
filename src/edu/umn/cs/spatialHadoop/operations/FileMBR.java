@@ -17,6 +17,7 @@ import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.Rectangle;
+import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.CommandLineArguments;
@@ -93,7 +94,7 @@ public class FileMBR {
     job.setCombinerClass(Reduce.class);
     
     job.setInputFormat(ShapeInputFormat.class);
-    job.set(ShapeRecordReader.SHAPE_CLASS, TigerShape.class.getName());
+    job.set(SpatialSite.SHAPE_CLASS, TigerShape.class.getName());
     job.setOutputFormat(STextOutputFormat.class);
     
     ShapeInputFormat.setInputPaths(job, file);
@@ -112,7 +113,7 @@ public class FileMBR {
         if (lineReader.readLine(text) > 0) {
           String str = text.toString();
           String[] parts = str.split("\t");
-          mbr.readFromString(parts[1]);
+          mbr.fromText(new Text(parts[1]));
         }
         lineReader.close();
       }

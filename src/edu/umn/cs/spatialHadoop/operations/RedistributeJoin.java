@@ -9,6 +9,7 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobClient;
@@ -22,6 +23,7 @@ import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Shape;
+import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.CommandLineArguments;
@@ -34,7 +36,6 @@ import edu.umn.cs.spatialHadoop.mapReduce.PairShape;
 import edu.umn.cs.spatialHadoop.mapReduce.PairWritable;
 import edu.umn.cs.spatialHadoop.mapReduce.PairWritableComparable;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeRecordReader;
-import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
 
 /**
  * Performs a spatial join between two or more files using the redistribute-join
@@ -45,31 +46,38 @@ import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
 public class RedistributeJoin {
   private static final Log LOG = LogFactory.getLog(RedistributeJoin.class);
 
-  /**The map function for the redistribute join*/
-  public static class Map extends MapReduceBase
-  implements Mapper<PairWritableComparable<CellInfo>, PairWritable<RTree<Shape>>, PairWritableComparable<CellInfo>, PairWritable<? extends Shape>> {
-    @Override
+  public static class RedistributeJoinMap extends MapReduceBase
+  implements Mapper<PairWritableComparable<CellInfo>, PairWritable<? extends Writable>, PairWritableComparable<CellInfo>, PairWritable<? extends Shape>> 
+  {
     public void map(
         final PairWritableComparable<CellInfo> key,
-        final PairWritable<RTree<Shape>> value,
+        final PairWritable<? extends Writable> value,
         final OutputCollector<PairWritableComparable<CellInfo>, PairWritable<? extends Shape>> output,
         Reporter reporter) throws IOException {
       final PairWritable<Shape> output_value = new PairWritable<Shape>();
-      LOG.info("Joining RTree in "+value.first.getMBR()+
-          " with an RTree in "+value.second.getMBR());
-      int result_size = RTree.spatialJoin(value.first, value.second,
-          new RTree.ResultCollector2<Shape, Shape>() {
-        @Override
-        public void add(Shape x, Shape y) {
-          output_value.first = x;
-          output_value.second = y;
-          try {
-            output.collect(key, output_value);
-          } catch (IOException e) {
-            e.printStackTrace();
+      int result_size;
+      
+      if (value.first instanceof RTree) {
+        @SuppressWarnings("unchecked")
+        RTree<Shape> r1 = (RTree<Shape>) value.first;
+        @SuppressWarnings("unchecked")
+        RTree<Shape> r2 = (RTree<Shape>) value.second;
+        result_size = RTree.spatialJoin(r1, r2,
+            new RTree.ResultCollector2<Shape, Shape>() {
+          @Override
+          public void add(Shape x, Shape y) {
+            output_value.first = x;
+            output_value.second = y;
+            try {
+              output.collect(key, output_value);
+            } catch (IOException e) {
+              e.printStackTrace();
+            }
           }
-        }
-      });
+        });
+      } else {
+        throw new RuntimeException("Cannot handle spatial join with values of type: "+value.first.getClass());
+      }
       LOG.info("Found: "+result_size+" pairs");
     }
   }
@@ -131,13 +139,13 @@ public class RedistributeJoin {
     outFs.deleteOnExit(outputPath);
     
     job.setJobName("RedistributeJoin");
-    job.setMapperClass(Map.class);
+    job.setMapperClass(RedistributeJoinMap.class);
     job.setMapOutputKeyClass(PairWritableComparable.class);
     job.setMapOutputValueClass(PairWritable.class);
     job.setNumReduceTasks(0); // No reduce needed for this task
 
     job.setInputFormat(DJInputFormat.class);
-    job.set(ShapeRecordReader.SHAPE_CLASS, TigerShape.class.getName());
+    job.set(SpatialSite.SHAPE_CLASS, TigerShape.class.getName());
     job.setOutputFormat(TextOutputFormat.class);
     
     String commaSeparatedFiles = "";
@@ -168,8 +176,8 @@ public class RedistributeJoin {
           if (lineReader.readLine(text) > 0) {
             String str = text.toString();
             String[] parts = str.split("\t", 2);
-            cells.readFromString(parts[0]);
-            shapes.readFromString(parts[1]);
+            cells.fromText(new Text(parts[0]));
+            shapes.fromText(new Text(parts[1]));
             output.collect(cells, shapes);
           }
           lineReader.close();

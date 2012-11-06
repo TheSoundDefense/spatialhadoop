@@ -5,12 +5,14 @@ import java.io.IOException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordWriter;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Shape;
+import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.Progressable;
 
 
@@ -43,7 +45,7 @@ public class GridOutputFormat<S extends Shape> extends FileOutputFormat<CellInfo
   
   private S createStockShape(Configuration job) {
     S stockShape = null;
-    String shapeClassName = job.get(ShapeRecordReader.SHAPE_CLASS, Point.class.getName());
+    String shapeClassName = job.get(SpatialSite.SHAPE_CLASS, Point.class.getName());
     try {
       Class<? extends Shape> shapeClass =
           Class.forName(shapeClassName).asSubclass(Shape.class);
@@ -63,7 +65,9 @@ public class GridOutputFormat<S extends Shape> extends FileOutputFormat<CellInfo
     for (CellInfo cellInfo : cellsInfo) {
       if (encodedCellsInfo.length() > 0)
         encodedCellsInfo += ";";
-      encodedCellsInfo += cellInfo.writeToString();
+      Text text = new Text();
+      cellInfo.toText(text);
+      encodedCellsInfo += text.toString();
     }
     return encodedCellsInfo;
   }

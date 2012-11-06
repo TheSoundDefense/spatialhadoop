@@ -11,6 +11,7 @@ import org.apache.hadoop.mapred.RecordWriter;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Shape;
+import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.Progressable;
 
 
@@ -41,7 +42,7 @@ public class RTreeGridOutputFormat<S extends Shape> extends FileOutputFormat<Cel
   
   private S createStockShape(Configuration job) {
     S stockShape = null;
-    String shapeClassName = job.get(ShapeRecordReader.SHAPE_CLASS, Point.class.getName());
+    String shapeClassName = job.get(SpatialSite.SHAPE_CLASS, Point.class.getName());
     try {
       Class<? extends Shape> shapeClass =
           Class.forName(shapeClassName).asSubclass(Shape.class);

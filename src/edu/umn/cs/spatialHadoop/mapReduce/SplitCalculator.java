@@ -8,13 +8,13 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Rectangle;
-import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.StringUtils;
 
 import edu.umn.cs.FileRange;
@@ -83,7 +83,7 @@ public class SplitCalculator {
 		// Find query range. We assume there is only one query range for the job
 
 		Rectangle queryRange = new Rectangle();
-		queryRange.readFromString(conf.get(QUERY_RANGE));
+		queryRange.fromText(new Text(conf.get(QUERY_RANGE)));
 		LOG.info("Restricting blocks according to the range: "+queryRange);
 
 		Vector<FileRange> ranges = new Vector<FileRange>();

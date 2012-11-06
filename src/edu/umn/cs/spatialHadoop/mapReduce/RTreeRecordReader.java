@@ -20,6 +20,7 @@ import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.RTreeGridRecordWriter;
 import org.apache.hadoop.spatial.Shape;
+import org.apache.hadoop.spatial.SpatialSite;
 
 import edu.umn.cs.spatialHadoop.TigerShape;
 
@@ -50,7 +51,7 @@ public class RTreeRecordReader<S extends Shape>  implements RecordReader<CellInf
 
   public RTreeRecordReader(Configuration job, FileSplit split)
       throws IOException {
-    ShapeClassName = job.get(ShapeRecordReader.SHAPE_CLASS, TigerShape.class.getName());
+    ShapeClassName = job.get(SpatialSite.SHAPE_CLASS, TigerShape.class.getName());
     
     start = split.getStart();
     end = start + split.getLength();
@@ -83,7 +84,7 @@ public class RTreeRecordReader<S extends Shape>  implements RecordReader<CellInf
       return false;
     LOG.info("Looking for an RTree at Pos: " + fileIn.getPos());
     long marker = fileIn.readLong();
-    if (marker != RTreeGridRecordWriter.RTreeFileMarker) {
+    if (marker != SpatialSite.RTreeFileMarker) {
       LOG.info("No more RTrees stored in file");
       return false;
     }

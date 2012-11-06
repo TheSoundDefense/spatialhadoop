@@ -39,7 +39,6 @@ import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridOutputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridRecordWriter;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeInputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeInputFormat;
-import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
 
 /**
  * Repartitions a file according to a different grid through a MapReduce job
@@ -182,7 +181,7 @@ public class Repartition {
     } else {
       final int RTreeDegree = conf.getInt(SpatialSite.RTREE_DEGREE, 11);
       Class<? extends Shape> recordClass =
-          conf.getClass(ShapeRecordReader.SHAPE_CLASS, TigerShape.class).
+          conf.getClass(SpatialSite.SHAPE_CLASS, TigerShape.class).
           asSubclass(Shape.class);
       int record_size = 0;
       try {
@@ -202,7 +201,7 @@ public class Repartition {
       
       final FSDataInputStream in = inFs.open(file);
       int blockCount;
-      if (in.readLong() == RTreeGridRecordWriter.RTreeFileMarker) {
+      if (in.readLong() == SpatialSite.RTreeFileMarker) {
         blockCount = (int) Math.ceil((double)inFs.getFileStatus(file).getLen() /
             inFs.getFileStatus(file).getBlockSize());
       } else {
@@ -323,7 +322,7 @@ public class Repartition {
     // And also which input format to use
     FileSystem inFs = inFile.getFileSystem(job);
     FSDataInputStream in = inFs.open(inFile);
-    if (in.readLong() == RTreeGridRecordWriter.RTreeFileMarker) {
+    if (in.readLong() == SpatialSite.RTreeFileMarker) {
       // RTree indexed file
       LOG.info("Searching an RTree indexed file");
       job.setMapperClass(Map2.class);
@@ -345,7 +344,7 @@ public class Repartition {
     job.setNumReduceTasks(Math.max(1, clusterStatus.getMaxReduceTasks()));
   
     // Set default parameters for reading input file
-    job.set(ShapeRecordReader.SHAPE_CLASS, TigerShape.class.getName());
+    job.set(SpatialSite.SHAPE_CLASS, TigerShape.class.getName());
   
     FileOutputFormat.setOutputPath(job,outPath);
     job.setOutputFormat(rtree ? RTreeGridOutputFormat.class : GridOutputFormat.class);

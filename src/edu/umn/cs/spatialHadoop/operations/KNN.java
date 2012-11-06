@@ -82,16 +82,15 @@ public class KNN {
     }
     
     @Override
-    public String writeToString() {
-      return String.format("%s%x,%s", this.k < 0 ? "-" : "", Math.abs(k),
-          super.writeToString());
+    public Text toText(Text text) {
+      TextSerializerHelper.serializeLong(k, text, ',');
+      return super.toText(text);
     }
     
     @Override
-    public void readFromString(String s) {
-      String[] parts = s.split(",", 2);
-      this.k = Integer.parseInt(parts[0], 16);
-      super.readFromString(parts[1]);
+    public void fromText(Text text) {
+      k = (int) TextSerializerHelper.consumeLong(text, ',');
+      super.fromText(text);
     }
   }
   
@@ -119,9 +118,9 @@ public class KNN {
     }
 
     @Override
-    public void toText(Text text) {
+    public Text toText(Text text) {
       TextSerializerHelper.serializeLong(distance, text, ';');
-      shape.toText(text);
+      return shape.toText(text);
     }
 
     @Override
@@ -133,19 +132,6 @@ public class KNN {
       distance = TextSerializerHelper.deserializeLong(buf, 0, separator++);
       text.set(buf, separator, text.getLength() - separator);
       shape.fromText(text);
-    }
-
-    @Override
-    public String writeToString() {
-      Text text = new Text();
-      toText(text);
-      return text.toString();
-    }
-
-    @Override
-    public void readFromString(String s) {
-      Text text = new Text(s);
-      this.fromText(text);
     }
 
     @Override
@@ -169,7 +155,7 @@ public class KNN {
     public void configure(JobConf job) {
       super.configure(job);
       queryPoint = new PointWithK();
-      queryPoint.readFromString(job.get(QUERY_POINT));
+      queryPoint.fromText(new Text(job.get(QUERY_POINT)));
     }
     
     @Override
@@ -200,7 +186,7 @@ public class KNN {
     public void configure(JobConf job) {
       super.configure(job);
       queryPoint = new PointWithK();
-      queryPoint.readFromString(job.get(QUERY_POINT));
+      queryPoint.fromText(new Text(job.get(QUERY_POINT)));
     }
 
     public void map(LongWritable id, S shape,
@@ -230,7 +216,7 @@ public class KNN {
     public void configure(JobConf job) {
       super.configure(job);
       queryPoint = new PointWithK();
-      queryPoint.readFromString(job.get(QUERY_POINT));
+      queryPoint.fromText(new Text(job.get(QUERY_POINT)));
     }
 
     @Override
@@ -298,7 +284,9 @@ public class KNN {
     job.setMapperClass(KNNMap.class);
     job.setMapOutputKeyClass(ByteWritable.class);
     job.setMapOutputValueClass(ShapeWithDistance.class);
-    job.set(QUERY_POINT, queryPoint.writeToString());
+    Text text = new Text();
+    queryPoint.toText(text);
+    job.set(QUERY_POINT, text.toString());
     job.setClass(SpatialSite.FilterClass, KNNFilter.class, BlockFilter.class);
     
     job.setReducerClass(KNNReduce.class);
@@ -306,7 +294,7 @@ public class KNN {
     job.setNumReduceTasks(1);
     
     job.setInputFormat(ShapeInputFormat.class);
-    job.set(ShapeRecordReader.SHAPE_CLASS, TigerShape.class.getName());
+    job.set(SpatialSite.SHAPE_CLASS, TigerShape.class.getName());
     String query_point_distance = queryPoint.x+","+queryPoint.y+","+0;
     job.set(SplitCalculator.QUERY_POINT_DISTANCE, query_point_distance);
     job.setOutputFormat(TextOutputFormat.class);
@@ -328,11 +316,11 @@ public class KNN {
           ShapeWithDistance<S> shapeWithDistance = new ShapeWithDistance<S>();
           shapeWithDistance.shape = shape;
           LineReader lineReader = new LineReader(outFs.open(fileStatus.getPath()));
-          Text text = new Text();
+          text.clear();
           if (lineReader.readLine(text) > 0) {
             String str = text.toString();
             String[] parts = str.split("\t", 2);
-            shapeWithDistance.readFromString(parts[1]);
+            shapeWithDistance.fromText(new Text(parts[1]));
             output.collect(null, shapeWithDistance);
           }
           lineReader.close();

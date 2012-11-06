@@ -59,9 +59,9 @@ public class TigerShape extends Rectangle {
   }
 
   @Override
-  public void toText(Text text) {
+  public Text toText(Text text) {
     TextSerializerHelper.serializeLong(id, text, ';');
-    super.toText(text);
+    return super.toText(text);
   }
   
   @Override
@@ -74,17 +74,4 @@ public class TigerShape extends Rectangle {
     text.set(buf, separator, text.getLength() - separator);
     super.fromText(text);
   }
-
-  @Override
-  public String writeToString() {
-    return String.format("%s%x;%s", id < 0 ? "-" : "", Math.abs(id), super.writeToString());
-  }
-  
-  @Override
-  public void readFromString(String s) {
-    String[] parts = s.split(";", 2);
-    this.id = Long.parseLong(parts[0], 16);
-    super.readFromString(parts[1]);
-  }
-
 }

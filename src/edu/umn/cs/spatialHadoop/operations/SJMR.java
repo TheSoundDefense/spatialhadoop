@@ -36,6 +36,7 @@ import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.SpatialAlgorithms;
+import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.CommandLineArguments;
@@ -284,7 +285,7 @@ public class SJMR {
     job.setNumReduceTasks(Math.max(1, clusterStatus.getMaxReduceTasks()));
 
     job.setInputFormat(SJMRInputFormat.class);
-    job.set(ShapeRecordReader.SHAPE_CLASS, TigerShape.class.getName());
+    job.set(SpatialSite.SHAPE_CLASS, TigerShape.class.getName());
     job.setOutputFormat(TextOutputFormat.class);
     
     String commaSeparatedFiles = "";
@@ -330,8 +331,8 @@ public class SJMR {
           if (lineReader.readLine(text) > 0) {
             String str = text.toString();
             String[] parts = str.split("\t", 2);
-            cells.readFromString(parts[0]);
-            shapes.readFromString(parts[1]);
+            cells.fromText(new Text(parts[0]));
+            shapes.fromText(new Text(parts[1]));
             output.collect(cells, shapes);
           }
           lineReader.close();

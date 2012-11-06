@@ -18,10 +18,10 @@ public class PairShape<T extends Shape> extends PairWritable<T>
   }
 
   @Override
-  public void toText(Text text) {
+  public Text toText(Text text) {
     first.toText(text);
     text.append(SeparatorBytes, 0, SeparatorBytes.length);
-    second.toText(text);
+    return second.toText(text);
   }
 
   @Override
@@ -30,17 +30,4 @@ public class PairShape<T extends Shape> extends PairWritable<T>
     first.fromText(new Text(parts[0]));
     second.fromText(new Text(parts[1]));
   }
-
-  @Override
-  public String writeToString() {
-    Text text = new Text();
-    toText(text);
-    return text.toString();
-  }
-
-  @Override
-  public void readFromString(String s) {
-    fromText(new Text(s));
-  }
-  
 }

@@ -3,6 +3,7 @@ package edu.umn.cs;
 import java.util.Vector;
 
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Rectangle;
@@ -19,7 +20,7 @@ public class CommandLineArguments {
     for (String arg : args) {
       if (arg.startsWith("rect:") || arg.startsWith("rectangle:")) {
         rect = new Rectangle();
-        rect.readFromString(arg.substring(arg.indexOf(':')+1));
+        rect.fromText(new Text(arg.substring(arg.indexOf(':')+1)));
       }
     }
     return rect;
@@ -48,7 +49,7 @@ public class CommandLineArguments {
     for (String arg : args) {
       if (arg.startsWith("grid:")) {
         grid = new GridInfo();
-        grid.readFromString(arg.substring(arg.indexOf(':')+1));
+        grid.fromText(new Text(arg.substring(arg.indexOf(':')+1)));
       }
     }
     return grid;
@@ -59,7 +60,7 @@ public class CommandLineArguments {
     for (String arg : args) {
       if (arg.startsWith("point:")) {
         point = new Point();
-        point.readFromString(arg.substring(arg.indexOf(':')+1));
+        point.fromText(new Text(arg.substring(arg.indexOf(':')+1)));
       }
     }
     return point;

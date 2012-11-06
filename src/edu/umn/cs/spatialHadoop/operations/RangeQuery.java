@@ -31,7 +31,6 @@ import edu.umn.cs.CommandLineArguments;
 import edu.umn.cs.spatialHadoop.TigerShape;
 import edu.umn.cs.spatialHadoop.mapReduce.BlockFilter;
 import edu.umn.cs.spatialHadoop.mapReduce.DefaultBlockFilter;
-import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridRecordWriter;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeInputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeInputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
@@ -66,7 +65,7 @@ public class RangeQuery {
         Class<? extends Shape> queryShapeClass =
             Class.forName(queryShapeClassName).asSubclass(Shape.class);
         queryShape = queryShapeClass.newInstance();
-        queryShape.readFromString(job.get(QUERY_SHAPE));
+        queryShape.fromText(new Text(job.get(QUERY_SHAPE)));
       } catch (ClassNotFoundException e) {
         e.printStackTrace();
       } catch (InstantiationException e) {
@@ -100,7 +99,7 @@ public class RangeQuery {
         Class<? extends Shape> queryShapeClass =
             Class.forName(queryShapeClassName).asSubclass(Shape.class);
         queryShape = queryShapeClass.newInstance();
-        queryShape.readFromString(job.get(QUERY_SHAPE));
+        queryShape.fromText(new Text(job.get(QUERY_SHAPE)));
       } catch (ClassNotFoundException e) {
         e.printStackTrace();
       } catch (InstantiationException e) {
@@ -180,17 +179,19 @@ public class RangeQuery {
     
     job.setJobName("RangeQuery");
     job.set(QUERY_SHAPE_CLASS, queryShape.getClass().getName());
-    job.set(QUERY_SHAPE, queryShape.writeToString());
+    Text text = new Text();
+    queryShape.toText(text);
+    job.set(QUERY_SHAPE, text.toString());
     job.setNumReduceTasks(0);
     job.setClass(SpatialSite.FilterClass, RangeFilter.class, BlockFilter.class);
 
     job.setMapOutputKeyClass(ByteWritable.class);
     job.setMapOutputValueClass(shape.getClass());
-    job.set(SplitCalculator.QUERY_RANGE, queryShape.getMBR().writeToString());
+    job.set(SplitCalculator.QUERY_RANGE, queryShape.getMBR().toText(new Text()).toString());
     // Decide which map function to use depending on how blocks are indexed
     // And also which input format to use
     FSDataInputStream in = fs.open(file);
-    if (in.readLong() == RTreeGridRecordWriter.RTreeFileMarker) {
+    if (in.readLong() == SpatialSite.RTreeFileMarker) {
       // RTree indexed file
       LOG.info("Searching an RTree indexed file");
       job.setMapperClass(Map2.class);
@@ -201,7 +202,7 @@ public class RangeQuery {
       job.setMapperClass(Map1.class);
       job.setInputFormat(ShapeInputFormat.class);
     }
-    job.set(ShapeRecordReader.SHAPE_CLASS, TigerShape.class.getName());
+    job.set(SpatialSite.SHAPE_CLASS, TigerShape.class.getName());
     in.close();
     
     job.setOutputFormat(TextOutputFormat.class);
@@ -221,11 +222,11 @@ public class RangeQuery {
         if (output != null) {
           // Report every single result
           LineReader lineReader = new LineReader(outFs.open(fileStatus.getPath()));
-          Text text = new Text();
+          text.clear();
           if (lineReader.readLine(text) > 0) {
             String str = text.toString();
             String[] parts = str.split("\t", 2);
-            shape.readFromString(parts[1]);
+            shape.fromText(new Text(parts[1]));
             output.collect(null, shape);
           }
           lineReader.close();

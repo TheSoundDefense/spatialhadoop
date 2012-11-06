@@ -13,10 +13,10 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Shape;
+import org.apache.hadoop.spatial.SpatialSite;
 
 import edu.umn.cs.CommandLineArguments;
 import edu.umn.cs.spatialHadoop.TigerShape;
-import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridRecordWriter;
 
 /**
  * Reads a random sample of a file.
@@ -119,7 +119,7 @@ public class Sampler {
             (offsets[record_i] % current_file_block_size);
         // Seek to this block and check its type
         current_file_in.seek(current_block_start_offset);
-        if (current_file_in.readLong() == RTreeGridRecordWriter.RTreeFileMarker) {
+        if (current_file_in.readLong() == SpatialSite.RTreeFileMarker) {
           // This block is an RTree block
           RTree<T> rtree = new RTree<T>();
           rtree.setStockObject(stockObject);
