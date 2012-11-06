@@ -5,10 +5,7 @@ import java.io.InputStream;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.LongWritable;
-import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.FileSplit;
-import org.apache.hadoop.mapred.LineRecordReader;
-import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.SpatialSite;
@@ -18,60 +15,32 @@ import org.apache.hadoop.spatial.SpatialSite;
  * @author eldawy
  *
  */
-public class ShapeRecordReader<S extends Shape> 
-    implements RecordReader<LongWritable, S>{
+public class ShapeRecordReader<S extends Shape>
+    extends SpatialRecordReader<LongWritable, S> {
 
-  /**A stock shape to use for deserialization (value)*/
+  /**Object used for deserialization*/
   private S stockShape;
-  
-  /**An underlying reader to read lines of the text file*/
-  private RecordReader<LongWritable, Text> lineRecordReader;
-  
-  /**The value used with lineRecordReader*/
-  private Text subValue;
 
   public ShapeRecordReader(Configuration job, FileSplit split)
       throws IOException {
-    lineRecordReader = new LineRecordReader(job, split);
-    subValue = lineRecordReader.createValue();
+    super(job, split);
     stockShape = createStockShape(job);
   }
 
-  public ShapeRecordReader(InputStream in, long offset, long endOffset) {
-    lineRecordReader = new LineRecordReader(in, offset, endOffset, 8192);
-    subValue = lineRecordReader.createValue();
+  public ShapeRecordReader(InputStream in, long offset, long endOffset)
+      throws IOException {
+    super(in, offset, endOffset);
   }
 
   @Override
   public boolean next(LongWritable key, S shape) throws IOException {
-    if (!lineRecordReader.next(key, subValue) || subValue.getLength() == 0) {
-      // Stop on wrapped reader EOF or an empty line which indicates EOF too
-      return false;
-    }
-    // Convert to a regular string to be able to use split
-    shape.fromText(subValue);
-
-    return true;
-  }
-
-  @Override
-  public void close() throws IOException {
-    lineRecordReader.close();
-  }
-  
-  @Override
-  public long getPos() throws IOException {
-    return lineRecordReader.getPos();
-  }
-
-  @Override
-  public float getProgress() throws IOException {
-    return lineRecordReader.getProgress();
+    key.set(getPos());
+    return nextShape(shape);
   }
 
   @Override
   public LongWritable createKey() {
-    return lineRecordReader.createKey();
+    return new LongWritable();
   }
 
   @Override

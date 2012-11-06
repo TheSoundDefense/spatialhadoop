@@ -9,10 +9,10 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.ArrayWritable;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.Point;
-import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.SpatialSite;
 
@@ -22,11 +22,11 @@ import org.apache.hadoop.spatial.SpatialSite;
  * @author eldawy
  *
  */
-public class RTreeRecordReader<S extends Shape> extends SpatialRecordReader<CellInfo, RTree<S>> {
-  public static final Log LOG = LogFactory.getLog(RTreeRecordReader.class);
+public class ShapeArrayRecordReader extends SpatialRecordReader<CellInfo, ArrayWritable> {
+  public static final Log LOG = LogFactory.getLog(ShapeArrayRecordReader.class);
   
   /**Shape used to deserialize shapes from disk*/
-  private S stockShape;
+  private Class<? extends Shape> shapeClass;
   
   /**File system from where the file is read*/
   private FileSystem fs;
@@ -34,28 +34,28 @@ public class RTreeRecordReader<S extends Shape> extends SpatialRecordReader<Cell
   /**Path of the file read*/
   private Path path;
   
-  public RTreeRecordReader(Configuration job, FileSplit split)
+  public ShapeArrayRecordReader(Configuration job, FileSplit split)
       throws IOException {
     super(job, split);
     path = split.getPath();
     fs = path.getFileSystem(job);
-    stockShape = createStockShape(job);
+    shapeClass = getShapeClass(job);
   }
 
-  public RTreeRecordReader(InputStream is, long offset, long endOffset)
+  public ShapeArrayRecordReader(InputStream is, long offset, long endOffset)
       throws IOException {
     super(is, offset, endOffset);
   }
 
   @Override
-  public boolean next(CellInfo key, RTree<S> rtree) throws IOException {
+  public boolean next(CellInfo key, ArrayWritable shapes) throws IOException {
     // Get cellInfo for the current position in file
     BlockLocation[] fileBlockLocations =
         fs.getFileBlockLocations(fs.getFileStatus(path), getPos(), 1);
     if (fileBlockLocations.length == 0)
       return false;
     key.set(fileBlockLocations[0].getCellInfo());
-    return nextRTree(rtree);
+    return nextShapes(shapes);
   }
 
   @Override
@@ -64,27 +64,20 @@ public class RTreeRecordReader<S extends Shape> extends SpatialRecordReader<Cell
   }
 
   @Override
-  public RTree<S> createValue() {
-    RTree<S> rtree = new RTree<S>();
-    rtree.setStockObject(stockShape);
-    return rtree;
+  public ArrayWritable createValue() {
+    return new ArrayWritable(shapeClass);
   }
   
-  private S createStockShape(Configuration job) {
-    S stockShape = null;
+  private Class<? extends Shape> getShapeClass(Configuration job) {
     String shapeClassName =
         job.get(SpatialSite.SHAPE_CLASS, Point.class.getName());
     try {
       Class<? extends Shape> shapeClass =
           Class.forName(shapeClassName).asSubclass(Shape.class);
-      stockShape = (S) shapeClass.newInstance();
+      return shapeClass;
     } catch (ClassNotFoundException e) {
       e.printStackTrace();
-    } catch (InstantiationException e) {
-      e.printStackTrace();
-    } catch (IllegalAccessException e) {
-      e.printStackTrace();
     }
-    return stockShape;
+    return null;
   }
 }

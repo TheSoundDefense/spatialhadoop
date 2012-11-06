@@ -8,6 +8,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.ArrayWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapred.FileSplit;
@@ -23,6 +24,7 @@ import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Shape;
+import org.apache.hadoop.spatial.SpatialAlgorithms;
 import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.LineReader;
 
@@ -36,6 +38,7 @@ import edu.umn.cs.spatialHadoop.mapReduce.PairShape;
 import edu.umn.cs.spatialHadoop.mapReduce.PairWritable;
 import edu.umn.cs.spatialHadoop.mapReduce.PairWritableComparable;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeRecordReader;
+import edu.umn.cs.spatialHadoop.mapReduce.ShapeArrayRecordReader;
 
 /**
  * Performs a spatial join between two or more files using the redistribute-join
@@ -75,8 +78,25 @@ public class RedistributeJoin {
             }
           }
         });
+      //} else if (value.first instanceof ArrayWritable){
+        // Join two arrays
       } else {
-        throw new RuntimeException("Cannot handle spatial join with values of type: "+value.first.getClass());
+        ArrayWritable ar1 = (ArrayWritable) value.first;
+        ArrayWritable ar2 = (ArrayWritable) value.second;
+        result_size = SpatialAlgorithms.SpatialJoin_planeSweep(
+            (Shape[])ar1.get(), (Shape[])ar2.get(),
+            new SpatialAlgorithms.ResultCollector2<Shape, Shape>() {
+          @Override
+          public void add(Shape x, Shape y) {
+            output_value.first = x;
+            output_value.second = y;
+            try {
+              output.collect(key, output_value);
+            } catch (IOException e) {
+              e.printStackTrace();
+            }
+          }
+        });
       }
       LOG.info("Found: "+result_size+" pairs");
     }
@@ -87,8 +107,8 @@ public class RedistributeJoin {
    * @author eldawy
    *
    */
-  public static class DJRecordReader<S extends Shape> extends PairRecordReader<CellInfo, RTree<S>> {
-    public DJRecordReader(Configuration conf, PairOfFileSplits fileSplits) throws IOException {
+  public static class DJRecordReaderTree<S extends Shape> extends PairRecordReader<CellInfo, RTree<S>> {
+    public DJRecordReaderTree(Configuration conf, PairOfFileSplits fileSplits) throws IOException {
       this.conf = conf;
       this.splits = fileSplits;
       this.internalReaders = new Pair<RecordReader<CellInfo,RTree<S>>>();
@@ -109,11 +129,46 @@ public class RedistributeJoin {
    * @author eldawy
    *
    */
-  public static class DJInputFormat<S extends Shape> extends PairInputFormat<CellInfo, RTree<S>> {
+  public static class DJInputFormatTree<S extends Shape> extends PairInputFormat<CellInfo, RTree<S>> {
     @Override
     public RecordReader<PairWritableComparable<CellInfo>, PairWritable<RTree<S>>> getRecordReader(
         InputSplit split, JobConf job, Reporter reporter) throws IOException {
-      return new DJRecordReader<S>(job, (PairOfFileSplits)split);
+      return new DJRecordReaderTree<S>(job, (PairOfFileSplits)split);
+    }
+  }
+
+  /**
+   * Reads a pair of arrays of shapes
+   * @author eldawy
+   *
+   */
+  public static class DJRecordReaderArray extends PairRecordReader<CellInfo, ArrayWritable> {
+    public DJRecordReaderArray(Configuration conf, PairOfFileSplits fileSplits) throws IOException {
+      this.conf = conf;
+      this.splits = fileSplits;
+      this.internalReaders = new Pair<RecordReader<CellInfo,ArrayWritable>>();
+      this.internalReaders.first = createRecordReader(this.conf, this.splits.first);
+      this.internalReaders.second = createRecordReader(this.conf, this.splits.second);
+    }
+    
+    @Override
+    protected RecordReader<CellInfo, ArrayWritable> createRecordReader(
+        Configuration conf, FileSplit split) throws IOException {
+      return new ShapeArrayRecordReader(conf, split);
+    }
+  }
+
+  /**
+   * Input format that returns a record reader that reads a pair of arrays of
+   * shapes
+   * @author eldawy
+   *
+   */
+  public static class DJInputFormatArray extends PairInputFormat<CellInfo, ArrayWritable> {
+    @Override
+    public RecordReader<PairWritableComparable<CellInfo>, PairWritable<ArrayWritable>> getRecordReader(
+        InputSplit split, JobConf job, Reporter reporter) throws IOException {
+      return new DJRecordReaderArray(job, (PairOfFileSplits)split);
     }
   }
 
@@ -144,7 +199,7 @@ public class RedistributeJoin {
     job.setMapOutputValueClass(PairWritable.class);
     job.setNumReduceTasks(0); // No reduce needed for this task
 
-    job.setInputFormat(DJInputFormat.class);
+    job.setInputFormat(DJInputFormatArray.class);
     job.set(SpatialSite.SHAPE_CLASS, TigerShape.class.getName());
     job.setOutputFormat(TextOutputFormat.class);
     
@@ -154,7 +209,7 @@ public class RedistributeJoin {
         commaSeparatedFiles += ',';
       commaSeparatedFiles += files[i].toUri().toString();
     }
-    DJInputFormat.addInputPaths(job, commaSeparatedFiles);
+    DJInputFormatArray.addInputPaths(job, commaSeparatedFiles);
     TextOutputFormat.setOutputPath(job, outputPath);
     
     JobClient.runJob(job);
