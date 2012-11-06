@@ -117,8 +117,10 @@ public class GridInfo implements Writable, TextSerializable {
     yOrigin = TextSerializerHelper.consumeLong(text, ',');
     gridWidth = TextSerializerHelper.consumeLong(text, ',');
     gridHeight = TextSerializerHelper.consumeLong(text, ',');
-    columns = (int) TextSerializerHelper.consumeLong(text, ',');
-    rows = (int) TextSerializerHelper.consumeLong(text, '\0');
+    if (text.getLength() > 0) {
+      columns = (int) TextSerializerHelper.consumeLong(text, ',');
+      rows = (int) TextSerializerHelper.consumeLong(text, '\0');
+    }
   }
 
   public Rectangle getMBR() {

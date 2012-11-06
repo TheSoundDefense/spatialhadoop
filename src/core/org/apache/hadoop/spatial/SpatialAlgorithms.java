@@ -1,13 +1,19 @@
 package org.apache.hadoop.spatial;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Random;
 import java.util.TreeSet;
+import java.util.Vector;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.util.IndexedSortable;
+import org.apache.hadoop.util.IndexedSorter;
+import org.apache.hadoop.util.QuickSort;
 
 
 /**
@@ -70,8 +76,17 @@ public class SpatialAlgorithms {
     void add(T1 x, T2 y);
   }
 
-  public static<S1 extends Shape, S2 extends Shape> int SpatialJoin_planeSweep(List<S1> R,
-      List<S2> S, ResultCollector2<S1, S2> output)
+  /**
+   * This method is deprectated. Use the array version.
+   * @param R
+   * @param S
+   * @param output
+   * @return
+   * @throws IOException
+   */
+  @Deprecated
+  public static<S1 extends Shape, S2 extends Shape> int SpatialJoin_planeSweep(
+      List<S1> R, List<S2> S, ResultCollector2<S1, S2> output)
       throws IOException {
     int count = 0;
 
@@ -124,4 +139,58 @@ public class SpatialAlgorithms {
     LOG.info("Finished plane sweep and found "+count+" pairs");
     return count;
 	}
+
+  public static<S1 extends Shape, S2 extends Shape> int SpatialJoin_planeSweep(
+      final S1[] R, final S2[] S, ResultCollector2<S1, S2> output) {
+    int count = 0;
+
+    final Comparator<Shape> comparator = new Comparator<Shape>() {
+      @Override
+      public int compare(Shape o1, Shape o2) {
+        return (int) (o1.getMBR().getX1() - o2.getMBR().getX1());
+      }
+    };
+    
+    LOG.info("Joining "+ R.length+" with "+S.length);
+    Arrays.sort(R, comparator);
+    Arrays.sort(S, comparator);
+
+    int i = 0, j = 0;
+
+    while (i < R.length && j < S.length) {
+      S1 r;
+      S2 s;
+      if (comparator.compare(R[i], S[j]) < 0) {
+        r = R[i];
+        int jj = j;
+
+        while ((jj < S.length)
+            && ((s = S[jj]).getMBR().getX1() <= r.getMBR().getX2())) {
+          if (r.isIntersected(s)) {
+            if (output != null)
+              output.add(r, s);
+            count++;
+          }
+          jj++;
+        }
+        i++;
+      } else {
+        s = S[j];
+        int ii = i;
+
+        while ((ii < R.length)
+            && ((r = R[ii]).getMBR().getX1() <= s.getMBR().getX2())) {
+          if (r.isIntersected(s)) {
+            if (output != null)
+              output.add(r, s);
+            count++;
+          }
+          ii++;
+        }
+        j++;
+      }
+    }
+    LOG.info("Finished plane sweep and found "+count+" pairs");
+    return count;
+  }
 }

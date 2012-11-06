@@ -39,6 +39,11 @@ public class Rectangle implements Shape {
     this.set(x, y, width, height);
   }
   
+  public void set(Shape s) {
+    Rectangle mbr = s.getMBR();
+    set(mbr.x, mbr.y, mbr.width, mbr.height);
+  }
+  
   public void set(long x, long y, long width, long height) {
     this.x = x;
     this.y = y;

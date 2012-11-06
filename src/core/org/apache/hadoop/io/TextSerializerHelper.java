@@ -88,7 +88,7 @@ public final class TextSerializerHelper {
     while (i < text.getLength() && bytes[i] != separator)
       i++;
     long l = deserializeLong(bytes, 0, i);
-    if (separator != 0)
+    if (separator != 0 && i < text.getLength())
       i++;
     System.arraycopy(bytes, i, bytes, 0, text.getLength() - i);
     text.set(bytes, 0, text.getLength() - i);
