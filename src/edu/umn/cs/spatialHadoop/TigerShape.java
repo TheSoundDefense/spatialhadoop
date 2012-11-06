@@ -60,18 +60,13 @@ public class TigerShape extends Rectangle {
 
   @Override
   public Text toText(Text text) {
-    TextSerializerHelper.serializeLong(id, text, ';');
+    TextSerializerHelper.serializeLong(id, text, ',');
     return super.toText(text);
   }
   
   @Override
   public void fromText(Text text) {
-    byte[] buf = text.getBytes();
-    int separator = 0;
-    while (buf[separator] != ';')
-      separator++;
-    id = TextSerializerHelper.deserializeLong(buf, 0, separator++);
-    text.set(buf, separator, text.getLength() - separator);
+    this.id = TextSerializerHelper.consumeLong(text, ',');
     super.fromText(text);
   }
 }

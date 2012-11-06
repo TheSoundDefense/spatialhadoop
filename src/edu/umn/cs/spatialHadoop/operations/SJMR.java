@@ -116,7 +116,6 @@ public class SJMR {
     public void configure(JobConf job) {
       String cellsInfoStr = job.get(GridOutputFormat.OUTPUT_CELLS);
       cellInfos = GridOutputFormat.decodeCells(cellsInfoStr);
-      LOG.info(Arrays.asList(cellInfos));
       super.configure(job);
     }
 

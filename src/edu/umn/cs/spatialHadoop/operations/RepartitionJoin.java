@@ -65,8 +65,6 @@ public class RepartitionJoin {
       }
     }
     
-    LOG.info("Cells of the larger file ("+larger_file+"): "+cells);
-    
     // Repartition the smaller file
     Path partitioned_file;
     FileSystem outFs = smaller_file.getFileSystem(new Configuration());
@@ -77,7 +75,7 @@ public class RepartitionJoin {
     Repartition.repartitionMapReduce(smaller_file,
         partitioned_file, cells.toArray(new CellInfo[cells.size()]), false, false, true);
     t2 = System.currentTimeMillis();
-    LOG.info("Repartition time "+(t2-t1)+" millis");
+    System.out.println("Repartition time "+(t2-t1)+" millis");
     
     if (!outFs.exists(partitioned_file)) {
       // This happens when the two files are disjoint
@@ -90,7 +88,7 @@ public class RepartitionJoin {
         new Path[] {larger_file, partitioned_file}, output);
     outFs.delete(partitioned_file, true);
     t2 = System.currentTimeMillis();
-    LOG.info("Join time "+(t2-t1)+" millis");
+    System.out.println("Join time "+(t2-t1)+" millis");
     return result_size;
   }
   
