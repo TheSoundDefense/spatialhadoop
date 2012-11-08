@@ -90,7 +90,8 @@ public abstract class PairInputFormat<K extends WritableComparable, V extends Wr
       public void add(TigerShape r, TigerShape s) {
         // Generate a combined file split for each pair of splits
         // Check that this pair was not taken before
-        String thisPair = r.id+","+r.id;
+        String thisPair = r.id+","+s.id;
+        LOG.info("Pair: "+thisPair);
         if (!takenPairs.contains(thisPair)) {
           takenPairs.add(thisPair);
           // Each rectangle here represents a file split.
@@ -125,6 +126,8 @@ public abstract class PairInputFormat<K extends WritableComparable, V extends Wr
         }
       }
     }
+    
+    LOG.info("Combined splits: "+combinedSplits.size());
 
     return combinedSplits.toArray(new InputSplit[combinedSplits.size()]);
   }

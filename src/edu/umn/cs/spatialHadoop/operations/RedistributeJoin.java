@@ -78,9 +78,8 @@ public class RedistributeJoin {
             }
           }
         });
-      //} else if (value.first instanceof ArrayWritable){
+      } else if (value.first instanceof ArrayWritable){
         // Join two arrays
-      } else {
         ArrayWritable ar1 = (ArrayWritable) value.first;
         ArrayWritable ar2 = (ArrayWritable) value.second;
         result_size = SpatialAlgorithms.SpatialJoin_planeSweep(
@@ -97,6 +96,9 @@ public class RedistributeJoin {
             }
           }
         });
+      } else {
+        throw new RuntimeException("Cannot join the values of type "+
+            value.first.getClass());
       }
       LOG.info("Found: "+result_size+" pairs");
     }
@@ -130,6 +132,15 @@ public class RedistributeJoin {
    *
    */
   public static class DJInputFormatTree<S extends Shape> extends PairInputFormat<CellInfo, RTree<S>> {
+    
+    @Override
+    public InputSplit[] getSplits(JobConf job, int numSplits)
+        throws IOException {
+      InputSplit[] splits = super.getSplits(job, numSplits);
+      System.out.println("Number of map tasks "+splits.length);
+      return splits;
+    }
+    
     @Override
     public RecordReader<PairWritableComparable<CellInfo>, PairWritable<RTree<S>>> getRecordReader(
         InputSplit split, JobConf job, Reporter reporter) throws IOException {
@@ -165,6 +176,15 @@ public class RedistributeJoin {
    *
    */
   public static class DJInputFormatArray extends PairInputFormat<CellInfo, ArrayWritable> {
+    
+    @Override
+    public InputSplit[] getSplits(JobConf job, int numSplits)
+        throws IOException {
+      InputSplit[] splits = super.getSplits(job, numSplits);
+      System.out.println("Number of map tasks "+splits.length);
+      return splits;
+    }
+    
     @Override
     public RecordReader<PairWritableComparable<CellInfo>, PairWritable<ArrayWritable>> getRecordReader(
         InputSplit split, JobConf job, Reporter reporter) throws IOException {
