@@ -13,6 +13,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.ByteWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapred.ClusterStatus;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.MapReduceBase;
@@ -182,6 +183,9 @@ public class RangeQuery {
     Text text = new Text();
     queryShape.toText(text);
     job.set(QUERY_SHAPE, text.toString());
+    ClusterStatus clusterStatus = new JobClient(job).getClusterStatus();
+    job.setNumMapTasks(clusterStatus.getMaxMapTasks() * 5);
+    job.setBoolean(SpatialSite.AutoCombineSplits, false);
     job.setNumReduceTasks(0);
     job.setClass(SpatialSite.FilterClass, RangeFilter.class, BlockFilter.class);
 

@@ -320,27 +320,17 @@ public class Repartition {
     
     // Decide which map function to use depending on how blocks are indexed
     // And also which input format to use
-    FileSystem inFs = inFile.getFileSystem(job);
-    FSDataInputStream in = inFs.open(inFile);
-    if (in.readLong() == SpatialSite.RTreeFileMarker) {
-      // RTree indexed file
-      LOG.info("Searching an RTree indexed file");
-      job.setMapperClass(Map2.class);
-      job.setInputFormat(RTreeInputFormat.class);
-    } else {
-      // A file with no local index
-      LOG.info("Searching a non local-indexed file");
-      job.setMapperClass(Map1.class);
-      job.setInputFormat(ShapeInputFormat.class);
-    }
-    in.close();
+    job.setMapperClass(Map1.class);
+    job.setInputFormat(ShapeInputFormat.class);
     ShapeInputFormat.setInputPaths(job, inFile);
 
+    ClusterStatus clusterStatus = new JobClient(job).getClusterStatus();
     job.setMapOutputKeyClass(IntWritable.class);
     job.setMapOutputValueClass(TigerShape.class);
+    job.setBoolean(SpatialSite.AutoCombineSplits, true);
+    job.setNumMapTasks(10 * Math.max(1, clusterStatus.getMaxMapTasks()));
   
     job.setReducerClass(Reduce.class);
-    ClusterStatus clusterStatus = new JobClient(job).getClusterStatus();
     job.setNumReduceTasks(Math.max(1, clusterStatus.getMaxReduceTasks()));
   
     // Set default parameters for reading input file

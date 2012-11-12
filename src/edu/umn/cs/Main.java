@@ -6,6 +6,8 @@ import java.util.Vector;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.SpatialAlgorithms;
 
+import edu.umn.cs.spatialHadoop.TigerShape;
+
 public class Main {
 
   /**
@@ -15,17 +17,17 @@ public class Main {
     long t1, t2;
     
     t1 = System.currentTimeMillis();
-    Vector<Rectangle> R = new Vector<Rectangle>();
-    Vector<Rectangle> S = new Vector<Rectangle>();
+    Vector<TigerShape> R = new Vector<TigerShape>();
+    Vector<TigerShape> S = new Vector<TigerShape>();
     for (int i = 0; i < 65536; i++) {
-      Rectangle r = new Rectangle();
+      TigerShape r = new TigerShape();
       r.x = (long) (Math.random() * 100000);
       r.y = (long) (Math.random() * 100000);
       r.width = (long) (Math.random() * 100);
       r.height = (long) (Math.random() * 100);
       R.add(r);
 
-      Rectangle x = new Rectangle();
+      TigerShape x = new TigerShape();
       x.x = (long) (Math.random() * 100000);
       x.y = (long) (Math.random() * 100000);
       x.width = (long) (Math.random() * 100);

@@ -6,6 +6,8 @@ import java.io.InputStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapred.FileSplit;
+import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.mapred.lib.CombineFileSplit;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.SpatialSite;
@@ -27,6 +29,12 @@ public class ShapeRecordReader<S extends Shape>
     stockShape = createStockShape(job);
   }
 
+  public ShapeRecordReader(CombineFileSplit split, Configuration conf,
+      Reporter reporter, Integer index) throws IOException {
+    super(split, conf, reporter, index);
+    stockShape = createStockShape(conf);
+  }
+  
   public ShapeRecordReader(InputStream in, long offset, long endOffset)
       throws IOException {
     super(in, offset, endOffset);

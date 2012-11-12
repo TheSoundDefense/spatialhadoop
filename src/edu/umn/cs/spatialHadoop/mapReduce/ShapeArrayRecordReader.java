@@ -11,6 +11,8 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.ArrayWritable;
 import org.apache.hadoop.mapred.FileSplit;
+import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.mapred.lib.CombineFileSplit;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Shape;
@@ -33,6 +35,14 @@ public class ShapeArrayRecordReader extends SpatialRecordReader<CellInfo, ArrayW
   
   /**Path of the file read*/
   private Path path;
+  
+  public ShapeArrayRecordReader(CombineFileSplit split, Configuration conf,
+      Reporter reporter, Integer index) throws IOException {
+    super(split, conf, reporter, index);
+    path = split.getPath(index);
+    fs = path.getFileSystem(conf);
+    shapeClass = getShapeClass(conf);
+  }
   
   public ShapeArrayRecordReader(Configuration job, FileSplit split)
       throws IOException {

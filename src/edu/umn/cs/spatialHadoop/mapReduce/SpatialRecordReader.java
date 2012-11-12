@@ -18,6 +18,8 @@ import org.apache.hadoop.io.compress.CompressionCodec;
 import org.apache.hadoop.io.compress.CompressionCodecFactory;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.RecordReader;
+import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.mapred.lib.CombineFileSplit;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.SpatialSite;
@@ -54,18 +56,27 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
   /**Block size for the read file. Used with RTrees*/
   protected long blockSize;
 
+  public SpatialRecordReader(CombineFileSplit split, Configuration conf,
+      Reporter reporter, Integer index) throws IOException {
+    this(conf, split.getStartOffsets()[index], split.getLength(index),
+        split.getPath(index));
+  }
+  
   public SpatialRecordReader(Configuration job, FileSplit split) throws IOException {
+    this(job, split.getStart(), split.getLength(), split.getPath());
+  }
+
+  public SpatialRecordReader(Configuration job, long s, long l, Path p) throws IOException {
     this.maxLineLength = job.getInt("mapred.linerecordreader.maxlength",
         Integer.MAX_VALUE);
-    start = split.getStart();
-    end = start + split.getLength();
-    final Path file = split.getPath();
+    start = s;
+    end = start + l;
     compressionCodecs = new CompressionCodecFactory(job);
-    final CompressionCodec codec = compressionCodecs.getCodec(file);
+    final CompressionCodec codec = compressionCodecs.getCodec(p);
 
     // open the file and seek to the start of the split
-    FileSystem fs = file.getFileSystem(job);
-    in = fs.open(split.getPath());
+    FileSystem fs = p.getFileSystem(job);
+    in = fs.open(p);
     signature = new byte[8];
 
     InputStream is = in;
@@ -81,7 +92,7 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
     isRTree = Arrays.equals(signature, SpatialSite.RTreeFileMarkerB);
     if (isRTree) {
       // Block size is crucial for reading RTrees
-      blockSize = fs.getFileStatus(split.getPath()).getBlockSize();
+      blockSize = fs.getFileStatus(p).getBlockSize();
       LOG.info("RTree block size "+blockSize);
       // File is an RTree
       if (!(is instanceof FSDataInputStream)) {

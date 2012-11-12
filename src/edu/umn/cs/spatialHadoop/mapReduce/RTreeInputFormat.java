@@ -1,7 +1,6 @@
 package edu.umn.cs.spatialHadoop.mapReduce;
 import java.io.IOException;
 
-import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
@@ -20,9 +19,9 @@ public class RTreeInputFormat<S extends Shape> extends SpatialInputFormat<CellIn
 	@Override
 	public RecordReader<CellInfo, RTree<S>> getRecordReader(InputSplit split,
 	    JobConf job, Reporter reporter) throws IOException {
-	  // Create record reader
-	  reporter.setStatus(split.toString());
-		return new RTreeRecordReader<S>(job, (FileSplit)split);
+    reporter.setStatus(split.toString());
+    this.rrClass = (Class<? extends RecordReader<CellInfo, RTree<S>>>) RTreeRecordReader.class;
+    return super.getRecordReader(split, job, reporter);
 	}
 
 }

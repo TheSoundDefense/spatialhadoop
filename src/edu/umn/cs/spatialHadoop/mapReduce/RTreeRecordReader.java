@@ -10,6 +10,8 @@ import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.FileSplit;
+import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.mapred.lib.CombineFileSplit;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.RTree;
@@ -33,6 +35,14 @@ public class RTreeRecordReader<S extends Shape> extends SpatialRecordReader<Cell
   
   /**Path of the file read*/
   private Path path;
+  
+  public RTreeRecordReader(CombineFileSplit split, Configuration conf,
+      Reporter reporter, Integer index) throws IOException {
+    super(split, conf, reporter, index);
+    path = split.getPath(index);
+    fs = path.getFileSystem(conf);
+    stockShape = createStockShape(conf);
+  }
   
   public RTreeRecordReader(Configuration job, FileSplit split)
       throws IOException {

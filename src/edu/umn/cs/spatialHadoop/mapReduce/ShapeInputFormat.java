@@ -19,12 +19,12 @@ import org.apache.hadoop.spatial.Shape;
  * @param <S>
  */
 public class ShapeInputFormat<S extends Shape> extends SpatialInputFormat<LongWritable, S> {
-
+  
   @Override
   public RecordReader<LongWritable, S> getRecordReader(InputSplit split,
       JobConf job, Reporter reporter) throws IOException {
-    // Create record reader
     reporter.setStatus(split.toString());
-    return new ShapeRecordReader<S>(job, (FileSplit)split);
+    this.rrClass = (Class<? extends RecordReader<LongWritable, S>>) ShapeRecordReader.class;
+    return super.getRecordReader(split, job, reporter);
   }
 }
