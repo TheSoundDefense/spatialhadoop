@@ -34,6 +34,10 @@ public class SpatialSite {
   public static final String SHAPE_CLASS =
       "edu.umn.cs.spatialHadoop.ShapeRecordReader.ShapeClass.default";
   
+  /**Whether or not to combine splits automatically to reduce map tasks*/
+  public static final String AutoCombineSplits =
+      "spatialHadoop.mapreduce.autoCombineSplits";
+  
   /**
    * A marker put in the beginning of each block to indicate that this block
    * is stored as an RTree. It might be better to store this in the BlockInfo
