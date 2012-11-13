@@ -29,7 +29,6 @@ import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.SpatialSite;
-import org.apache.hadoop.spatial.WriteGridFile;
 
 import edu.umn.cs.CommandLineArguments;
 import edu.umn.cs.Estimator;
@@ -37,7 +36,6 @@ import edu.umn.cs.spatialHadoop.TigerShape;
 import edu.umn.cs.spatialHadoop.mapReduce.GridOutputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridOutputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridRecordWriter;
-import edu.umn.cs.spatialHadoop.mapReduce.RTreeInputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeInputFormat;
 
 /**
@@ -47,10 +45,6 @@ import edu.umn.cs.spatialHadoop.mapReduce.ShapeInputFormat;
  */
 public class Repartition {
   static final Log LOG = LogFactory.getLog(Repartition.class);
-  
-  /**Configuration line name for replication overhead*/
-  public static final String REPLICATION_OVERHEAD =
-      "spatialHadoop.storage.ReplicationOverHead";
   
   static {
     Configuration.addDefaultResource("spatial-default.xml");
@@ -62,7 +56,8 @@ public class Repartition {
    * @author eldawy
    *
    */
-  public static class RepartitionMap<T extends Shape> extends MapReduceBase {
+  public static class RepartitionMap<T extends Shape> extends MapReduceBase
+      implements Mapper<LongWritable, T, IntWritable, T> {
     /**List of cells used by the mapper*/
     private CellInfo[] cellInfos;
     
@@ -97,31 +92,7 @@ public class Repartition {
         }
       }
     }
-  
-    /**
-     * Spatial map function
-     * @param cell
-     * @param shapes
-     * @param output
-     * @param reporter
-     * @throws IOException
-     */
-    public void map(CellInfo cell, RTree<T> shapes,
-        OutputCollector<IntWritable, T> output, Reporter reporter)
-            throws IOException {
-      for (T shape : shapes) {
-        map(null, shape, output, reporter);
-      }
-    }
   }
-  
-  /** Mapper for non-indexed blocks */
-  public static class Map1<T extends Shape> extends RepartitionMap<T> implements
-      Mapper<LongWritable, T, IntWritable, T> { }
-
-  /** Mapper for RTree indexed blocks */
-  public static class Map2<T extends Shape> extends RepartitionMap<T> implements
-      Mapper<CellInfo, RTree<T>, IntWritable, T> { }
   
   /**
    * The reducer writes records to the cell they belong to. It also  finializes
@@ -172,8 +143,8 @@ public class Repartition {
       FileSystem outFs,
       boolean rtree) throws IOException {
     Configuration conf = inFs.getConf();
-    final float ReplicationOverhead = conf.getFloat(REPLICATION_OVERHEAD,
-        0.002f);
+    final float ReplicationOverhead =
+        conf.getFloat(SpatialSite.REPLICATION_OVERHEAD, 0.002f);
     final long fileSize = inFs.getFileStatus(file).getLen();
     if (!rtree) {
       long indexedFileSize = (long) (fileSize * (1 + ReplicationOverhead));
@@ -279,8 +250,10 @@ public class Repartition {
     
     FileSystem inFs = inFile.getFileSystem(new Configuration());
     FileSystem outFs = outPath.getFileSystem(new Configuration());
-    if (gridInfo == null)
-      gridInfo = WriteGridFile.getGridInfo(inFs, inFile, outFs, new TigerShape());
+    if (gridInfo == null) {
+      Rectangle mbr = FileMBR.fileMBRLocal(inFs, inFile);
+      gridInfo = new GridInfo(mbr.x, mbr.y, mbr.width, mbr.height);
+    }
     if (gridInfo.columns == 0 || rtree) {
       // Recalculate grid dimensions
       int num_cells = calculateNumberOfPartitions(inFs, inFile, outFs, rtree);
@@ -320,7 +293,7 @@ public class Repartition {
     
     // Decide which map function to use depending on how blocks are indexed
     // And also which input format to use
-    job.setMapperClass(Map1.class);
+    job.setMapperClass(RepartitionMap.class);
     job.setInputFormat(ShapeInputFormat.class);
     ShapeInputFormat.setInputPaths(job, inFile);
 
