@@ -11,6 +11,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.ArrayWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
+import org.apache.hadoop.mapred.ClusterStatus;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobClient;
@@ -214,9 +215,12 @@ public class RedistributeJoin {
     outFs.deleteOnExit(outputPath);
     
     job.setJobName("RedistributeJoin");
+    ClusterStatus clusterStatus = new JobClient(job).getClusterStatus();
     job.setMapperClass(RedistributeJoinMap.class);
     job.setMapOutputKeyClass(PairWritableComparable.class);
     job.setMapOutputValueClass(PairWritable.class);
+    job.setBoolean(SpatialSite.AutoCombineSplits, true);
+    job.setNumMapTasks(10 * Math.max(1, clusterStatus.getMaxMapTasks()));
     job.setNumReduceTasks(0); // No reduce needed for this task
 
     job.setInputFormat(DJInputFormatArray.class);
