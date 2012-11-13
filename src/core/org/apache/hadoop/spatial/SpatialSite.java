@@ -38,6 +38,10 @@ public class SpatialSite {
   public static final String AutoCombineSplits =
       "spatialHadoop.mapreduce.autoCombineSplits";
   
+  /**Configuration line name for replication overhead*/
+  public static final String REPLICATION_OVERHEAD =
+      "spatialHadoop.storage.ReplicationOverHead";
+  
   /**
    * A marker put in the beginning of each block to indicate that this block
    * is stored as an RTree. It might be better to store this in the BlockInfo
