@@ -273,13 +273,16 @@ public class SJMR {
     } while (outFs.exists(outputPath));
     outFs.deleteOnExit(outputPath);
     
+    ClusterStatus clusterStatus = new JobClient(job).getClusterStatus();
     job.setJobName("SJMR");
     job.setMapperClass(SJMRMap.class);
     job.setMapOutputKeyClass(IntWritable.class);
     job.setMapOutputValueClass(IndexedShape.class);
+    job.setBoolean(SpatialSite.AutoCombineSplits, false);
+    job.setNumMapTasks(10 * Math.max(1, clusterStatus.getMaxMapTasks()));
+
 
     job.setReducerClass(SJMRReduce.class);
-    ClusterStatus clusterStatus = new JobClient(job).getClusterStatus();
     job.setNumReduceTasks(Math.max(1, clusterStatus.getMaxReduceTasks()));
 
     job.setInputFormat(SJMRInputFormat.class);
