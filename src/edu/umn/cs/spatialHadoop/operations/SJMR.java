@@ -3,7 +3,6 @@ package edu.umn.cs.spatialHadoop.operations;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Vector;
@@ -300,7 +299,7 @@ public class SJMR {
     for (Path file : files) {
       total_size += fs.getFileStatus(file).getLen();
     }
-    total_size += total_size * job.getFloat(Repartition.REPLICATION_OVERHEAD,
+    total_size += total_size * job.getFloat(SpatialSite.REPLICATION_OVERHEAD,
         0.002f);
     int num_cells = (int) (total_size / outFs.getDefaultBlockSize());
     gridInfo.calculateCellDimensions(num_cells);

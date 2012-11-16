@@ -28,15 +28,18 @@ import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.Shape;
+import org.apache.hadoop.spatial.ShapeRecordWriter;
 import org.apache.hadoop.spatial.SpatialSite;
 
 import edu.umn.cs.CommandLineArguments;
 import edu.umn.cs.Estimator;
 import edu.umn.cs.spatialHadoop.TigerShape;
 import edu.umn.cs.spatialHadoop.mapReduce.GridOutputFormat;
+import edu.umn.cs.spatialHadoop.mapReduce.GridRecordWriter;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridOutputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridRecordWriter;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeInputFormat;
+import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
 
 /**
  * Repartitions a file according to a different grid through a MapReduce job
@@ -45,11 +48,6 @@ import edu.umn.cs.spatialHadoop.mapReduce.ShapeInputFormat;
  */
 public class Repartition {
   static final Log LOG = LogFactory.getLog(Repartition.class);
-  
-  static {
-    Configuration.addDefaultResource("spatial-default.xml");
-    Configuration.addDefaultResource("spatial-site.xml");
-  }
   
   /**
    * The map class maps each object to all cells it overlaps with.
@@ -374,6 +372,74 @@ public class Repartition {
     return cellsInfo;
   }
 
+  
+  public static<S extends Shape> void repartitionLocal(Path inFile, Path outPath,
+      GridInfo gridInfo, S stockShape, boolean pack, boolean rtree, boolean overwrite)
+          throws IOException {
+    
+    FileSystem inFs = inFile.getFileSystem(new Configuration());
+    FileSystem outFs = outPath.getFileSystem(new Configuration());
+    if (gridInfo == null) {
+      Rectangle mbr = FileMBR.fileMBRLocal(inFs, inFile);
+      gridInfo = new GridInfo(mbr.x, mbr.y, mbr.width, mbr.height);
+    }
+    if (gridInfo.columns == 0 || rtree) {
+      // Recalculate grid dimensions
+      int num_cells = calculateNumberOfPartitions(inFs, inFile, outFs, rtree);
+      gridInfo.calculateCellDimensions(num_cells);
+    }
+    CellInfo[] cellInfos = pack ?
+        packInRectangles(inFs, inFile, outFs, gridInfo) :
+        gridInfo.getAllCells();
+        
+    repartitionLocal(inFile, outPath, cellInfos, stockShape, pack, rtree, overwrite);
+  }
+
+  /**
+   * Repartitions a file on local machine without MapReduce jobs.
+   * @param inFs
+   * @param in
+   * @param outFs
+   * @param out
+   * @param cells
+   * @param stockShape
+   * @param pack
+   * @param rtree
+   * @param overwrite
+   * @throws IOException 
+   */
+  public static<S extends Shape> void repartitionLocal(Path in, Path out,
+      CellInfo[] cells, S stockShape, boolean pack, boolean rtree,
+      boolean overwrite) throws IOException {
+    FileSystem inFs = in.getFileSystem(new Configuration());
+    FileSystem outFs = out.getFileSystem(new Configuration());
+    // Overwrite output file
+    if (outFs.exists(out)) {
+      if (overwrite)
+        outFs.delete(out, true);
+      else
+        throw new RuntimeException("Output file '" + out
+            + "' already exists and overwrite flag is not set");
+    }
+    
+    ShapeRecordWriter<S> writer;
+    if (rtree) {
+      writer = new RTreeGridRecordWriter<S>(outFs, out, cells, overwrite);
+    } else {
+      writer = new GridRecordWriter<S>(outFs, out, cells, overwrite);
+    }
+    
+    long length = inFs.getFileStatus(in).getLen();
+    FSDataInputStream datain = inFs.open(in);
+    ShapeRecordReader<S> reader = new ShapeRecordReader<S>(datain, 0, length);
+    LongWritable k = reader.createKey();
+    
+    while (reader.next(k, stockShape)) {
+      writer.write(k, stockShape);
+    }
+    writer.close();
+  }
+
   /**
 	 * Entry point to the file.
 	 * ... grid:<gridInfo> [-pack] [-rtree] <input filenames> <output filename>
@@ -393,7 +459,13 @@ public class Repartition {
     boolean rtree = cla.isRtree();
     boolean pack = cla.isPack();
     boolean overwrite = cla.isOverwrite();
+    boolean local = cla.isLocal();
     
-    repartitionMapReduce(inputPath, outputPath, gridInfo, pack, rtree, overwrite);
+    if (local)
+      repartitionLocal(inputPath, outputPath, gridInfo, new TigerShape(), pack,
+          rtree, overwrite);
+    else
+      repartitionMapReduce(inputPath, outputPath, gridInfo, pack, rtree,
+          overwrite);
 	}
 }

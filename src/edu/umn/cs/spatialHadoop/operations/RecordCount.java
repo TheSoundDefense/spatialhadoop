@@ -207,7 +207,18 @@ public class RecordCount {
     JobConf conf = new JobConf(RecordCount.class);
     Path inputFile = cla.getPath();
     FileSystem fs = inputFile.getFileSystem(conf);
-    long lineCount = recordCountMapReduce(fs, inputFile);
+    boolean local = cla.isLocal();
+    boolean random = cla.isRandom();
+    long lineCount;
+    if (local) {
+      if (random) {
+        lineCount = recordCountApprox(fs, inputFile);
+      } else {
+        lineCount = recordCountLocal(fs, inputFile);
+      }
+    } else {
+      lineCount = recordCountMapReduce(fs, inputFile);
+    }
     System.out.println("Count of records in "+inputFile+" is "+lineCount);
   }
 

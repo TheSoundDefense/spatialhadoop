@@ -105,6 +105,10 @@ public class CommandLineArguments {
     return is("random");
   }
   
+  public boolean isLocal() {
+    return is("local");
+  }
+  
   protected boolean is(String flag) {
     String expected_arg = "-"+flag;
     for (String arg : args) {

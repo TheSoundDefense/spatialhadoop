@@ -21,7 +21,6 @@ import org.apache.hadoop.spatial.SpatialSite;
 
 import edu.umn.cs.spatialHadoop.TigerShape;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridRecordWriter;
-import edu.umn.cs.spatialHadoop.operations.Repartition;
 
 public class RandomSpatialGenerator {
   static byte[] NEW_LINE;
@@ -59,7 +58,7 @@ public class RandomSpatialGenerator {
     GridInfo gridInfo = new GridInfo(mbr.x, mbr.y, mbr.width, mbr.height);
     Configuration conf = outFS.getConf();
     final double ReplicationOverhead =
-        conf.getFloat(Repartition.REPLICATION_OVERHEAD, 0.002f);
+        conf.getFloat(SpatialSite.REPLICATION_OVERHEAD, 0.002f);
     // Serialize one shape and see how many characters it takes
     final TigerShape randomShape = new TigerShape();
     randomShape.id = Long.MAX_VALUE / 2;

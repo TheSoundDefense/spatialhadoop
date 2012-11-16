@@ -90,6 +90,7 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
 
     is.read(signature);
     isRTree = Arrays.equals(signature, SpatialSite.RTreeFileMarkerB);
+    LOG.info("isRTree: "+isRTree+" at position "+start);
     if (isRTree) {
       // Block size is crucial for reading RTrees
       blockSize = fs.getFileStatus(p).getBlockSize();
@@ -138,6 +139,7 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
     signature = new byte[8];
     is.read(signature);
     isRTree = Arrays.equals(signature, SpatialSite.RTreeFileMarkerB);
+    LOG.info("isRTree: "+isRTree+" at "+start);
     
     if (isRTree) {
       blockSize = FileSystem.get(new Configuration()).getDefaultBlockSize();
@@ -245,11 +247,15 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
     if (isRTree) {
       if (elementCountInRTree == 0) {
         // Read next RTree
-        // Check if there are more trees in file
-        if (getPos() >= end)
-          return false;
-        // Check RTree signature
         if (signature == null) {
+          // Check if there are more trees in file
+          if (elementCountInRTree == 0) {
+            if (pos >= end)
+              return false;
+            // Skip the rest of this block as only one RTree is stored per block
+            in.seek(pos);
+          }
+
           // Read and skip signature
           if (in.readLong() != SpatialSite.RTreeFileMarker) {
             throw new RuntimeException("RTree not found at: "+getPos());
@@ -265,14 +271,13 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
         s.readFields(in);
         elementCountInRTree--;
         if (elementCountInRTree == 0) {
-          // Skip the rest of this block as only one RTree is stored per block
-          in.seek(in.getPos() + (blockSize - in.getPos() % blockSize)%blockSize);
+          pos = in.getPos() + (blockSize - in.getPos() % blockSize)%blockSize;
+        } else {
+          pos = in.getPos();
         }
-        pos = in.getPos();
       } else {
         throw new RuntimeException();
       }
-      
       return true;
     } else {
       if (!nextLine(tempLine))
@@ -292,10 +297,11 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
     if (isRTree) {
       try {
         // No more RTrees in file
-        if (getPos() >= end)
+        if (pos >= end)
           return false;
         // Check RTree signature
         if (signature == null) {
+          in.seek(pos);
           // Read and skip signature
           if (in.readLong() != SpatialSite.RTreeFileMarker) {
             throw new RuntimeException("RTree not found at "+getPos());
@@ -311,8 +317,7 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
           arshapes[elementCount] = stockObject.clone();
         }
         // Skip the rest of this block as only one RTree is stored per block
-        in.seek(in.getPos() + (blockSize - in.getPos() % blockSize)%blockSize);
-        pos = in.getPos();
+        pos = in.getPos() + (blockSize - in.getPos() % blockSize)%blockSize;
         shapes.set(arshapes);
         return arshapes.length != 0;
       } catch (InstantiationException e) {
@@ -347,9 +352,10 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
    */
   protected boolean nextRTree(RTree<? extends Shape> rtree) throws IOException {
     if (isRTree) {
-      if (getPos() >= end)
+      if (pos >= end)
         return false;
       if (signature == null) {
+        in.seek(pos);
         // Read and skip signature
         if (in.readLong() != SpatialSite.RTreeFileMarker) {
           throw new RuntimeException("RTree not found");
@@ -359,40 +365,44 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
       signature = null;
       rtree.readFields(in);
       // Skip the rest of this block as only one RTree is stored per block
-      in.seek(in.getPos() + (blockSize - in.getPos() % blockSize)%blockSize);
-      pos = in.getPos();
+      pos = in.getPos() + (blockSize - in.getPos() % blockSize)%blockSize;
       return true;
     } else {
       throw new RuntimeException("Not implemented");
     }
   }
   
-  public static class ShapesRecordReader extends SpatialRecordReader<LongWritable, TigerShape> {
+  public static class ShapesRecordReader extends SpatialRecordReader<LongWritable, RTree> {
     ShapesRecordReader() throws IOException {
-      super(FileSystem.getLocal(new Configuration()).open(new Path("file:///media/scratch/test.txt")), 0, 100);
+      super(FileSystem.getLocal(new Configuration()).open(new Path("file:///media/scratch/test.rtree")), 0, 134217728);
     }
     @Override
-    public boolean next(LongWritable key, TigerShape value) throws IOException {
+    public boolean next(LongWritable key, RTree value) throws IOException {
       key.set(getPos());
-      return nextShape(value);
+      return nextRTree(value);
     }
     @Override
     public LongWritable createKey() {
       return new LongWritable();
     }
     @Override
-    public TigerShape createValue() {
-      return new TigerShape();
+    public RTree createValue() {
+      RTree rtree = new RTree();
+      rtree.setStockObject(new TigerShape());
+      return rtree;
     }
   }
   
   public static void main(String[] args) throws IOException {
     ShapesRecordReader r = new ShapesRecordReader();
     LongWritable k = r.createKey();
-    TigerShape v = r.createValue();
+    RTree v = r.createValue();
+    int i = 0;
     while (r.next(k, v)) {
-      System.out.println(k+":"+v);
+      i += v.getElementCount();
+//      System.out.println(k+":"+v);
     }
+    System.out.println("Read "+i+" items");
   }
 
 }
