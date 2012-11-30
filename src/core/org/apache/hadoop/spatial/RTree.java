@@ -36,7 +36,6 @@ import org.apache.hadoop.util.QuickSort;
  */
 public class RTree<T extends Shape> implements Writable, Iterable<T> {
   /**Logger*/
-  @SuppressWarnings("unused")
   private static final Log LOG = LogFactory.getLog(RTree.class);
   
   /**Size of tree header on disk. Height + Degree + Number of records*/
@@ -799,6 +798,84 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
     }
     return resultCount;
   }
+  
+  /**
+   * k nearest neighbor query
+   * Note: Current algorithm is approximate just for simplicity. Writing an exact
+   * algorithm is on our TODO list
+   * @param qx
+   * @param qy
+   * @param k
+   * @param output
+   */
+  public int knn(final long qx, final long qy, int k, final ResultCollector2<T, Long> output) {
+    double query_area = ((double) getMBR().width * getMBR().height) * k / getElementCount();
+    double query_radius = Math.sqrt(query_area / Math.PI);
+
+    boolean result_correct;
+    final Vector<Long> distances = new Vector<Long>();
+    final Vector<T> shapes = new Vector<T>();
+    // Find results in the range and increase this range if needed to ensure
+    // correctness of the answer
+    do {
+      // Initialize result and query range
+      distances.clear(); shapes.clear();
+      Rectangle queryRange = new Rectangle();
+      queryRange.width = (long) (2 * query_radius);
+      queryRange.height = (long) (2 * query_radius);
+      queryRange.x = qx - queryRange.width / 2;
+      queryRange.y = qy - queryRange.height / 2;
+      search(queryRange, new ResultCollector<T>() {
+        @Override
+        public void add(T shape) {
+          distances.add((long) shape.distanceTo(qx, qy));
+          shapes.add(shape);
+        }
+      });
+      if (shapes.size() < k) {
+        if (shapes.size() == getElementCount()) {
+          // Already returned all possible elements
+          result_correct = true;
+        } else {
+          query_radius *= 2;
+          result_correct = false;
+        }
+      } else {
+        IndexedSortable s = new IndexedSortable() {
+          @Override
+          public void swap(int i, int j) {
+            long temp_distance = distances.elementAt(i);
+            distances.set(i, distances.elementAt(j));
+            distances.set(j, temp_distance);
+            
+            T temp_shape = shapes.elementAt(i);
+            shapes.set(i, shapes.elementAt(j));
+            shapes.set(j, temp_shape);
+          }
+          @Override
+          public int compare(int i, int j) {
+            return (int) (distances.elementAt(i) - distances.elementAt(j));
+          }
+        };
+        IndexedSorter sorter = new QuickSort();
+        sorter.sort(s, 0, shapes.size());
+        if (distances.elementAt(k - 1) > query_radius) {
+          result_correct = false;
+          query_radius = distances.elementAt(k);
+        } else {
+          result_correct = true;
+        }
+      }
+    } while (!result_correct);
+    
+    int result_size = Math.min(k,  shapes.size());
+    if (output != null) {
+      for (int i = 0; i < result_size; i++) {
+        output.add(shapes.elementAt(i), distances.elementAt(i));
+      }
+    }
+    return result_size;
+  }
 
   /**
    * Used to collect the results of a spatial join.
@@ -1015,18 +1092,39 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
   public static void main(String[] args) throws IOException {
     long t1, t2;
     Rectangle mbr = new Rectangle(0,0,0x1000000,0x1000000);
-    int size = 1127000;
+    int size = 1500000;
     int degree = 10;
     t1 = System.currentTimeMillis();
     RTree<Rectangle> R = buildRTree(mbr, size, degree);
-    RTree<Rectangle> S = buildRTree(mbr, size, degree);
+    //RTree<Rectangle> S = buildRTree(mbr, size, degree);
     t2 = System.currentTimeMillis();
     System.out.println("Generated rtrees in "+(t2-t1)+" millis");
-    
+/*    
     t1 = System.currentTimeMillis();
     int selection = spatialJoin(R, S, null);
     t2 = System.currentTimeMillis();
     System.out.println("Finished query in "+(t2-t1)+" millis");
     System.out.println("selection "+selection);
+*/   
+    
+/*    
+    // Test range query
+    Rectangle queryRange = new Rectangle();
+    queryRange.x = (long) (Math.random() * mbr.width) + mbr.x;
+    queryRange.y = (long) (Math.random() * mbr.height) + mbr.y;
+    queryRange.width = (long) (mbr.width * 0.001);
+    queryRange.height = (long) (mbr.height * 0.001);
+    t1 = System.currentTimeMillis();
+    R.search(queryRange, null);
+    t2 = System.currentTimeMillis();
+    System.out.println("Finished range query in "+(t2-t1)+" millis");
+*/    
+    long qx = (long) (Math.random() * mbr.width) + mbr.x;
+    long qy = (long) (Math.random() * mbr.height) + mbr.y;
+    int k = 100;
+    t1 = System.currentTimeMillis();
+    int count = R.knn(qx, qy, k, null);
+    t2 = System.currentTimeMillis();
+    System.out.println("Finished KNN with "+count+" results in "+(t2-t1)+" millis");
   }
 }

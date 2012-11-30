@@ -253,7 +253,7 @@ public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> 
       }
       recordWriter.write(cellInfo, null);
     }
-    recordWriter.close();
+    recordWriter.close(null);
     long t2 = System.currentTimeMillis();
     System.out.println("Finished in "+(t2-t1)+" millis");
     //System.out.println("Final size: "+fs.getFileStatus(outFile).getLen());

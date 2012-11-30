@@ -73,7 +73,7 @@ public class WriteGridFile {
     reader.close();
 
     // Close output file
-    rrw.close();
+    rrw.close(null);
   }
   
   /**

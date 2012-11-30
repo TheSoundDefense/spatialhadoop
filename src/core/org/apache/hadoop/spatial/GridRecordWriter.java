@@ -13,6 +13,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.util.Progressable;
 
 public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
   public static final Log LOG = LogFactory.getLog(GridRecordWriter.class);
@@ -204,7 +205,7 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
    * Close the whole writer. Finalize all cell files and concatenate them
    * into the output file.
    */
-  public synchronized void close() throws IOException {
+  public synchronized void close(Progressable progressable) throws IOException {
     final Vector<Path> pathsToConcat = new Vector<Path>();
     final Vector<Thread> closingThreads = new Vector<Thread>();
     
@@ -246,6 +247,9 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
           i++;
         }
       }
+      // Indicate progress
+      if (progressable != null)
+        progressable.progress();
       if (!closingThreads.isEmpty()) {
         try {
           // Sleep for 10 seconds or until the first thread terminates

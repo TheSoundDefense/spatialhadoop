@@ -1,12 +1,12 @@
 package org.apache.hadoop.spatial;
 
-import java.io.Closeable;
 import java.io.IOException;
 
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.util.Progressable;
 
-public interface ShapeRecordWriter<S extends Shape> extends Closeable {
+public interface ShapeRecordWriter<S extends Shape> {
   /**
    * Writes the given shape to the file to all cells it overlaps with
    * @param dummyId
@@ -52,4 +52,11 @@ public interface ShapeRecordWriter<S extends Shape> extends Closeable {
    * @param shape
    */
   public void setStockObject(S shape);
+  
+  /**
+   * Closes this writer
+   * @param reporter
+   * @throws IOException
+   */
+  public void close(Progressable progressable) throws IOException;
 }
