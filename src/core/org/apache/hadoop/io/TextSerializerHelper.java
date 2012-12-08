@@ -94,4 +94,40 @@ public final class TextSerializerHelper {
     text.set(bytes, 0, text.getLength() - i);
     return l;
   }
+  
+  
+  /**
+   * Deserializes and consumes a double from the given text. Consuming means all
+   * characters read for deserialization are removed from the given text.
+   * If separator is non-zero, a double is read and consumed up to the first
+   * occurence of this separator. The separator is also consumed.
+   * @param text
+   * @param separator
+   * @return
+   */
+  public static double consumeDouble(Text text, char separator) {
+    int i = 0;
+    byte[] bytes = text.getBytes();
+    // Skip until the separator or end of text
+    while (i < text.getLength() && bytes[i] != separator)
+      i++;
+    double d = Double.parseDouble(new String(bytes, 0, text.getLength() - i));
+    if (separator != 0 && i < text.getLength())
+      i++;
+    System.arraycopy(bytes, i, bytes, 0, text.getLength() - i);
+    text.set(bytes, 0, text.getLength() - i);
+    return d;
+  }
+  
+  /**
+   * Appends hex representation of the given number to the given string.
+   * If append is set to true, a comma is also appended to the text.
+   * @param i
+   * @param t
+   * @param appendComma
+   */
+  public static void serializeDouble(double d, Text t, char toAppend) {
+    byte[] bytes = Double.toString(d).getBytes();
+    t.append(bytes, 0, bytes.length);
+  }
 }
