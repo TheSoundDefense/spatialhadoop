@@ -19,6 +19,6 @@ public class RTreeGridRecordWriter<S extends Shape>
 
   @Override
   public void close(Reporter reporter) throws IOException {
-    super.close();
+    super.close(reporter);
   }
 }

@@ -437,7 +437,7 @@ public class Repartition {
     while (reader.next(k, stockShape)) {
       writer.write(k, stockShape);
     }
-    writer.close();
+    writer.close(null);
   }
 
   /**

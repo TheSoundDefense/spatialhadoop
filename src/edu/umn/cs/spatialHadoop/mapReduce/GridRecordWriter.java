@@ -18,6 +18,6 @@ extends org.apache.hadoop.spatial.GridRecordWriter<S> implements RecordWriter<Ce
 
   @Override
   public void close(Reporter reporter) throws IOException {
-    super.close();
+    super.close(reporter);
   }
 }

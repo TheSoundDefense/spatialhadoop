@@ -137,7 +137,7 @@ public class RandomSpatialGenerator {
       generatedSize += text.getLength() + NEW_LINE.length;
     }
     long t2 = System.currentTimeMillis();
-    recordWriter.close();
+    recordWriter.close(null);
     long t3 = System.currentTimeMillis();
     System.out.println("Core time: "+(t2-t1)+" millis");
     System.out.println("Close time: "+(t3-t2)+" millis");
