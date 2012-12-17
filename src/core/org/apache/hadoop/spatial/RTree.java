@@ -1,7 +1,6 @@
 package org.apache.hadoop.spatial;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.DataOutput;
@@ -19,9 +18,9 @@ import java.util.Vector;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
-import org.apache.hadoop.io.MemoryInputStream;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.Text2;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.util.IndexedSortable;
 import org.apache.hadoop.util.IndexedSorter;
@@ -91,17 +90,29 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
    *  16 bytes per element. So, for each 1M elements, the method will require
    *  an additional 16 M bytes (approximately).
    */
-  public void bulkLoadWrite(final byte[] elements, int offset, int len,
+  public void bulkLoadWrite(final Text elements, final int offset, final int len,
       final int degree, DataOutput dataOut, final boolean fast_sort) {
     try {
-      final MemoryInputStream min = new MemoryInputStream(elements, offset, len);
-      final FSDataInputStream in = new FSDataInputStream(min);
-      int elementCount = 0;
-      while (in.available() > 0) {
-        stockObject.readFields(in);
+    
+      // Count number of elements in the given text
+      final byte[] element_bytes = elements.getBytes();
+      int i_start = offset;
+      final Text line = new Text();
+      while (i_start < offset + len) {
+        int i_end = i_start;
+        while (i_end < offset + len && element_bytes[i_end] != '\n' && element_bytes[i_end] != '\r') {
+          i_end++;
+        }
+        line.set(element_bytes, i_start, i_end - i_start);
+        stockObject.fromText(line);
         elementCount++;
+        // Skip end of line characters (works for both windows & linux)
+        while (i_end < offset + len && element_bytes[i_end] == '\n' || element_bytes[i_end] == '\r')
+          i_end++;
+        i_start = i_end;
       }
       LOG.info("Bulk loading an RTree with "+elementCount+" elements");
+      
       
       int height = Math.max(1, 
           (int) Math.ceil(Math.log(elementCount)/Math.log(degree)));
@@ -113,19 +124,29 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
       int nodeCount = (int) ((Math.pow(degree, height) - 1) / (degree - 1));
       int nonLeafNodeCount = nodeCount - leafNodeCount;
 
-      // Keep track of the offset of each element in the array
+      // Keep track of the offset of each element in the text
       final int[] offsets = new int[elementCount];
       final long[] xs = fast_sort? new long[elementCount] : null;
       final long[] ys = fast_sort? new long[elementCount] : null;
       
-      in.reset();
+      i_start = offset;
+      line.clear();
       for (int i = 0; i < elementCount; i++) {
-        offsets[i] = (int)in.getPos();
-        stockObject.readFields(in);
-        if (fast_sort) {
+        offsets[i] = i_start;
+        int i_end = i_start;
+        while (element_bytes[i_end] != '\n' && element_bytes[i_end] != '\r') {
+          i_end++;
+        }
+        if (xs != null) {
+          line.set(element_bytes, i_start, i_end - i_start);
+          stockObject.fromText(line);
           xs[i] = stockObject.getMBR().getXMid();
           ys[i] = stockObject.getMBR().getYMid();
         }
+        // Skip end of line characters (works for both windows & linux)
+        while (element_bytes[i_end] == '\n' || element_bytes[i_end] == '\r')
+          i_end++;
+        i_start = i_end;
       }
 
       /**A struct to store information about a split*/
@@ -216,18 +237,23 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
               
               @Override
               public int compare(int i, int j) {
-                try {
-                  in.seek(offsets[i]);
-                  stockObject.readFields(in);
-                  long xi = stockObject.getMBR().getXMid();
-                  in.seek(offsets[j]);
-                  stockObject.readFields(in);
-                  long xj = stockObject.getMBR().getXMid();
-                  return (int) (xi - xj);
-                } catch (IOException e) {
-                  e.printStackTrace();
-                }
-                return 0;
+                // Get end of line
+                int eol = offsets[i];
+                while (eol < offset + len &&
+                    element_bytes[eol] != '\r' && element_bytes[eol] != '\n')
+                  eol++;
+                line.set(elements.getBytes(), offsets[i], eol - offsets[i]);
+                stockObject.fromText(line);
+                long xi = stockObject.getMBR().getXMid();
+
+                eol = offsets[j];
+                while (eol < offset + len &&
+                    element_bytes[eol] != '\r' && element_bytes[eol] != '\n')
+                  eol++;
+                line.set(elements.getBytes(), offsets[j], eol - offsets[j]);
+                stockObject.fromText(line);
+                long xj = stockObject.getMBR().getXMid();
+                return (int) (xi - xj);
               }
             };
             
@@ -242,18 +268,22 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
               
               @Override
               public int compare(int i, int j) {
-                try {
-                  in.seek(offsets[i]);
-                  stockObject.readFields(in);
-                  long yi = stockObject.getMBR().getYMid();
-                  in.seek(offsets[j]);
-                  stockObject.readFields(in);
-                  long yj = stockObject.getMBR().getYMid();
-                  return (int) (yi - yj);
-                } catch (IOException e) {
-                  e.printStackTrace();
-                }
-                return 0;
+                int eol = offsets[i];
+                while (eol < offset + len &&
+                    element_bytes[eol] != '\r' && element_bytes[eol] != '\n')
+                  eol++;
+                line.set(elements.getBytes(), offsets[i], eol - offsets[i]);
+                stockObject.fromText(line);
+                long yi = stockObject.getMBR().getYMid();
+
+                eol = offsets[j];
+                while (eol < offset + len &&
+                    element_bytes[eol] != '\r' && element_bytes[eol] != '\n')
+                  eol++;
+                line.set(elements.getBytes(), offsets[j], eol - offsets[j]);
+                stockObject.fromText(line);
+                long yj = stockObject.getMBR().getYMid();
+                return (int) (yi - yj);
               }
             };
           }
@@ -323,9 +353,17 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
         long x2 = Long.MIN_VALUE;
         long y2 = Long.MIN_VALUE;
         while (i < nodes.elementAt(i_leaf).index2) {
-          in.seek(offsets[i]);
-          stockObject.readFields(in);
-          stockObject.write(fakeOut);
+          int eol = offsets[i];
+          while (eol < offset + len &&
+              (element_bytes[eol] != '\r' && element_bytes[eol] != '\n'))
+            eol++;
+          while (eol < offset + len &&
+              (element_bytes[eol] == '\r' || element_bytes[eol] == '\n'))
+            eol++;
+          fakeOut.write(elements.getBytes(), offsets[i],
+              eol - offsets[i]);
+          line.set(elements.getBytes(), offsets[i], eol - offsets[i]);
+          stockObject.fromText(line);
           Rectangle mbr = stockObject.getMBR();
           if (mbr.getX1() < x1) x1 = mbr.getX1();
           if (mbr.getY1() < y1) y1 = mbr.getY1();
@@ -372,9 +410,16 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
       }
       // write elements
       for (int element_i = 0; element_i < elementCount; element_i++) {
-        in.seek(offsets[element_i]);
-        stockObject.readFields(in);
-        stockObject.write(dataOut);
+        int eol = offsets[element_i];
+        while (eol < offset + len &&
+            element_bytes[eol] != '\r' && element_bytes[eol] != '\n')
+          eol++;
+        while (eol < offset + len &&
+            element_bytes[eol] == '\r' || element_bytes[eol] == '\n')
+          eol++;
+        
+        dataOut.write(elements.getBytes(), offsets[element_i],
+            eol - offsets[element_i]);
       }
       
     } catch (IOException e) {
@@ -709,6 +754,8 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
     }
 
     Rectangle node_mbr = new Rectangle();
+    
+    Text line = new Text();
 
     while (!toBeSearched.isEmpty()) {
       int searchNumber = toBeSearched.pop();
@@ -759,17 +806,27 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
         lastOffset = searchNumber;
         firstOffset = toBeSearched.pop();
         
-        // Seek to firstOffset
-        dataIn.reset(); dataIn.skip(firstOffset);
-        long avail = dataIn.available();
         // while (bytes read so far < total bytes that need to be read)
-        while ((avail - dataIn.available()) < (lastOffset - firstOffset)) {
-          stockObject.readFields(dataIn);
+        while (firstOffset < lastOffset) {
+          // Read one line
+          int eol = firstOffset;
+          while (eol < lastOffset &&
+              (serializedTree[eol] != '\n' && serializedTree[eol] != '\r')) {
+            eol++;
+          }
+          line.set(serializedTree, firstOffset, eol - firstOffset);
+
+          stockObject.fromText(line);
           if (stockObject.isIntersected(query_shape)) {
             resultSize++;
             if (output != null)
               output.add(stockObject);
           }
+          while (eol < lastOffset &&
+              (serializedTree[eol] == '\n' || serializedTree[eol] == '\r')) {
+            eol++;
+          }
+          firstOffset = eol;
         }
       }
     }
@@ -1053,30 +1110,55 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
   
   public static RTree<Rectangle> buildRTree(Rectangle mbr, int size,
       int degree) throws IOException {
+    final byte[] NEW_LINE = "\n".getBytes();
     Rectangle randomShape = new Rectangle();
     RTree<Rectangle> r = new RTree<Rectangle>();
     r.setStockObject(randomShape);
-    ByteArrayOutputStream bout = new ByteArrayOutputStream();
-    DataOutputStream memOut = new DataOutputStream(bout);
+    
+    Text2 elements = new Text2();
+    
+    int storage_overhead = 0;
     
     Random random = new Random();
     final int MaxShapeWidth = 100;
     final int MaxShapeHeight = 100;
-    for (int i = 0; i < size; i++) {
+    int element_count = 0;
+    while (elements.getLength() + storage_overhead < size) {
       randomShape.x = Math.abs(random.nextLong()) % (mbr.width - MaxShapeWidth) + mbr.x;
       randomShape.y = Math.abs(random.nextLong()) % (mbr.height - MaxShapeHeight) + mbr.y;
       randomShape.width = Math.abs(random.nextLong()) % MaxShapeWidth;
       randomShape.height = Math.abs(random.nextLong()) % MaxShapeHeight;
       
-      randomShape.write(memOut);
+      randomShape.toText(elements);
+      elements.append(NEW_LINE, 0, NEW_LINE.length);
+      element_count++;
+      
+      // Update storage overhead
+      int height = Math.max(1, 
+          (int) Math.ceil(Math.log(element_count)/Math.log(degree)));
+      int leafNodeCount = (int) Math.pow(degree, height - 1);
+      if (element_count <  2 * leafNodeCount && height > 1) {
+        height--;
+        leafNodeCount = (int) Math.pow(degree, height - 1);
+      }
+      int nodeCount = (int) ((Math.pow(degree, height) - 1) / (degree - 1));
+      storage_overhead = 4 + TreeHeaderSize + nodeCount * NodeSize;
     }
+    // Remove the last element to keep tree size below threshold
+    int eof = elements.getLength() - 1;
+    while (elements.getBytes()[eof] == '\n' || elements.getBytes()[eof] == '\r')
+      eof--;
+    while (elements.getBytes()[eof] != '\n' && elements.getBytes()[eof] != '\r')
+      eof--;
+    elements.shrink(eof+1);
+    element_count--;
     
-    memOut.close();
-    bout.close();
-    byte[] buffer = bout.toByteArray();
+    LOG.info("Expected size = "+ storage_overhead + "+" + elements.getLength());
+    
+    LOG.info("Generated "+element_count+" elements");
     
     DataOutputStream diskOut = new DataOutputStream(new FileOutputStream("temp.rtree"));
-    r.bulkLoadWrite(buffer, 0, buffer.length, degree, diskOut, true);
+    r.bulkLoadWrite(elements, 0, elements.getLength(), degree, diskOut, true);
     diskOut.close();
     
     // Read again from disk
@@ -1092,13 +1174,15 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
   public static void main(String[] args) throws IOException {
     long t1, t2;
     Rectangle mbr = new Rectangle(0,0,0x1000000,0x1000000);
-    int size = 1500000;
-    int degree = 10;
+    // Size of the resulting tree in bytes
+    int size = 64 * 1024 * 1024;
+    int degree = 9;
     t1 = System.currentTimeMillis();
     RTree<Rectangle> R = buildRTree(mbr, size, degree);
     //RTree<Rectangle> S = buildRTree(mbr, size, degree);
     t2 = System.currentTimeMillis();
     System.out.println("Generated rtrees in "+(t2-t1)+" millis");
+    int result_size;
 /*    
     t1 = System.currentTimeMillis();
     int selection = spatialJoin(R, S, null);
@@ -1107,18 +1191,19 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
     System.out.println("selection "+selection);
 */   
     
-/*    
     // Test range query
     Rectangle queryRange = new Rectangle();
     queryRange.x = (long) (Math.random() * mbr.width) + mbr.x;
     queryRange.y = (long) (Math.random() * mbr.height) + mbr.y;
-    queryRange.width = (long) (mbr.width * 0.001);
-    queryRange.height = (long) (mbr.height * 0.001);
+    queryRange.width = (long) (mbr.width * 0.5);
+    queryRange.height = (long) (mbr.height * 0.5);
     t1 = System.currentTimeMillis();
-    R.search(queryRange, null);
+    result_size = R.search(queryRange, null);
     t2 = System.currentTimeMillis();
     System.out.println("Finished range query in "+(t2-t1)+" millis");
-*/    
+    System.out.println("Found "+result_size+" results");
+    
+/*
     long qx = (long) (Math.random() * mbr.width) + mbr.x;
     long qy = (long) (Math.random() * mbr.height) + mbr.y;
     int k = 100;
@@ -1126,5 +1211,6 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
     int count = R.knn(qx, qy, k, null);
     t2 = System.currentTimeMillis();
     System.out.println("Finished KNN with "+count+" results in "+(t2-t1)+" millis");
-  }
+*/
+    }
 }

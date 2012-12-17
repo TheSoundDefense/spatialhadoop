@@ -68,8 +68,8 @@ public class Text extends BinaryComparable
   
   private static final byte [] EMPTY_BYTES = new byte[0];
   
-  private byte[] bytes;
-  private int length;
+  protected byte[] bytes;
+  protected int length;
 
   public Text() {
     bytes = EMPTY_BYTES;
@@ -235,7 +235,7 @@ public class Text extends BinaryComparable
    * @param len the number of bytes we need
    * @param keepData should the old data be kept
    */
-  private void setCapacity(int len, boolean keepData) {
+  protected void setCapacity(int len, boolean keepData) {
     if (bytes == null || bytes.length < len) {
       byte[] newBytes = new byte[len];
       if (bytes != null && keepData) {
