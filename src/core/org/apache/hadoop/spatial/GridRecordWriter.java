@@ -45,6 +45,9 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
     this.fileSystem = outFileSystem;
     this.outFile = outFile;
     this.cells = cells;
+    // Make sure cellIndex maps to array index. This necessary for calls that call directly
+    // write(int, Text)
+    Arrays.sort(this.cells);
 
     // Prepare arrays that hold streams
     cellStreams = new OutputStream[cells.length];
@@ -78,9 +81,13 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
   
   @Override
   public synchronized void write(LongWritable dummyId, S shape) throws IOException {
-    text.clear();
-    shape.toText(text);
-    write(dummyId, shape, text);
+    if (shape == null) {
+      write(shape, null);
+    } else {
+      text.clear();
+      shape.toText(text);
+      write(shape, text);
+    }
   }
 
   /**
@@ -90,18 +97,17 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
    * 2 - Some information may have been lost from the original line when converted to shape
    * The text is assumed not to have a new line. This method writes a new line to the output
    * after the given text is written.
-   * @param dummyId
    * @param shape
    * @param text
    * @throws IOException
    */
   @Override
-  public synchronized void write(LongWritable dummyId, S shape, Text text) throws IOException {
+  public synchronized void write(S shape, Text text) throws IOException {
     // Write to all possible grid cells
     Rectangle mbr = shape.getMBR();
     for (int cellIndex = 0; cellIndex < cells.length; cellIndex++) {
       if (mbr.isIntersected(cells[cellIndex])) {
-        writeInternal(cellIndex, shape, text);
+        writeInternal(cellIndex, text);
       }
     }
   }
@@ -117,7 +123,7 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
   @Override
   public synchronized void write(CellInfo cellInfo, S shape) throws IOException {
     if (shape == null) {
-      closeCell(locateCell(cellInfo));
+      write(cellInfo, shape, null);
       return;
     }
     text.clear();
@@ -129,7 +135,12 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
   public synchronized void write(CellInfo cellInfo, S shape, Text text) throws IOException {
     // Write to the cell given
     int cellIndex = locateCell(cellInfo);
-    writeInternal(cellIndex, shape, text);
+    writeInternal(cellIndex, text);
+  }
+  
+  @Override
+  public void write(int cellId, Text shapeText) throws IOException {
+    this.writeInternal(cellId, text);
   }
 
   /**
@@ -138,14 +149,14 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
    * @param shape
    * @throws IOException
    */
-  protected synchronized void writeInternal(int cellIndex, S shape, Text text) throws IOException {
+  protected synchronized void writeInternal(int cellIndex, Text text) throws IOException {
     if (text == null) {
-      text = this.text;
-      shape.toText(text);
+      closeCell(cellIndex);
+    } else {
+      OutputStream cellStream = getCellStream(cellIndex);
+      cellStream.write(text.getBytes(), 0, text.getLength());
+      cellStream.write(NEW_LINE);
     }
-    OutputStream cellStream = getCellStream(cellIndex);
-    cellStream.write(text.getBytes(), 0, text.getLength());
-    cellStream.write(NEW_LINE);
   }
   
   // Get a stream that writes to the given cell

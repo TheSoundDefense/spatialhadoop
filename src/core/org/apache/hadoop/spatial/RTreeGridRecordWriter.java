@@ -5,11 +5,9 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
-import java.util.Random;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
@@ -82,13 +80,13 @@ public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> 
   }
 
   @Override
-  protected synchronized void writeInternal(int cellIndex, S shape, Text text)
+  protected synchronized void writeInternal(int cellIndex, Text text)
       throws IOException {
-    FSDataOutputStream cellOutput = getTempCellStream(cellIndex);
     if (text == null) {
-      text = this.text;
-      shape.toText(text);
+      closeCell(cellIndex);
+      return;
     }
+    FSDataOutputStream cellOutput = getTempCellStream(cellIndex);
     
     // Check if the RTree is filled up
     int storage_overhead = RTree.calculateStorageOverhead(cellCount[cellIndex] + 1, rtreeDegree);

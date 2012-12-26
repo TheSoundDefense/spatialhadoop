@@ -18,12 +18,11 @@ public interface ShapeRecordWriter<S extends Shape> {
   /**
    * Writes the given shape to the file to all cells it overlaps with.
    * Text is passed to avoid serializing the shape if it is already serialized.
-   * @param dummyId
    * @param shape
    * @param text
    * @throws IOException
    */
-  public void write(LongWritable dummyId, S shape, Text text) throws IOException;
+  public void write(S shape, Text text) throws IOException;
   
   /**
    * Writes the given shape only to the given cell even if it overlaps
@@ -45,6 +44,14 @@ public interface ShapeRecordWriter<S extends Shape> {
    * @throws IOException
    */
   public void write(CellInfo cellInfo, S shape, Text text) throws IOException;
+  
+  /**
+   * Writes a shape given by a text representation directly to the given cell
+   * @param cellId
+   * @param shapeText
+   * @throws IOException
+   */
+  public void write(int cellId, Text shapeText) throws IOException;
   
   /**
    * Sets a stock object used to serialize/deserialize objects when written to
