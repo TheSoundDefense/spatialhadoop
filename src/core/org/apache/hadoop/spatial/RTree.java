@@ -98,16 +98,10 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
       int i_start = offset;
       final Text line = new Text();
       while (i_start < offset + len) {
-        int i_end = i_start;
-        while (i_end < offset + len && element_bytes[i_end] != '\n' && element_bytes[i_end] != '\r') {
-          i_end++;
-        }
+        int i_end = skipToEOL(element_bytes, i_start);
         line.set(element_bytes, i_start, i_end - i_start);
         stockObject.fromText(line);
         elementCount++;
-        // Skip end of line characters (works for both windows & linux)
-        while (i_end < offset + len && element_bytes[i_end] == '\n' || element_bytes[i_end] == '\r')
-          i_end++;
         i_start = i_end;
       }
       LOG.info("Bulk loading an RTree with "+elementCount+" elements");
@@ -132,19 +126,13 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
       line.clear();
       for (int i = 0; i < elementCount; i++) {
         offsets[i] = i_start;
-        int i_end = i_start;
-        while (element_bytes[i_end] != '\n' && element_bytes[i_end] != '\r') {
-          i_end++;
-        }
+        int i_end = skipToEOL(element_bytes, i_start);
         if (xs != null) {
           line.set(element_bytes, i_start, i_end - i_start);
           stockObject.fromText(line);
           xs[i] = stockObject.getMBR().getXMid();
           ys[i] = stockObject.getMBR().getYMid();
         }
-        // Skip end of line characters (works for both windows & linux)
-        while (element_bytes[i_end] == '\n' || element_bytes[i_end] == '\r')
-          i_end++;
         i_start = i_end;
       }
 
@@ -237,18 +225,12 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
               @Override
               public int compare(int i, int j) {
                 // Get end of line
-                int eol = offsets[i];
-                while (eol < offset + len &&
-                    element_bytes[eol] != '\r' && element_bytes[eol] != '\n')
-                  eol++;
+                int eol = skipToEOL(element_bytes, offsets[i]);
                 line.set(element_bytes, offsets[i], eol - offsets[i]);
                 stockObject.fromText(line);
                 long xi = stockObject.getMBR().getXMid();
 
-                eol = offsets[j];
-                while (eol < offset + len &&
-                    element_bytes[eol] != '\r' && element_bytes[eol] != '\n')
-                  eol++;
+                eol = skipToEOL(element_bytes, offsets[j]);
                 line.set(element_bytes, offsets[j], eol - offsets[j]);
                 stockObject.fromText(line);
                 long xj = stockObject.getMBR().getXMid();
@@ -267,18 +249,12 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
               
               @Override
               public int compare(int i, int j) {
-                int eol = offsets[i];
-                while (eol < offset + len &&
-                    element_bytes[eol] != '\r' && element_bytes[eol] != '\n')
-                  eol++;
+                int eol = skipToEOL(element_bytes, offsets[i]);
                 line.set(element_bytes, offsets[i], eol - offsets[i]);
                 stockObject.fromText(line);
                 long yi = stockObject.getMBR().getYMid();
 
-                eol = offsets[j];
-                while (eol < offset + len &&
-                    element_bytes[eol] != '\r' && element_bytes[eol] != '\n')
-                  eol++;
+                eol = skipToEOL(element_bytes, offsets[j]);
                 line.set(element_bytes, offsets[j], eol - offsets[j]);
                 stockObject.fromText(line);
                 long yj = stockObject.getMBR().getYMid();
@@ -352,13 +328,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
         long x2 = Long.MIN_VALUE;
         long y2 = Long.MIN_VALUE;
         while (i < nodes.elementAt(i_leaf).index2) {
-          int eol = offsets[i];
-          while (eol < offset + len &&
-              (element_bytes[eol] != '\r' && element_bytes[eol] != '\n'))
-            eol++;
-          while (eol < offset + len &&
-              (element_bytes[eol] == '\r' || element_bytes[eol] == '\n'))
-            eol++;
+          int eol = skipToEOL(element_bytes, offsets[i]);
           fakeOut.write(element_bytes, offsets[i],
               eol - offsets[i]);
           line.set(element_bytes, offsets[i], eol - offsets[i]);
@@ -409,14 +379,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
       }
       // write elements
       for (int element_i = 0; element_i < elementCount; element_i++) {
-        int eol = offsets[element_i];
-        while (eol < offset + len &&
-            element_bytes[eol] != '\r' && element_bytes[eol] != '\n')
-          eol++;
-        while (eol < offset + len &&
-            element_bytes[eol] == '\r' || element_bytes[eol] == '\n')
-          eol++;
-        
+        int eol = skipToEOL(element_bytes, offsets[element_i]);
         dataOut.write(element_bytes, offsets[element_i],
             eol - offsets[element_i]);
       }
@@ -812,11 +775,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
         // while (bytes read so far < total bytes that need to be read)
         while (firstOffset < lastOffset) {
           // Read one line
-          int eol = firstOffset;
-          while (eol < lastOffset &&
-              (serializedTree[eol] != '\n' && serializedTree[eol] != '\r')) {
-            eol++;
-          }
+          int eol = skipToEOL(serializedTree, firstOffset);
           line.set(serializedTree, firstOffset, eol - firstOffset);
 
           stockObject.fromText(line);
@@ -824,10 +783,6 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
             resultSize++;
             if (output != null)
               output.add(stockObject);
-          }
-          while (eol < lastOffset &&
-              (serializedTree[eol] == '\n' || serializedTree[eol] == '\r')) {
-            eol++;
           }
           firstOffset = eol;
         }
@@ -969,6 +924,25 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
         }
       });
     }
+  }
+  
+  /**
+   * Calculate the storage overhead required to build an RTree for the given
+   * number of nodes.
+   * @return - storage overhead in bytes
+   */
+  public static int calculateStorageOverhead(int elementCount, int degree){
+    // Update storage overhead
+    int height = Math.max(1, 
+        (int) Math.ceil(Math.log(elementCount)/Math.log(degree)));
+    int leafNodeCount = (int) Math.pow(degree, height - 1);
+    if (elementCount <  2 * leafNodeCount && height > 1) {
+      height--;
+      leafNodeCount = (int) Math.pow(degree, height - 1);
+    }
+    int nodeCount = (int) ((Math.pow(degree, height) - 1) / (degree - 1));
+    int storage_overhead = 4 + TreeHeaderSize + nodeCount * NodeSize;
+    return storage_overhead;
   }
   
   public static RTree<Rectangle> buildRTree(Rectangle mbr, int size,

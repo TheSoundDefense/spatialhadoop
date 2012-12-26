@@ -1,7 +1,6 @@
 package org.apache.hadoop.spatial;
 
 import java.io.ByteArrayOutputStream;
-import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -28,12 +27,6 @@ public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> 
   private int[] cellCount;
   /**The required degree of the rtree to be built*/
   private final int rtreeDegree;
-  /**
-   * Maximum number of elements to be written to the RTree so that it fits
-   * the block.
-   * TODO change this to hold the maximum total size in bytes for elements
-   */
-  private long rtreeLimit;
   
   /**Whether to use the fast mode for building RTree or not*/
   protected boolean fastRTree;
@@ -65,9 +58,6 @@ public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> 
   
   public void setStockObject(S stockObject) {
     super.setStockObject(stockObject);
-    // The 8 is subtracted because we reserve it for the RTreeFileMarker
-    this.rtreeLimit = RTree.getBlockCapacity(this.blockSize - 8, rtreeDegree,
-        calculateRecordSize(stockObject));
   }
   
   /**
@@ -94,16 +84,26 @@ public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> 
   @Override
   protected synchronized void writeInternal(int cellIndex, S shape, Text text)
       throws IOException {
-    DataOutput cellOutput = getTempCellStream(cellIndex);
-    text.clear();
-    shape.toText(text);
-    cellOutput.write(text.getBytes(), 0, text.getLength());
-    cellOutput.write(NEW_LINE);
+    FSDataOutputStream cellOutput = getTempCellStream(cellIndex);
+    if (text == null) {
+      text = this.text;
+      shape.toText(text);
+    }
     
-    // Write current contents as an RTree if reaches the limit of one RTree
-    if (++cellCount[cellIndex] == rtreeLimit) {
+    // Check if the RTree is filled up
+    int storage_overhead = RTree.calculateStorageOverhead(cellCount[cellIndex] + 1, rtreeDegree);
+    // rtree_file_size consists of
+    // 8 bytes for the signatures
+    // RTree index size (storage_overhead)
+    // total size of data (including the new item)
+    long rtree_file_size = 8 + storage_overhead + cellOutput.getPos() + text.getLength() + NEW_LINE.length;
+    if (rtree_file_size > blockSize) {
       flushCell(cellIndex);
     }
+    
+    cellOutput.write(text.getBytes(), 0, text.getLength());
+    cellOutput.write(NEW_LINE);
+    cellCount[cellIndex]++;
   }
   
   @Override
@@ -131,7 +131,6 @@ public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> 
     byte[] cellData = new byte[fileSize];
     cellIn.read(cellData, 0, fileSize);
     cellIn.close();
-    fileSystem.delete(getTempCellFilePath(cellIndex), false);
     
     // Create the RTree using the element data
     RTree<S> rtree = new RTree<S>();
@@ -161,7 +160,9 @@ public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> 
     }
     buffer = null;
     LOG.info("Size after writing the cell: "+cellStream.getPos());
+    cellCount[cellIndex] = 0;
     // Clean up after writing each cell as the code is heavy in memory
+    fileSystem.delete(getTempCellFilePath(cellIndex), false);
     System.gc();
   }
 
