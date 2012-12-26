@@ -95,7 +95,10 @@ public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> 
   protected synchronized void writeInternal(int cellIndex, S shape, Text text)
       throws IOException {
     DataOutput cellOutput = getTempCellStream(cellIndex);
-    shape.write(cellOutput);
+    text.clear();
+    shape.toText(text);
+    cellOutput.write(text.getBytes(), 0, text.getLength());
+    cellOutput.write(NEW_LINE);
     
     // Write current contents as an RTree if reaches the limit of one RTree
     if (++cellCount[cellIndex] == rtreeLimit) {

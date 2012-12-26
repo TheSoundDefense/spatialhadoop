@@ -90,12 +90,11 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
    *  16 bytes per element. So, for each 1M elements, the method will require
    *  an additional 16 M bytes (approximately).
    */
-  public void bulkLoadWrite(final Text elements, final int offset, final int len,
+  public void bulkLoadWrite(final byte[] element_bytes, final int offset, final int len,
       final int degree, DataOutput dataOut, final boolean fast_sort) {
     try {
     
       // Count number of elements in the given text
-      final byte[] element_bytes = elements.getBytes();
       int i_start = offset;
       final Text line = new Text();
       while (i_start < offset + len) {
@@ -242,7 +241,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
                 while (eol < offset + len &&
                     element_bytes[eol] != '\r' && element_bytes[eol] != '\n')
                   eol++;
-                line.set(elements.getBytes(), offsets[i], eol - offsets[i]);
+                line.set(element_bytes, offsets[i], eol - offsets[i]);
                 stockObject.fromText(line);
                 long xi = stockObject.getMBR().getXMid();
 
@@ -250,7 +249,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
                 while (eol < offset + len &&
                     element_bytes[eol] != '\r' && element_bytes[eol] != '\n')
                   eol++;
-                line.set(elements.getBytes(), offsets[j], eol - offsets[j]);
+                line.set(element_bytes, offsets[j], eol - offsets[j]);
                 stockObject.fromText(line);
                 long xj = stockObject.getMBR().getXMid();
                 return (int) (xi - xj);
@@ -272,7 +271,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
                 while (eol < offset + len &&
                     element_bytes[eol] != '\r' && element_bytes[eol] != '\n')
                   eol++;
-                line.set(elements.getBytes(), offsets[i], eol - offsets[i]);
+                line.set(element_bytes, offsets[i], eol - offsets[i]);
                 stockObject.fromText(line);
                 long yi = stockObject.getMBR().getYMid();
 
@@ -280,7 +279,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
                 while (eol < offset + len &&
                     element_bytes[eol] != '\r' && element_bytes[eol] != '\n')
                   eol++;
-                line.set(elements.getBytes(), offsets[j], eol - offsets[j]);
+                line.set(element_bytes, offsets[j], eol - offsets[j]);
                 stockObject.fromText(line);
                 long yj = stockObject.getMBR().getYMid();
                 return (int) (yi - yj);
@@ -360,9 +359,9 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
           while (eol < offset + len &&
               (element_bytes[eol] == '\r' || element_bytes[eol] == '\n'))
             eol++;
-          fakeOut.write(elements.getBytes(), offsets[i],
+          fakeOut.write(element_bytes, offsets[i],
               eol - offsets[i]);
-          line.set(elements.getBytes(), offsets[i], eol - offsets[i]);
+          line.set(element_bytes, offsets[i], eol - offsets[i]);
           stockObject.fromText(line);
           Rectangle mbr = stockObject.getMBR();
           if (mbr.getX1() < x1) x1 = mbr.getX1();
@@ -418,7 +417,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
             element_bytes[eol] == '\r' || element_bytes[eol] == '\n')
           eol++;
         
-        dataOut.write(elements.getBytes(), offsets[element_i],
+        dataOut.write(element_bytes, offsets[element_i],
             eol - offsets[element_i]);
       }
       
@@ -601,55 +600,59 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
    *
    */
   class RTreeIterator implements Iterator<T> {
+
+    /**Current offset in the array of elements*/
+    int offset;
     
-    /**An input stream that reads underlying records*/
-    DataInputStream _dataIn;
+    /**Temporary text that holds one line to deserialize objects*/
+    Text line;
     
     /**A stock object to read from stream*/
     T _stockObject;
     
     RTreeIterator() throws IOException {
-      _dataIn = new DataInputStream(new ByteArrayInputStream(serializedTree));
-      int height = _dataIn.readInt();
-      if (height == 0) {
-        // Empty tree. No results
-        _dataIn.close();
-        _dataIn = null;
+      if (RTree.this.height == 0) {
+        offset = RTree.this.serializedTree.length;
         return;
       }
-      /*degree = */_dataIn.readInt();
-      /*int elementCount =*/ _dataIn.readInt();
-      int startOffset = _dataIn.readInt();
-      _dataIn.reset();
-      _dataIn.skip(startOffset);
+      offset = TreeHeaderSize + NodeSize * RTree.this.nodeCount;
       _stockObject = (T) RTree.this.stockObject.clone();
     }
 
     @Override
     public boolean hasNext() {
-      try {
-        return _dataIn != null && _dataIn.available() > 0;
-      } catch (IOException e) {
-        return false;
-      }
+      return offset < RTree.this.serializedTree.length;
     }
 
     @Override
     public T next() {
-      if (_dataIn == null)
-        return null;
-      try {
-        _stockObject.readFields(_dataIn);
-        return _stockObject;
-      } catch (IOException e) {
-        return null;
-      }
+      // TODO get the end of current line and deserialize stock object
+      int eol = skipToEOL(serializedTree, offset);
+      line.set(serializedTree, offset, eol - offset);
+      _stockObject.fromText(line);
+      offset = eol; // Advance to next item
+      return _stockObject;
     }
 
     @Override
     public void remove() {
       throw new RuntimeException("Not supported");
     }
+  }
+  
+  /**
+   * Skip bytes until the end of line
+   * @param bytes
+   * @param startOffset
+   * @return
+   */
+  static int skipToEOL(byte[] bytes, int startOffset) {
+    int eol = startOffset;
+    while (eol < bytes.length && (bytes[eol] != '\n' && bytes[eol] != '\r'))
+      eol++;
+    while (eol < bytes.length && (bytes[eol] == '\n' || bytes[eol] == '\r'))
+      eol++;
+    return eol;
   }
 
   @Override
@@ -967,146 +970,6 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
       });
     }
   }
-
-  /**
-   * Performs a spatial join between the two given R trees. It uses the
-   * overlap predicate (i.e. s.isIntersected(s))
-   * @param R
-   * @param S
-   * @param output
-   * @return
-   * @throws IOException
-   */
-  /*public static<S1 extends Shape, S2 extends Shape> int spatialJoin(
-      final RTree<S1> R,
-      final RTree<S2> S,
-      final ResultCollector2<S1, S2> output)
-      throws IOException {
-    int result_count = 0;
-    R.startQuery();
-    S.startQuery();
-
-    if (R.height > S.height) {
-      // Ensure that the first argument is always less
-      if (output == null) {
-        return spatialJoin(S, R, null);
-      } else {
-        ResultCollector2<S2, S1> reverse = new ResultCollector2<S2, S1>() {
-          @Override
-          public void add(S2 s2, S1 s1) {
-            output.add(s1, s2);
-          }
-        };
-        return spatialJoin(S, R, reverse);
-      }
-    }
-    
-    Stack<Integer> toBeSearchedR = new Stack<Integer>();
-    Stack<Integer> toBeSearchedS = new Stack<Integer>();
-    // Start with the roots
-    toBeSearchedR.add(0);
-    toBeSearchedS.add(0);
-    
-    Rectangle mbrr = new Rectangle();
-    Rectangle mbrs = new Rectangle();
-    
-    long x=0, x1;
-    long y=0, y1;
-    
-    while (!toBeSearchedR.isEmpty()) {
-      int searchR = toBeSearchedR.pop();
-      int searchS = toBeSearchedS.pop();
-      int mbrsToTestR = searchR == 0 ? 1 : R.degree;
-      int mbrsToTestS = searchS == 0 ? 1 : S.degree;
-      
-      if (searchR < R.nodeCount) {
-        x1 = System.currentTimeMillis();
-        // R is still searching nodes. This implies that S is searching nodes
-        if (searchS >= S.nodeCount) throw new RuntimeException();
-        long nodeOffsetR = TreeHeaderSize + NodeSize * searchR;
-        R.dataIn.reset(); R.dataIn.skip(nodeOffsetR);
-        int dataOffsetR = R.dataIn.readInt();
-        for (int r = 0; r < mbrsToTestR; r++) {
-          mbrr.readFields(R.dataIn);
-          int lastOffsetR = (searchR+r) == R.nodeCount - 1 ?
-              R.serializedTree.length : R.dataIn.readInt();
-          
-          long nodeOffsetS = TreeHeaderSize + NodeSize * searchS;
-          S.dataIn.reset(); S.dataIn.skip(nodeOffsetS);
-          int dataOffsetS = S.dataIn.readInt();
-          for (int s = 0; s < mbrsToTestS; s++) {
-            mbrs.readFields(S.dataIn);
-            int lastOffsetS = (searchS+s) == S.nodeCount - 1 ?
-                S.serializedTree.length : S.dataIn.readInt();
-            
-            if (mbrr.isIntersected(mbrs)) {
-              // Go deep in both trees
-
-              if (searchR < R.nonLeafNodeCount) {
-                // Search child nodes
-                toBeSearchedR.add((searchR + r) * R.degree + 1);
-              } else {
-                // Search all elements in this node
-                toBeSearchedR.add(dataOffsetR);
-                toBeSearchedR.add(lastOffsetR);
-              }
-              
-              if (searchS < S.nonLeafNodeCount) {
-                // Search child nodes
-                toBeSearchedS.add((searchS + s) * S.degree + 1);
-              } else {
-                // Search all elements in this node
-                toBeSearchedS.add(dataOffsetS);
-                toBeSearchedS.add(lastOffsetS);
-              }
-            }
-            dataOffsetS = lastOffsetS;
-          }
-          dataOffsetR = lastOffsetR;
-        }
-        x+= System.currentTimeMillis() - x1;
-      } else {
-        y1 = System.currentTimeMillis();
-        int lastOffsetR = searchR;
-        int firstOffsetR = toBeSearchedR.pop();
-        
-        int firstOffsetS;
-        int lastOffsetS;
-        if (searchS < S.nodeCount) {
-          firstOffsetS = searchS;
-          lastOffsetS = 0; // Doesn't mater
-        } else {
-          lastOffsetS = searchS;
-          firstOffsetS = toBeSearchedS.pop();
-        }
-        
-        // Seek to firstOffsetR
-        R.dataIn.reset(); R.dataIn.skip(firstOffsetR);
-        long avail = R.dataIn.available();
-        // while (bytes read so far < total bytes that need to be read)
-        while ((avail - R.dataIn.available()) < (lastOffsetR - firstOffsetR)) {
-          R.stockObject.readFields(R.dataIn);
-          if (output == null) {
-            result_count += S.search(R.stockObject, null, firstOffsetS, lastOffsetS);
-          } else {
-            ResultCollector<S2> results = new ResultCollector<S2>() {
-              @Override
-              public void add(S2 x) {
-                output.add(R.stockObject, x);
-              }
-            };
-            result_count += S.search(R.stockObject, results, firstOffsetS, lastOffsetS);
-          }
-        }
-        y += System.currentTimeMillis() - y1;
-      }
-    }
-    
-    R.endQuery();
-    S.endQuery();
-    
-    return result_count;
-  }*/
   
   public static RTree<Rectangle> buildRTree(Rectangle mbr, int size,
       int degree) throws IOException {
@@ -1158,7 +1021,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
     LOG.info("Generated "+element_count+" elements");
     
     DataOutputStream diskOut = new DataOutputStream(new FileOutputStream("temp.rtree"));
-    r.bulkLoadWrite(elements, 0, elements.getLength(), degree, diskOut, true);
+    r.bulkLoadWrite(elements.getBytes(), 0, elements.getLength(), degree, diskOut, true);
     diskOut.close();
     
     // Read again from disk

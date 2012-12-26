@@ -22,15 +22,14 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
   protected OutputStream[] cellStreams;
   protected final Path outFile;
   protected final FileSystem fileSystem;
-  private Text text;
+  /**Temporary text to serialize one object*/
+  protected Text text;
   
   /**A stock object used for serialization/deserialization*/
   protected S stockObject;
 
-  /**
-   * New line marker
-   */
-  private static final byte[] NEW_LINE = {'\n'};
+  /**New line marker */
+  protected static final byte[] NEW_LINE = {'\n'};
   
   /**
    * Store all information associated with a cell file
