@@ -224,20 +224,19 @@ public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> 
     }
     return (FSDataOutputStream) tempCellStreams[cellIndex];
   }
-  
+/*  
   public static void main(String[] args) throws IOException {
     Configuration conf = new Configuration();
     FileSystem fs = FileSystem.getLocal(conf);
-    Path outFile = new Path("/media/scratch/test.rtree");
+    Path outFile = new Path("test.rtree");
     GridInfo gridInfo = new GridInfo(0, 0, 1000000, 100000);
-    gridInfo.columns = 16;
-    gridInfo.rows = 16;
+    gridInfo.columns = 1;
+    gridInfo.rows = 1;
     CellInfo[] cells = gridInfo.getAllCells();
     RTreeGridRecordWriter<Rectangle> recordWriter = new RTreeGridRecordWriter<Rectangle>(fs, outFile,
         cells, true);
     recordWriter.setStockObject(new Rectangle());
-    long rtreeLimit = recordWriter.rtreeLimit;
-    long recordCount = rtreeLimit * 9 / 10;
+    long recordCount = 1000000;
     Random random = new Random();
     System.out.println("Creating "+recordCount+" records");
     long t1 = System.currentTimeMillis();
@@ -262,5 +261,5 @@ public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> 
     System.out.println("Finished in "+(t2-t1)+" millis");
     //System.out.println("Final size: "+fs.getFileStatus(outFile).getLen());
   }
-
+*/
 }
