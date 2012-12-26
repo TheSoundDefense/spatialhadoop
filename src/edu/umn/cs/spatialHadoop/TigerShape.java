@@ -56,7 +56,8 @@ public class TigerShape extends Rectangle {
 
   @Override
   public int compareTo(Shape s) {
-    return (int)(id - ((TigerShape)s).id);
+    throw new RuntimeException("Why do you compare TigerShapes?");
+//    return (int)(id - ((TigerShape)s).id);
   }
 
   @Override
