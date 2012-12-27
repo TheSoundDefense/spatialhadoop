@@ -354,7 +354,7 @@ public class Repartition {
     for (Path file : files) {
       total_size += fs.getFileStatus(file).getLen();
     }
-    long sample_size = total_size / 500;
+    long sample_size = Math.max(total_size / 500, 10 * 1024 * 1024);
     LOG.info("Reading a sample of size: "+sample_size + " bytes");
     Sampler.sampleLocalWithSize(fs, files, sample_size , new OutputCollector<LongWritable, TigerShape>(){
       @Override
