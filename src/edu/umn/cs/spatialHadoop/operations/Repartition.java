@@ -14,6 +14,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.Text2;
 import org.apache.hadoop.mapred.ClusterStatus;
 import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.JobClient;
@@ -95,6 +96,25 @@ public class Repartition {
           output.collect(cellId, shapeText);
         }
       }
+    }
+  }
+  
+  public static class Combine extends MapReduceBase implements
+  Reducer<IntWritable, Text, IntWritable, Text> {
+    private static final byte[] NEW_LINE = {'\n'};
+    
+    @Override
+    public void reduce(IntWritable key, Iterator<Text> values,
+        OutputCollector<IntWritable, Text> output, Reporter reporter)
+        throws IOException {
+      Text combinedText = new Text2();
+      while (values.hasNext()) {
+        Text t = values.next();
+        combinedText.append(t.getBytes(), 0, t.getLength());
+        combinedText.append(NEW_LINE, 0, NEW_LINE.length);
+      }
+      combinedText = new Text(combinedText);
+      output.collect(key, combinedText);
     }
   }
   
@@ -291,6 +311,8 @@ public class Repartition {
     job.setBoolean(SpatialSite.AutoCombineSplits, true);
     job.setNumMapTasks(10 * Math.max(1, clusterStatus.getMaxMapTasks()));
   
+    job.setCombinerClass(Combine.class);
+    
     job.setReducerClass(Reduce.class);
     job.setNumReduceTasks(Math.max(1, clusterStatus.getMaxReduceTasks()));
   
