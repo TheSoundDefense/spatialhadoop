@@ -13,6 +13,8 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.Text2;
 import org.apache.hadoop.mapred.ClusterStatus;
 import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.JobClient;
@@ -55,12 +57,15 @@ public class Repartition {
    *
    */
   public static class RepartitionMap<T extends Shape> extends MapReduceBase
-      implements Mapper<LongWritable, T, IntWritable, T> {
+      implements Mapper<LongWritable, T, IntWritable, Text> {
     /**List of cells used by the mapper*/
     private CellInfo[] cellInfos;
     
     /**Used to output intermediate records*/
     private IntWritable cellId = new IntWritable();
+    
+    /**Text representation of a shape*/
+    private Text shapeText = new Text();
     
     @Override
     public void configure(JobConf job) {
@@ -80,15 +85,36 @@ public class Repartition {
     public void map(
         LongWritable dummy,
         T shape,
-        OutputCollector<IntWritable, T> output,
+        OutputCollector<IntWritable, Text> output,
         Reporter reporter) throws IOException {
 
+      shapeText.clear();
+      shape.toText(shapeText);
       for (int cellIndex = 0; cellIndex < cellInfos.length; cellIndex++) {
         if (cellInfos[cellIndex].isIntersected(shape)) {
           cellId.set((int)cellInfos[cellIndex].cellId);
-          output.collect(cellId, shape);
+          output.collect(cellId, shapeText);
         }
       }
+    }
+  }
+  
+  public static class Combine extends MapReduceBase implements
+  Reducer<IntWritable, Text, IntWritable, Text> {
+    private static final byte[] NEW_LINE = {'\n'};
+    
+    @Override
+    public void reduce(IntWritable key, Iterator<Text> values,
+        OutputCollector<IntWritable, Text> output, Reporter reporter)
+        throws IOException {
+      Text combinedText = new Text2();
+      while (values.hasNext()) {
+        Text t = values.next();
+        combinedText.append(t.getBytes(), 0, t.getLength());
+        combinedText.append(NEW_LINE, 0, NEW_LINE.length);
+      }
+      combinedText = new Text(combinedText);
+      output.collect(key, combinedText);
     }
   }
   
@@ -99,33 +125,17 @@ public class Repartition {
    *
    */
   public static class Reduce extends MapReduceBase implements
-  Reducer<IntWritable, TigerShape, CellInfo, TigerShape> {
-    /**List of cells used by the reducer*/
-    private CellInfo[] cellInfos;
-
+  Reducer<IntWritable, Text, IntWritable, Text> {
     @Override
-    public void configure(JobConf job) {
-      String cellsInfoStr = job.get(GridOutputFormat.OUTPUT_CELLS);
-      cellInfos = GridOutputFormat.decodeCells(cellsInfoStr);
-      super.configure(job);
-    }
-    
-    @Override
-    public void reduce(IntWritable cellId, Iterator<TigerShape> values,
-        OutputCollector<CellInfo, TigerShape> output, Reporter reporter)
+    public void reduce(IntWritable cellId, Iterator<Text> values,
+        OutputCollector<IntWritable, Text> output, Reporter reporter)
             throws IOException {
-      CellInfo cellInfo = null;
-      for (CellInfo _cellInfo : cellInfos) {
-        if (_cellInfo.cellId == cellId.get())
-          cellInfo = _cellInfo;
-      }
-      // If writing to a grid file, concatenated in text
       while (values.hasNext()) {
-        TigerShape value = values.next();
-        output.collect(cellInfo, value);
+        Text value = values.next();
+        output.collect(cellId, value);
       }
       // Close this cell as we will not write any more data to it
-      output.collect(cellInfo, null);
+      output.collect(cellId, null);
     }
   }
   
@@ -298,10 +308,12 @@ public class Repartition {
 
     ClusterStatus clusterStatus = new JobClient(job).getClusterStatus();
     job.setMapOutputKeyClass(IntWritable.class);
-    job.setMapOutputValueClass(TigerShape.class);
+    job.setMapOutputValueClass(Text.class);
     job.setBoolean(SpatialSite.AutoCombineSplits, true);
     job.setNumMapTasks(10 * Math.max(1, clusterStatus.getMaxMapTasks()));
   
+    job.setCombinerClass(Combine.class);
+    
     job.setReducerClass(Reduce.class);
     job.setNumReduceTasks(Math.max(1, clusterStatus.getMaxReduceTasks()));
   
@@ -424,11 +436,11 @@ public class Repartition {
             + "' already exists and overwrite flag is not set");
     }
     
-    ShapeRecordWriter<S> writer;
+    ShapeRecordWriter<Shape> writer;
     if (rtree) {
-      writer = new RTreeGridRecordWriter<S>(outFs, out, cells, overwrite);
+      writer = new RTreeGridRecordWriter(outFs, out, cells, overwrite);
     } else {
-      writer = new GridRecordWriter<S>(outFs, out, cells, overwrite);
+      writer = new GridRecordWriter(outFs, out, cells, overwrite);
     }
     
     long length = inFs.getFileStatus(in).getLen();

@@ -9,17 +9,17 @@ import java.util.Random;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.spatial.GridInfo;
-import org.apache.hadoop.spatial.GridRecordWriter;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Rectangle;
+import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.ShapeRecordWriter;
 import org.apache.hadoop.spatial.SpatialSite;
 
 import edu.umn.cs.spatialHadoop.TigerShape;
+import edu.umn.cs.spatialHadoop.mapReduce.GridRecordWriter;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridRecordWriter;
 
 public class RandomSpatialGenerator {
@@ -110,9 +110,9 @@ public class RandomSpatialGenerator {
     }
     
     gridInfo.calculateCellDimensions(num_of_cells);
-    ShapeRecordWriter<TigerShape> recordWriter = rtree ?
-        new RTreeGridRecordWriter<TigerShape>(outFS, outFilePath, gridInfo.getAllCells(), overwrite)
-        : new GridRecordWriter<TigerShape>(outFS, outFilePath, gridInfo.getAllCells(), overwrite);
+    ShapeRecordWriter<Shape> recordWriter = rtree ?
+      new RTreeGridRecordWriter(outFS, outFilePath, gridInfo.getAllCells(), overwrite) :
+      new GridRecordWriter(outFS, outFilePath, gridInfo.getAllCells(), overwrite);
     recordWriter.setStockObject(randomShape);
 
     long generatedSize = 0;
@@ -132,7 +132,7 @@ public class RandomSpatialGenerator {
       if (text.getLength() + NEW_LINE.length + generatedSize > totalSize)
         break;
       
-      recordWriter.write((LongWritable)null, randomShape, text);
+      recordWriter.write(randomShape, text);
       
       generatedSize += text.getLength() + NEW_LINE.length;
     }
