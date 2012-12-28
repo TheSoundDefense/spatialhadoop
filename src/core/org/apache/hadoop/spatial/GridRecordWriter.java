@@ -140,7 +140,7 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
   
   @Override
   public void write(int cellId, Text shapeText) throws IOException {
-    this.writeInternal(cellId, text);
+    this.writeInternal(cellId, shapeText);
   }
 
   /**
@@ -150,7 +150,8 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
    * @throws IOException
    */
   protected synchronized void writeInternal(int cellIndex, Text text) throws IOException {
-    if (text == null) {
+    if (text.getLength() == 0) {
+      LOG.info("Closing cell    #"+cellIndex);
       closeCell(cellIndex);
     } else {
       OutputStream cellStream = getCellStream(cellIndex);
@@ -383,7 +384,7 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
     if (remainingBytes > 0) {
       LOG.info("Cell #"+cellIndex+" stuffing file with "+remainingBytes+" new lines");
       if (cellStream == null) {
-        // Open for append. An exception is throws if FS doesn't support append
+        // Open for append. An exception is thrown if FS doesn't support append
         cellStream = createCellFileStream(cellIndex);
       }
       // Write some bytes so that remainingBytes is multiple of buffer.length
