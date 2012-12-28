@@ -25,6 +25,10 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
   /**Temporary text to serialize one object*/
   protected Text text;
   
+  /**Block size for grid file written*/
+  protected long blockSize;
+
+  
   /**A stock object used for serialization/deserialization*/
   protected S stockObject;
 
@@ -67,6 +71,10 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
     }
     for (Path fileToOverwrite : filesToOverwrite)
       outFileSystem.delete(fileToOverwrite, true);
+    
+    this.blockSize = fileSystem.getConf().getLong(SpatialSite.LOCAL_INDEX_BLOCK_SIZE,
+        fileSystem.getDefaultBlockSize());
+
     
     text = new Text();
   }
@@ -169,7 +177,10 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
     Path cellFilePath = getCellFilePath(cellIndex);
     if (!fileSystem.exists(cellFilePath)) {
       // Create new file
-      cellStream = fileSystem.create(cellFilePath, cells[cellIndex]);
+      cellStream = fileSystem.create(cellFilePath, true,
+          fileSystem.getConf().getInt("io.file.buffer.size", 4096),
+          fileSystem.getDefaultReplication(), this.blockSize,
+          cells[cellIndex]);
     } else {
       // Append to existing file
       cellStream = fileSystem.append(cellFilePath);

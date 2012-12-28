@@ -5,11 +5,9 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
-import java.util.Random;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
@@ -31,15 +29,6 @@ public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> 
   /**Whether to use the fast mode for building RTree or not*/
   protected boolean fastRTree;
   
-  /**
-   * Maximum size of an RTree. Written files should have this as a block size.
-   * Once number of records reach the maximum limit of this block size, records
-   * are written as an RTree and the block is sealed. Next records will be
-   * written in another block. This means that an RTree always starts at a block
-   * boundary
-   */
-  private long blockSize;
-
   public RTreeGridRecordWriter(FileSystem fileSystem, Path outFile,
       CellInfo[] cells, boolean overwrite) throws IOException {
     super(fileSystem, outFile, cells, overwrite);
@@ -51,8 +40,6 @@ public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> 
     
     // Determine the size of each RTree to decide when to flush a cell
     this.rtreeDegree = fileSystem.getConf().getInt(SpatialSite.RTREE_DEGREE, 11);
-    this.blockSize = fileSystem.getConf().getLong(SpatialSite.RTREE_BLOCK_SIZE,
-        fileSystem.getDefaultBlockSize());
     this.fastRTree = fileSystem.getConf().get(SpatialSite.RTREE_BUILD_MODE, "fast").equals("fast");
   }
   

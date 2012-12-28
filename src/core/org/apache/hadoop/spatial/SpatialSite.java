@@ -23,7 +23,7 @@ public class SpatialSite {
   public static final String RTREE_DEGREE = "spatialHadoop.storage.RTreeDegree";
   
   /**Maximum size of an RTree.*/
-  public static final String RTREE_BLOCK_SIZE =
+  public static final String LOCAL_INDEX_BLOCK_SIZE =
       "spatialHadoop.storage.RTreeBlockSize";
   
   /**Whether to build the RTree in fast mode or slow (memory saving) mode.*/
