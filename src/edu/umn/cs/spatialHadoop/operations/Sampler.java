@@ -121,6 +121,8 @@ public class Sampler {
         current_file_in.seek(current_block_start_offset);
         if (current_file_in.readLong() == SpatialSite.RTreeFileMarker) {
           // This block is an RTree block
+          // TODO No need to read the whole RTree in memory
+          
           RTree<T> rtree = new RTree<T>();
           rtree.setStockObject(stockObject);
           rtree.readFields(current_file_in);
