@@ -70,7 +70,7 @@ public class RandomSpatialGenerator {
     if (rtree) {
       final int RTreeDegree = conf.getInt(SpatialSite.RTREE_DEGREE, 11);
       int record_size = RTreeGridRecordWriter.calculateRecordSize(new TigerShape());
-      long blockSize = conf.getLong(SpatialSite.RTREE_BLOCK_SIZE,
+      long blockSize = conf.getLong(SpatialSite.LOCAL_INDEX_BLOCK_SIZE,
           outFS.getDefaultBlockSize());
       final int records_per_block =
           RTree.getBlockCapacity(blockSize, RTreeDegree, record_size);

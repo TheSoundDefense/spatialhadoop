@@ -160,7 +160,7 @@ public class Repartition {
       } catch (IllegalAccessException e1) {
         e1.printStackTrace();
       }
-      long blockSize = conf.getLong(SpatialSite.RTREE_BLOCK_SIZE,
+      long blockSize = conf.getLong(SpatialSite.LOCAL_INDEX_BLOCK_SIZE,
           outFs.getDefaultBlockSize());
       
       LOG.info("RTree block size: "+blockSize);
@@ -243,7 +243,8 @@ public class Repartition {
    * @throws IOException
    */
   public static void repartitionMapReduce(Path inFile, Path outPath,
-      GridInfo gridInfo, boolean pack, boolean rtree, boolean overwrite)
+      GridInfo gridInfo, long blockSize,
+      boolean pack, boolean rtree, boolean overwrite)
           throws IOException {
     
     FileSystem inFs = inFile.getFileSystem(new Configuration());
@@ -374,7 +375,8 @@ public class Repartition {
 
   
   public static<S extends Shape> void repartitionLocal(Path inFile, Path outPath,
-      GridInfo gridInfo, S stockShape, boolean pack, boolean rtree, boolean overwrite)
+      GridInfo gridInfo, S stockShape, long blockSize,
+      boolean pack, boolean rtree, boolean overwrite)
           throws IOException {
     
     FileSystem inFs = inFile.getFileSystem(new Configuration());
@@ -460,12 +462,14 @@ public class Repartition {
     boolean pack = cla.isPack();
     boolean overwrite = cla.isOverwrite();
     boolean local = cla.isLocal();
+    long blockSize = cla.getBlockSize();
     
-    if (local)
-      repartitionLocal(inputPath, outputPath, gridInfo, new TigerShape(), pack,
-          rtree, overwrite);
-    else
-      repartitionMapReduce(inputPath, outputPath, gridInfo, pack, rtree,
-          overwrite);
+    if (local) {
+      repartitionLocal(inputPath, outputPath, gridInfo, new TigerShape(),
+          blockSize, pack, rtree, overwrite);
+    } else {
+      repartitionMapReduce(inputPath, outputPath, gridInfo,
+          blockSize, pack, rtree, overwrite);
+    }
 	}
 }
