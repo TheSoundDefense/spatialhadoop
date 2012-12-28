@@ -10,7 +10,6 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.util.LineReader;
 
@@ -59,14 +58,13 @@ public class WriteGridFile {
     // Open input file
     LineReader reader = new LineReader(inFileSystem.open(inputPath));
 
-    LongWritable dummyId = new LongWritable();
     Text line = new Text();
     while (reader.readLine(line) > 0) {
       // Parse shape dimensions
       shape.fromText(line);
 
       // Write to output file
-      rrw.write(dummyId, shape, line);
+      rrw.write(shape, line);
     }
     
     // Close input file
