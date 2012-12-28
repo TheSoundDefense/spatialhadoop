@@ -3,13 +3,16 @@ package edu.umn.cs.spatialHadoop.operations;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.Vector;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -299,14 +302,31 @@ public class SJMR {
     
     // Calculate and set the dimensions of the grid to use in the map phase
     long total_size = 0;
+    long max_size = 0;
+    Path largest_file = null;
     for (Path file : files) {
-      total_size += fs.getFileStatus(file).getLen();
+      long size = fs.getFileStatus(file).getLen();
+      total_size += size;
+      if (size > max_size)
+        largest_file = file;
     }
-    total_size += total_size * job.getFloat(SpatialSite.REPLICATION_OVERHEAD,
-        0.002f);
-    int num_cells = (int) (total_size / outFs.getDefaultBlockSize());
-    gridInfo.calculateCellDimensions(num_cells);
-    CellInfo[] cellsInfo = gridInfo.getAllCells();
+    // If the largest file is globally indexed, use its partitions
+    BlockLocation[] fileBlockLocations =
+      fs.getFileBlockLocations(fs.getFileStatus(largest_file), 0, max_size);
+    CellInfo[] cellsInfo;
+    if (fileBlockLocations[0].getCellInfo() != null) {
+      Set<CellInfo> all_cells = new HashSet<CellInfo>();
+      for (BlockLocation location : fileBlockLocations) {
+        all_cells.add(location.getCellInfo());
+      }
+      cellsInfo = all_cells.toArray(new CellInfo[all_cells.size()]);
+    } else {
+      total_size += total_size * job.getFloat(SpatialSite.REPLICATION_OVERHEAD,
+          0.002f);
+      int num_cells = (int) (total_size / outFs.getDefaultBlockSize());
+      gridInfo.calculateCellDimensions(num_cells);
+      cellsInfo = gridInfo.getAllCells();
+    }
     job.set(GridOutputFormat.OUTPUT_CELLS,
         GridOutputFormat.encodeCells(cellsInfo));
     
