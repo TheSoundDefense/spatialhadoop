@@ -150,9 +150,11 @@ public class Repartition {
       FileSystem outFs, long blockSize) throws IOException {
     Configuration conf = inFs.getConf();
     final float IndexingOverhead =
-        conf.getFloat(SpatialSite.INDEXING_OVERHEAD, 0.002f);
+        conf.getFloat(SpatialSite.INDEXING_OVERHEAD, 0.1f);
     final long fileSize = inFs.getFileStatus(file).getLen();
     long indexedFileSize = (long) (fileSize * (1 + IndexingOverhead));
+    if (blockSize == 0)
+      blockSize = outFs.getDefaultBlockSize();
     return (int)Math.ceil((float)indexedFileSize / blockSize);
   }
 	
@@ -163,13 +165,14 @@ public class Repartition {
    * @param inFile
    * @param outPath
    * @param gridInfo
+	 * @param stockShape 
    * @param pack
    * @param rtree
    * @param overwrite
    * @throws IOException
    */
   public static void repartitionMapReduce(Path inFile, Path outPath,
-      GridInfo gridInfo, long blockSize,
+      GridInfo gridInfo, Shape stockShape, long blockSize,
       boolean pack, boolean rtree, boolean overwrite)
           throws IOException {
     
@@ -179,17 +182,19 @@ public class Repartition {
       Rectangle mbr = FileMBR.fileMBRLocal(inFs, inFile);
       gridInfo = new GridInfo(mbr.x, mbr.y, mbr.width, mbr.height);
     }
+    
     if (gridInfo.columns == 0 || rtree) {
       // Recalculate grid dimensions
       int num_cells = calculateNumberOfPartitions(
           inFs, inFile, outFs, blockSize);
       gridInfo.calculateCellDimensions(num_cells);
     }
+    LOG.info("Calculated grid: "+gridInfo);
     CellInfo[] cellInfos = pack ?
         packInRectangles(inFs, inFile, outFs, gridInfo) :
         gridInfo.getAllCells();
         
-    repartitionMapReduce(inFile, outPath, cellInfos, blockSize,
+    repartitionMapReduce(inFile, outPath, cellInfos, blockSize, stockShape,
         pack, rtree, overwrite);
   }
   
@@ -204,7 +209,7 @@ public class Repartition {
    * @throws IOException
    */
   public static void repartitionMapReduce(Path inFile, Path outPath,
-      CellInfo[] cellInfos, long blockSize,
+      CellInfo[] cellInfos, long blockSize, Shape stockShape,
       boolean pack, boolean rtree, boolean overwrite) throws IOException {
     JobConf job = new JobConf(Repartition.class);
     job.setJobName("Repartition");
@@ -237,7 +242,7 @@ public class Repartition {
     job.setNumReduceTasks(Math.max(1, clusterStatus.getMaxReduceTasks()));
   
     // Set default parameters for reading input file
-    job.set(SpatialSite.SHAPE_CLASS, TigerShape.class.getName());
+    job.set(SpatialSite.SHAPE_CLASS, stockShape.getClass().getName());
   
     FileOutputFormat.setOutputPath(job,outPath);
     job.setOutputFormat(rtree ? RTreeGridOutputFormat.class : GridOutputFormat.class);
@@ -401,12 +406,13 @@ public class Repartition {
     boolean overwrite = cla.isOverwrite();
     boolean local = cla.isLocal();
     long blockSize = cla.getBlockSize();
+    Shape stockShape = cla.getShape(true);
     
     if (local) {
-      repartitionLocal(inputPath, outputPath, gridInfo, new TigerShape(),
+      repartitionLocal(inputPath, outputPath, gridInfo, stockShape,
           blockSize, pack, rtree, overwrite);
     } else {
-      repartitionMapReduce(inputPath, outputPath, gridInfo,
+      repartitionMapReduce(inputPath, outputPath, gridInfo, stockShape,
           blockSize, pack, rtree, overwrite);
     }
 	}

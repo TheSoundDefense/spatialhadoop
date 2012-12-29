@@ -30,6 +30,7 @@ import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.RTree;
+import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.LineReader;
@@ -108,25 +109,18 @@ public class KNN {
    * A simple inner type that stores a shape with its distance
    * @author eldawy
    */
-  public static class ShapeWithDistance<S extends Shape>
+  public static abstract class ShapeWithDistance<S extends Shape>
       implements TextSerializable, Writable {
     public S shape;
     public long distance;
-    
-    public ShapeWithDistance() {
-      this.shape = (S) new TigerShape();
-    }
     
     public ShapeWithDistance(S shape, long distance) {
       this.shape = shape;
       this.distance = distance;
     }
     
-    @Override
-    public ShapeWithDistance<S> clone() {
-      return new ShapeWithDistance<S>(shape, distance);
-    }
-
+    public abstract ShapeWithDistance<S> clone();
+    
     @Override
     public Text toText(Text text) {
       TextSerializerHelper.serializeLong(distance, text, ';');
@@ -154,6 +148,56 @@ public class KNN {
     public void readFields(DataInput in) throws IOException {
       this.distance = in.readLong();
       shape.readFields(in);
+    }
+  }
+  
+  /*
+   * Since the intermediate object should have a default constructor, we
+   * provide subclasses with default constructors for every type of shape.
+   */
+  public static class PointWithDistance extends ShapeWithDistance<Point> {
+    public PointWithDistance() {
+      super(new Point(), 0);
+    }
+    
+    public PointWithDistance(Point shape, long distance) {
+      super(shape, distance);
+    }
+
+    @Override
+    public ShapeWithDistance<Point> clone() {
+      return new PointWithDistance(shape.clone(), distance);
+    }
+  }
+  
+  public static class RectangleWithDistance extends ShapeWithDistance<Rectangle> {
+    public RectangleWithDistance() {
+      super(new Rectangle(), 0);
+    }
+
+    public RectangleWithDistance(Rectangle shape, long distance) {
+      super(shape, distance);
+      // TODO Auto-generated constructor stub
+    }
+    
+    @Override
+    public ShapeWithDistance<Rectangle> clone() {
+      return new RectangleWithDistance(shape.clone(), distance);
+    }
+  }
+  
+  public static class TigerShapeWithDistance extends ShapeWithDistance<TigerShape> {
+    public TigerShapeWithDistance() {
+      super(new TigerShape(), 0);
+    }
+
+    public TigerShapeWithDistance(TigerShape shape, long distance) {
+      super(shape, distance);
+    }
+    
+    @Override
+    public ShapeWithDistance<TigerShape> clone() {
+      return new TigerShapeWithDistance(shape.clone(), distance);
     }
   }
   
@@ -186,7 +230,7 @@ public class KNN {
     private static final ByteWritable ONE = new ByteWritable((byte)1);
 
     /**A temporary object to be used for output*/
-    private final ShapeWithDistance<S> temp = new ShapeWithDistance<S>();
+    private ShapeWithDistance<S> temp;
     
     /**User query*/
     private PointWithK queryPoint;
@@ -196,6 +240,14 @@ public class KNN {
       super.configure(job);
       queryPoint = new PointWithK();
       queryPoint.fromText(new Text(job.get(QUERY_POINT)));
+      try {
+        temp = job.getMapOutputKeyClass().asSubclass(ShapeWithDistance.class)
+            .newInstance();
+      } catch (InstantiationException e) {
+        e.printStackTrace();
+      } catch (IllegalAccessException e) {
+        e.printStackTrace();
+      }
     }
 
     /**
@@ -329,6 +381,17 @@ public class KNN {
     } while (outFs.exists(outputPath));
     outFs.deleteOnExit(outputPath);
     
+    Class shapeWithDistanceClass;
+    if (shape instanceof Point) {
+      shapeWithDistanceClass = PointWithDistance.class;
+    } else if (shape instanceof Rectangle) {
+      shapeWithDistanceClass = RectangleWithDistance.class;
+    } else if (shape instanceof TigerShape) {
+      shapeWithDistanceClass = TigerShapeWithDistance.class;
+    } else {
+      throw new RuntimeException("Class not supported "+shape.getClass());
+    }
+    
     job.setJobName("KNN");
     
     FSDataInputStream in = fs.open(file);
@@ -345,7 +408,7 @@ public class KNN {
     }
     
     job.setMapOutputKeyClass(ByteWritable.class);
-    job.setMapOutputValueClass(ShapeWithDistance.class);
+    job.setMapOutputValueClass(shapeWithDistanceClass);
     Text text = new Text();
     queryPoint.toText(text);
     job.set(QUERY_POINT, text.toString());
@@ -354,7 +417,7 @@ public class KNN {
     job.setReducerClass(KNNReduce.class);
     job.setNumReduceTasks(1);
     
-    job.set(SpatialSite.SHAPE_CLASS, TigerShape.class.getName());
+    job.set(SpatialSite.SHAPE_CLASS, shape.getClass().getName());
     String query_point_distance = queryPoint.x+","+queryPoint.y+","+0;
     job.set(SplitCalculator.QUERY_POINT_DISTANCE, query_point_distance);
     job.setOutputFormat(TextOutputFormat.class);
@@ -368,24 +431,31 @@ public class KNN {
     // Read job result
     FileStatus[] results = outFs.listStatus(outputPath);
     long resultCount = 0;
-    for (FileStatus fileStatus : results) {
-      if (fileStatus.getLen() > 0 && fileStatus.getPath().getName().startsWith("part-")) {
-        resultCount = RecordCount.recordCountLocal(outFs, fileStatus.getPath());
-        if (output != null) {
-          // Report every single result as a pair of shape with distance
-          ShapeWithDistance<S> shapeWithDistance = new ShapeWithDistance<S>();
-          shapeWithDistance.shape = shape;
-          LineReader lineReader = new LineReader(outFs.open(fileStatus.getPath()));
-          text.clear();
-          if (lineReader.readLine(text) > 0) {
-            String str = text.toString();
-            String[] parts = str.split("\t", 2);
-            shapeWithDistance.fromText(new Text(parts[1]));
-            output.collect(null, shapeWithDistance);
+    try {
+      for (FileStatus fileStatus : results) {
+        if (fileStatus.getLen() > 0 && fileStatus.getPath().getName().startsWith("part-")) {
+          resultCount = RecordCount.recordCountLocal(outFs, fileStatus.getPath());
+          if (output != null) {
+            // Report every single result as a pair of shape with distance
+            ShapeWithDistance<S> shapeWithDistance =
+                (ShapeWithDistance<S>) shapeWithDistanceClass.newInstance();
+            shapeWithDistance.shape = shape;
+            LineReader lineReader = new LineReader(outFs.open(fileStatus.getPath()));
+            text.clear();
+            if (lineReader.readLine(text) > 0) {
+              String str = text.toString();
+              String[] parts = str.split("\t", 2);
+              shapeWithDistance.fromText(new Text(parts[1]));
+              output.collect(null, shapeWithDistance);
+            }
+            lineReader.close();
           }
-          lineReader.close();
         }
       }
+    } catch (InstantiationException e) {
+      e.printStackTrace();
+    } catch (IllegalAccessException e) {
+      e.printStackTrace();
     }
     
     return resultCount;
@@ -401,6 +471,16 @@ public class KNN {
 
     LongWritable key = shapeReader.createKey();
     
+    ShapeWithDistance<S> stock;
+    if (shape instanceof Point) {
+      stock = (ShapeWithDistance<S>) new PointWithDistance();
+    } else if (shape instanceof Rectangle) {
+      stock = (ShapeWithDistance<S>) new RectangleWithDistance();
+    } else if (shape instanceof TigerShape) {
+      stock = (ShapeWithDistance<S>) new TigerShapeWithDistance();
+    } else {
+      throw new RuntimeException("Class not supported: "+shape.getClass());
+    }
     ShapeWithDistance<S>[] knn = new ShapeWithDistance[queryPoint.k];
 
     while (shapeReader.next(key, shape)) {
@@ -415,7 +495,9 @@ public class KNN {
           for (int j = queryPoint.k - 1; j > i; j--)
             knn[j] = knn[j-1];
         }
-        knn[i] = new ShapeWithDistance<S>(shape, (long)distance);
+        knn[i] = stock.clone();
+        knn[i].shape = shape;
+        knn[i].distance = (long) distance;
       }
     }
     shapeReader.close();
@@ -442,25 +524,26 @@ public class KNN {
     final int k = cla.getK();
     int count = cla.getCount();
     int concurrency = cla.getConcurrency();
+    final Shape shape = cla.getShape(true);
     
     final Vector<Long> results = new Vector<Long>();
     
     if (queryPoint != null) {
       // User provided a query, use it
       long resultCount = 
-          knnMapReduce(fs, inputFile, new PointWithK(queryPoint, k), new TigerShape(), null);
+          knnMapReduce(fs, inputFile, new PointWithK(queryPoint, k), shape, null);
       System.out.println("Found "+resultCount+" results");
     } else {
       // Generate query at random points
       final Vector<Thread> threads = new Vector<Thread>();
       final Vector<PointWithK> query_points = new Vector<PointWithK>();
-      Sampler.sampleLocal(fs, inputFile, count, new OutputCollector<LongWritable, TigerShape>(){
+      Sampler.sampleLocal(fs, inputFile, count, new OutputCollector<LongWritable, Shape>(){
         @Override
-        public void collect(final LongWritable key, final TigerShape value) throws IOException {
+        public void collect(final LongWritable key, final Shape value) throws IOException {
           PointWithK query_point = new PointWithK();
           query_point.k = k;
-          query_point.x = value.x;
-          query_point.y = value.y;
+          query_point.x = value.getMBR().x;
+          query_point.y = value.getMBR().y;
           query_points.add(query_point);
           threads.add(new Thread() {
             @Override
@@ -469,7 +552,7 @@ public class KNN {
                 PointWithK query_point =
                     query_points.elementAt(threads.indexOf(this));
                 long result_count = knnMapReduce(fs, inputFile,
-                        query_point, new TigerShape(), null);
+                        query_point, shape, null);
                 results.add(result_count);
               } catch (IOException e) {
                 e.printStackTrace();
@@ -477,7 +560,7 @@ public class KNN {
             }
           });
         }
-      }, new TigerShape());
+      }, shape);
 
       long t1 = System.currentTimeMillis();
       do {

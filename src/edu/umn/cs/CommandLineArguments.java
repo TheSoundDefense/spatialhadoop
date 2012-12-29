@@ -1,14 +1,27 @@
 package edu.umn.cs;
 
+import java.io.IOException;
 import java.util.Vector;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.Text2;
+import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Rectangle;
+import org.apache.hadoop.spatial.Shape;
+
+import edu.umn.cs.spatialHadoop.TigerShape;
+import edu.umn.cs.spatialHadoop.operations.Sampler;
 
 public class CommandLineArguments {
+  private static final Log LOG = LogFactory.getLog(CommandLineArguments.class);
+  
   private String[] args;
 
   public CommandLineArguments(String[] args) {
@@ -177,12 +190,56 @@ public class CommandLineArguments {
     return 0;
   }
   
-  public String getShape() {
+  /**
+   * 
+   * @param autodetect - Automatically detect shape type from input file
+   *   if shape is not explicitly set by user
+   * @return
+   */
+  public Shape getShape(boolean autodetect) {
+    final Text shapeType = new Text();
     for (String arg : args) {
       if (arg.startsWith("shape:")) {
-        return arg.substring(arg.indexOf(':')+1);
+        byte[] temp = arg.substring(arg.indexOf(':')+1).toLowerCase().getBytes();
+        shapeType.set(temp);
       }
     }
-    return "rectangle";
+    
+    if (autodetect && shapeType.getLength() == 0) {
+      // Shape type not found in parameters. Try to infer from a line in input
+      // file
+      Path in_file = getPath();
+      try {
+        Sampler.sampleLocal(in_file.getFileSystem(new Configuration()), in_file, 1, new OutputCollector<LongWritable, Text2>() {
+          @Override
+          public void collect(LongWritable key, Text2 value) throws IOException {
+            String val = value.toString();
+            String[] parts = val.split(",");
+            if (parts.length == 2) {
+              shapeType.set("point".getBytes());
+            } else if (parts.length == 4) {
+              shapeType.set("rect".getBytes());
+            } else if (parts.length > 4) {
+              shapeType.set("tiger".getBytes());
+            }
+          }
+        }, new Text2());
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
+    }
+
+    Shape stockShape = null;
+    if (shapeType.toString().startsWith("rect")) {
+      stockShape = new Rectangle();
+    } else if (shapeType.toString().startsWith("point")) {
+      stockShape = new Point();
+    } else if (shapeType.toString().startsWith("tiger")) {
+      stockShape = new TigerShape();
+    } else {
+      LOG.warn("unknown shape type: "+shapeType);
+    }
+    
+    return stockShape;
   }
 }

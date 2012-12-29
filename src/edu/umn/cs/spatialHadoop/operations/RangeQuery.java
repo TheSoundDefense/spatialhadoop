@@ -29,7 +29,6 @@ import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.CommandLineArguments;
-import edu.umn.cs.spatialHadoop.TigerShape;
 import edu.umn.cs.spatialHadoop.mapReduce.BlockFilter;
 import edu.umn.cs.spatialHadoop.mapReduce.DefaultBlockFilter;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeInputFormat;
@@ -206,7 +205,7 @@ public class RangeQuery {
       job.setMapperClass(Map1.class);
       job.setInputFormat(ShapeInputFormat.class);
     }
-    job.set(SpatialSite.SHAPE_CLASS, TigerShape.class.getName());
+    job.set(SpatialSite.SHAPE_CLASS, shape.getClass().getName());
     in.close();
     
     job.setOutputFormat(TextOutputFormat.class);
@@ -283,20 +282,21 @@ public class RangeQuery {
     int count = cla.getCount();
     final float ratio = cla.getSelectionRatio();
     int concurrency = cla.getConcurrency();
+    final Shape stockShape = cla.getShape(true);
 
     final Vector<Long> results = new Vector<Long>();
     
     if (ratio >= 0.0 && ratio <= 1.0f) {
       final Vector<Thread> threads = new Vector<Thread>();
       final Vector<Rectangle> query_rectangles = new Vector<Rectangle>();
-      Sampler.sampleLocal(fs, inputFile, count, new OutputCollector<LongWritable, TigerShape>(){
+      Sampler.sampleLocal(fs, inputFile, count, new OutputCollector<LongWritable, Shape>(){
         @Override
-        public void collect(final LongWritable key, final TigerShape value) throws IOException {
+        public void collect(final LongWritable key, final Shape value) throws IOException {
           Rectangle query_rectangle = new Rectangle();
           query_rectangle.width = (long) (queryRange.width * ratio);
           query_rectangle.height = (long) (queryRange.height * ratio);
-          query_rectangle.x = value.x - query_rectangle.width / 2;
-          query_rectangle.y = value.y - query_rectangle.height / 2;
+          query_rectangle.x = value.getMBR().x - query_rectangle.width / 2;
+          query_rectangle.y = value.getMBR().y - query_rectangle.height / 2;
           query_rectangles.add(query_rectangle);
           threads.add(new Thread() {
             @Override
@@ -304,7 +304,7 @@ public class RangeQuery {
               try {
                 int thread_i = threads.indexOf(this);
                 long result_count = rangeQueryMapReduce(fs, inputFile,
-                    query_rectangles.elementAt(thread_i), new TigerShape(),
+                    query_rectangles.elementAt(thread_i), stockShape,
                     null);
                 results.add(result_count);
               } catch (IOException e) {
@@ -313,7 +313,7 @@ public class RangeQuery {
             }
           });
         }
-      }, new TigerShape());
+      }, stockShape);
 
       long t1 = System.currentTimeMillis();
       do {
@@ -346,7 +346,7 @@ public class RangeQuery {
       System.out.println("Results: "+results);
     } else {
       long resultCount = 
-          rangeQueryMapReduce(fs, inputFile, queryRange, new TigerShape(), null);
+          rangeQueryMapReduce(fs, inputFile, queryRange, stockShape, null);
       System.out.println("Found "+resultCount+" results");
     }
     

@@ -372,14 +372,19 @@ public class SJMR {
     CommandLineArguments cla = new CommandLineArguments(args);
     Path[] inputPaths = cla.getPaths();
     JobConf conf = new JobConf(RedistributeJoin.class);
+    FileSystem fs = inputPaths[0].getFileSystem(conf);
     GridInfo gridInfo = cla.getGridInfo();
     if (gridInfo == null) {
       Rectangle rect = cla.getRectangle();
-      if (rect != null) {
-        gridInfo = new GridInfo(rect.x, rect.y, rect.width, rect.height);
+      if (rect == null) {
+        rect = new Rectangle();
+        for (Path path : inputPaths) {
+          Rectangle file_mbr = FileMBR.fileMBRLocal(fs, path);
+          rect = rect.union(file_mbr);
+        }
       }
+      gridInfo = new GridInfo(rect.x, rect.y, rect.width, rect.height);
     }
-    FileSystem fs = inputPaths[0].getFileSystem(conf);
     long t1 = System.currentTimeMillis();
     long resultSize = sjmr(fs, inputPaths, gridInfo, null);
     long t2 = System.currentTimeMillis();

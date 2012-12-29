@@ -30,7 +30,6 @@ import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.CommandLineArguments;
-import edu.umn.cs.spatialHadoop.TigerShape;
 import edu.umn.cs.spatialHadoop.mapReduce.Pair;
 import edu.umn.cs.spatialHadoop.mapReduce.PairInputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.PairOfFileSplits;
@@ -202,7 +201,8 @@ public class RedistributeJoin {
    * @return
    * @throws IOException 
    */
-  public static long redistributeJoin(FileSystem fs, Path[] files,
+  public static <S extends Shape> long redistributeJoin(FileSystem fs, Path[] files,
+      S stockShape,
       OutputCollector<PairShape<CellInfo>, PairShape<? extends Shape>> output) throws IOException {
     JobConf job = new JobConf(RedistributeJoin.class);
     
@@ -224,7 +224,7 @@ public class RedistributeJoin {
     job.setNumReduceTasks(0); // No reduce needed for this task
 
     job.setInputFormat(DJInputFormatArray.class);
-    job.set(SpatialSite.SHAPE_CLASS, TigerShape.class.getName());
+    job.set(SpatialSite.SHAPE_CLASS, stockShape.getClass().getName());
     job.setOutputFormat(TextOutputFormat.class);
     
     String commaSeparatedFiles = "";
@@ -249,7 +249,7 @@ public class RedistributeJoin {
           PairShape<CellInfo> cells =
               new PairShape<CellInfo>(new CellInfo(), new CellInfo());
           PairShape<? extends Shape> shapes =
-              new PairShape<TigerShape>(new TigerShape(), new TigerShape());
+              new PairShape<S>(stockShape, stockShape);
           LineReader lineReader = new LineReader(outFs.open(fileStatus.getPath()));
           Text text = new Text();
           if (lineReader.readLine(text) > 0) {
@@ -274,8 +274,9 @@ public class RedistributeJoin {
     Path[] inputPaths = cla.getPaths();
     JobConf conf = new JobConf(RedistributeJoin.class);
     FileSystem fs = inputPaths[0].getFileSystem(conf);
+    Shape stockShape = cla.getShape(true);
     long t1 = System.currentTimeMillis();
-    long resultSize = redistributeJoin(fs, inputPaths, null);
+    long resultSize = redistributeJoin(fs, inputPaths, stockShape, null);
     long t2 = System.currentTimeMillis();
     System.out.println("Total time: "+(t2-t1)+" millis");
     System.out.println("Result size: "+resultSize);

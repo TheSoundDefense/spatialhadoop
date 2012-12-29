@@ -29,6 +29,7 @@ public class RepartitionJoin {
   private static final Log LOG = LogFactory.getLog(RepartitionJoin.class);
   
   public static long repartitionJoin(FileSystem fs, Path[] files,
+      Shape stockShape,
       OutputCollector<PairShape<CellInfo>, PairShape<? extends Shape>> output) throws IOException {
     long t1, t2;
     t1 = System.currentTimeMillis();
@@ -75,7 +76,7 @@ public class RepartitionJoin {
     long blockSize = fs.getFileStatus(larger_file).getBlockSize();
     Repartition.repartitionMapReduce(smaller_file, partitioned_file,
         cells.toArray(new CellInfo[cells.size()]),
-        blockSize, false, false, true);
+        blockSize, stockShape, false, false, true);
     t2 = System.currentTimeMillis();
     System.out.println("Repartition time "+(t2-t1)+" millis");
     
@@ -87,7 +88,7 @@ public class RepartitionJoin {
     t1 = System.currentTimeMillis();
     // Redistribute join the larger file and the partitioned file
     long result_size = RedistributeJoin.redistributeJoin(fs,
-        new Path[] {larger_file, partitioned_file}, output);
+        new Path[] {larger_file, partitioned_file}, stockShape, output);
     outFs.delete(partitioned_file, true);
     t2 = System.currentTimeMillis();
     System.out.println("Join time "+(t2-t1)+" millis");
@@ -99,8 +100,9 @@ public class RepartitionJoin {
     Path[] inputPaths = cla.getPaths();
     JobConf conf = new JobConf(RedistributeJoin.class);
     FileSystem fs = inputPaths[0].getFileSystem(conf);
+    Shape stockShape = cla.getShape(true);
     long t1 = System.currentTimeMillis();
-    long resultSize = repartitionJoin(fs, inputPaths, null);
+    long resultSize = repartitionJoin(fs, inputPaths, stockShape, null);
     long t2 = System.currentTimeMillis();
     System.out.println("Total time: "+(t2-t1)+" millis");
     System.out.println("Result size: "+resultSize);
