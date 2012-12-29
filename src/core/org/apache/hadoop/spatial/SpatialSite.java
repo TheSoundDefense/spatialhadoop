@@ -24,7 +24,7 @@ public class SpatialSite {
   
   /**Maximum size of an RTree.*/
   public static final String LOCAL_INDEX_BLOCK_SIZE =
-      "spatialHadoop.storage.RTreeBlockSize";
+      "spatialHadoop.storage.LocalIndexBlockSize";
   
   /**Whether to build the RTree in fast mode or slow (memory saving) mode.*/
   public static final String RTREE_BUILD_MODE =
@@ -39,8 +39,8 @@ public class SpatialSite {
       "spatialHadoop.mapreduce.autoCombineSplits";
   
   /**Configuration line name for replication overhead*/
-  public static final String REPLICATION_OVERHEAD =
-      "spatialHadoop.storage.ReplicationOverHead";
+  public static final String INDEXING_OVERHEAD =
+      "spatialHadoop.storage.IndexingOverHead";
   
   /**
    * A marker put in the beginning of each block to indicate that this block

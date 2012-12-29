@@ -75,11 +75,14 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
     for (Path fileToOverwrite : filesToOverwrite)
       outFileSystem.delete(fileToOverwrite, true);
     
-    this.blockSize = fileSystem.getConf().getLong(SpatialSite.LOCAL_INDEX_BLOCK_SIZE,
-        fileSystem.getDefaultBlockSize());
-
+    this.blockSize = fileSystem.getConf().getLong(
+        SpatialSite.LOCAL_INDEX_BLOCK_SIZE, fileSystem.getDefaultBlockSize());
     
     text = new Text();
+  }
+  
+  public void setBlockSize(long _block_size) {
+    this.blockSize = _block_size;
   }
   
   public void setStockObject(S stockObject) {
@@ -159,7 +162,6 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
    */
   protected synchronized void writeInternal(int cellIndex, Text text) throws IOException {
     if (text.getLength() == 0) {
-      LOG.info("Closing cell    #"+cellIndex);
       closeCell(cellIndex);
     } else {
       OutputStream cellStream = getCellStream(cellIndex);

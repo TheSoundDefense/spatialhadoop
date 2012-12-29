@@ -580,6 +580,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
       }
       offset = TreeHeaderSize + NodeSize * RTree.this.nodeCount;
       _stockObject = (T) RTree.this.stockObject.clone();
+      line = new Text();
     }
 
     @Override

@@ -1,7 +1,5 @@
 package org.apache.hadoop.spatial;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
@@ -13,7 +11,6 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.io.Writable;
 
 public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> {
   public static final Log LOG = LogFactory.getLog(RTreeGridRecordWriter.class);
@@ -46,32 +43,11 @@ public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> 
   public void setStockObject(S stockObject) {
     super.setStockObject(stockObject);
   }
-  
-  /**
-   * Calculates number of bytes needed to serialize an instance of the given
-   * class. It writes a dummy object to a ByteArrayOutputStreams and calculates
-   * number of bytes reserved by this stream.
-   * @param klass
-   * @return
-   */
-  public static int calculateRecordSize(Writable s) {
-    int size = -1;
-    try {
-      ByteArrayOutputStream bout = new ByteArrayOutputStream();
-      DataOutputStream out = new DataOutputStream(bout);
-      s.write(out);
-      out.close();
-      size = bout.toByteArray().length;
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
-    return size;
-  }
 
   @Override
   protected synchronized void writeInternal(int cellIndex, Text text)
       throws IOException {
-    if (text == null) {
+    if (text.getLength() == 0) {
       closeCell(cellIndex);
       return;
     }
