@@ -3,9 +3,7 @@ package edu.umn.cs.spatialHadoop.mapReduce;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.Vector;
 
 import org.apache.hadoop.conf.Configuration;
@@ -72,45 +70,35 @@ public abstract class SpatialInputFormat<K, V> extends FileInputFormat<K, V> {
   
   @Override
   public InputSplit[] getSplits(JobConf job, int numSplits) throws IOException {
-    InputSplit[] inputSplits = super.getSplits(job, numSplits);
     try {
+      BlockFilter blockFilter = null;
       Class<? extends BlockFilter> blockFilterClass =
-          job.getClass(SpatialSite.FilterClass, null, BlockFilter.class);
-      
-      Vector<FileSplit> splits_2b_processed = new Vector<FileSplit>();
+        job.getClass(SpatialSite.FilterClass, null, BlockFilter.class);
       if (blockFilterClass != null) {
         // Get all blocks the user wants to process
-        BlockFilter blockFilter = blockFilterClass.newInstance();
+        blockFilter = blockFilterClass.newInstance();
         blockFilter.configure(job);
-        for (Path file : getInputPaths(job)) {
-          FileSystem fs = file.getFileSystem(job);
-          long length = fs.getFileStatus(file).getLen();
-          BlockLocation[] blks =
-              fs.getFileBlockLocations(fs.getFileStatus(file), 0l, length);
-          
-          Collection<BlockLocation> blocks_2b_processed = blockFilter.processBlocks(blks);
-          // Return only splits in the ranges
-          for (InputSplit split : inputSplits) {
-            FileSplit fsplit = (FileSplit) split;
-            if (fsplit.getPath().equals(file)) {
-              Iterator<BlockLocation> blk_iter = blocks_2b_processed.iterator();
-              while (blk_iter.hasNext()) {
-                BlockLocation blk = blk_iter.next();
-                if (fsplit.getStart() + fsplit.getLength() <= blk.getOffset() ||
-                    blk.getOffset() + blk.getLength() <= fsplit.getStart()) {
-                } else {
-                  splits_2b_processed.add(fsplit);
-                  break;
-                }
-              }
-            }
-          }
-        }
-      } else {
-        for (InputSplit s : inputSplits)
-        splits_2b_processed.add((FileSplit) s);
       }
 
+      Vector<FileSplit> splits_2b_processed = new Vector<FileSplit>();
+      for (Path file : getInputPaths(job)) {
+        FileSystem fs = file.getFileSystem(job);
+        long length = fs.getFileStatus(file).getLen();
+
+        BlockLocation[] blks =
+          fs.getFileBlockLocations(fs.getFileStatus(file), 0l, length);
+
+        if (blockFilter != null) {
+          Collection<BlockLocation> blocks_2b_processed = blockFilter.processBlocks(blks);
+          blks = blocks_2b_processed.toArray(new BlockLocation[blocks_2b_processed.size()]);
+        }            
+
+        for (BlockLocation blockLocation : blks) {
+          splits_2b_processed.add(new FileSplit(file,
+              blockLocation.getOffset(), blockLocation.getLength(),
+              blockLocation.getHosts()));
+        }
+      }
       LOG.info("Number of splits to be processed "+splits_2b_processed.size());
       // If splits generated so far are less required by user, just return
       // them
@@ -121,10 +109,11 @@ public abstract class SpatialInputFormat<K, V> extends FileInputFormat<K, V> {
 
       return FileSplitUtil.autoCombineSplits(job, splits_2b_processed, numSplits);
     } catch (InstantiationException e) {
-      return inputSplits;
+      return super.getSplits(job, numSplits);
     } catch (IllegalAccessException e) {
-      return inputSplits;
+      return super.getSplits(job, numSplits);
     }
   }
+
   
 }

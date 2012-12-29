@@ -176,4 +176,13 @@ public class CommandLineArguments {
     }
     return 0;
   }
+  
+  public String getShape() {
+    for (String arg : args) {
+      if (arg.startsWith("shape:")) {
+        return arg.substring(arg.indexOf(':')+1);
+      }
+    }
+    return "rectangle";
+  }
 }

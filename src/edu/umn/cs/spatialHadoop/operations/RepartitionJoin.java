@@ -72,8 +72,10 @@ public class RepartitionJoin {
       partitioned_file = new Path(smaller_file.toUri().getPath()+
           ".repartitioned_"+(int)(Math.random() * 1000000));
     } while (outFs.exists(partitioned_file));
-    Repartition.repartitionMapReduce(smaller_file,
-        partitioned_file, cells.toArray(new CellInfo[cells.size()]), false, false, true);
+    long blockSize = fs.getFileStatus(larger_file).getBlockSize();
+    Repartition.repartitionMapReduce(smaller_file, partitioned_file,
+        cells.toArray(new CellInfo[cells.size()]),
+        blockSize, false, false, true);
     t2 = System.currentTimeMillis();
     System.out.println("Repartition time "+(t2-t1)+" millis");
     

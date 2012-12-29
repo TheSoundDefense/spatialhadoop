@@ -34,7 +34,6 @@ import org.apache.hadoop.spatial.ShapeRecordWriter;
 import org.apache.hadoop.spatial.SpatialSite;
 
 import edu.umn.cs.CommandLineArguments;
-import edu.umn.cs.Estimator;
 import edu.umn.cs.spatialHadoop.TigerShape;
 import edu.umn.cs.spatialHadoop.mapReduce.GridOutputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.GridRecordWriter;
@@ -135,7 +134,7 @@ public class Repartition {
         output.collect(cellId, value);
       }
       // Close this cell as we will not write any more data to it
-      output.collect(cellId, null);
+      output.collect(cellId, new Text());
     }
   }
   
@@ -148,96 +147,13 @@ public class Repartition {
    * @throws IOException 
    */
   static int calculateNumberOfPartitions(FileSystem inFs, Path file,
-      FileSystem outFs,
-      boolean rtree) throws IOException {
+      FileSystem outFs, long blockSize) throws IOException {
     Configuration conf = inFs.getConf();
-    final float ReplicationOverhead =
-        conf.getFloat(SpatialSite.REPLICATION_OVERHEAD, 0.002f);
+    final float IndexingOverhead =
+        conf.getFloat(SpatialSite.INDEXING_OVERHEAD, 0.002f);
     final long fileSize = inFs.getFileStatus(file).getLen();
-    if (!rtree) {
-      long indexedFileSize = (long) (fileSize * (1 + ReplicationOverhead));
-      return (int)Math.ceil((float)indexedFileSize / outFs.getDefaultBlockSize());
-    } else {
-      final int RTreeDegree = conf.getInt(SpatialSite.RTREE_DEGREE, 11);
-      Class<? extends Shape> recordClass =
-          conf.getClass(SpatialSite.SHAPE_CLASS, TigerShape.class).
-          asSubclass(Shape.class);
-      int record_size = 0;
-      try {
-        record_size = RTreeGridRecordWriter.calculateRecordSize(recordClass.newInstance());
-      } catch (InstantiationException e1) {
-        e1.printStackTrace();
-      } catch (IllegalAccessException e1) {
-        e1.printStackTrace();
-      }
-      long blockSize = conf.getLong(SpatialSite.LOCAL_INDEX_BLOCK_SIZE,
-          outFs.getDefaultBlockSize());
-      
-      LOG.info("RTree block size: "+blockSize);
-      final int records_per_block =
-          RTree.getBlockCapacity(blockSize, RTreeDegree, record_size);
-      LOG.info("RTrees can hold up to: "+records_per_block+" recods");
-      
-      final FSDataInputStream in = inFs.open(file);
-      int blockCount;
-      if (in.readLong() == SpatialSite.RTreeFileMarker) {
-        blockCount = (int) Math.ceil((double)inFs.getFileStatus(file).getLen() /
-            inFs.getFileStatus(file).getBlockSize());
-      } else {
-        Estimator<Integer> estimator = new Estimator<Integer>(0.01);
-        estimator.setRandomSample(new Estimator.RandomSample() {
-          
-          @Override
-          public double next() {
-            int lineLength = 0;
-            try {
-              long randomFilePosition = (long)(Math.random() * fileSize);
-              in.seek(randomFilePosition);
-              
-              // Skip the rest of this line
-              byte lastReadByte;
-              do {
-                lastReadByte = in.readByte();
-              } while (lastReadByte != '\n' && lastReadByte != '\r');
-              
-              while (in.getPos() < fileSize - 1) {
-                lastReadByte = in.readByte();
-                if (lastReadByte == '\n' || lastReadByte == '\r') {
-                  break;
-                }
-                lineLength++;
-              }
-            } catch (IOException e) {
-              e.printStackTrace();
-            }
-            return lineLength+1;
-          }
-        });
-        
-        estimator.setUserFunction(new Estimator.UserFunction<Integer>() {
-          @Override
-          public Integer calculate(double x) {
-            double lineCount = fileSize / x;
-            double indexedRecordCount = lineCount * (1.0 + ReplicationOverhead);
-            return (int) Math.ceil(indexedRecordCount / records_per_block);
-          }
-        });
-        
-        estimator.setQualityControl(new Estimator.QualityControl<Integer>() {
-          @Override
-          public boolean isAcceptable(Integer y1, Integer y2) {
-            return (double)Math.abs(y2 - y1) / Math.min(y1, y2) < 0.01;
-          }
-        });
-        
-        Estimator.Range<Integer> blockCountRange = estimator.getEstimate();
-        LOG.info("block count range ["+ blockCountRange.limit1 + ","
-            + blockCountRange.limit2 + "]");
-        blockCount = Math.max(blockCountRange.limit1, blockCountRange.limit2);
-      }
-      in.close();
-      return blockCount;
-    }
+    long indexedFileSize = (long) (fileSize * (1 + IndexingOverhead));
+    return (int)Math.ceil((float)indexedFileSize / blockSize);
   }
 	
 	/**
@@ -265,14 +181,16 @@ public class Repartition {
     }
     if (gridInfo.columns == 0 || rtree) {
       // Recalculate grid dimensions
-      int num_cells = calculateNumberOfPartitions(inFs, inFile, outFs, rtree);
+      int num_cells = calculateNumberOfPartitions(
+          inFs, inFile, outFs, blockSize);
       gridInfo.calculateCellDimensions(num_cells);
     }
     CellInfo[] cellInfos = pack ?
         packInRectangles(inFs, inFile, outFs, gridInfo) :
         gridInfo.getAllCells();
         
-    repartitionMapReduce(inFile, outPath, cellInfos, pack, rtree, overwrite);
+    repartitionMapReduce(inFile, outPath, cellInfos, blockSize,
+        pack, rtree, overwrite);
   }
   
   /**
@@ -286,7 +204,8 @@ public class Repartition {
    * @throws IOException
    */
   public static void repartitionMapReduce(Path inFile, Path outPath,
-      CellInfo[] cellInfos, boolean pack, boolean rtree, boolean overwrite) throws IOException {
+      CellInfo[] cellInfos, long blockSize,
+      boolean pack, boolean rtree, boolean overwrite) throws IOException {
     JobConf job = new JobConf(Repartition.class);
     job.setJobName("Repartition");
     FileSystem outFs = outPath.getFileSystem(job);
@@ -312,7 +231,7 @@ public class Repartition {
     job.setBoolean(SpatialSite.AutoCombineSplits, true);
     job.setNumMapTasks(10 * Math.max(1, clusterStatus.getMaxMapTasks()));
   
-    job.setCombinerClass(Combine.class);
+//    job.setCombinerClass(Combine.class);
     
     job.setReducerClass(Reduce.class);
     job.setNumReduceTasks(Math.max(1, clusterStatus.getMaxReduceTasks()));
@@ -322,6 +241,8 @@ public class Repartition {
   
     FileOutputFormat.setOutputPath(job,outPath);
     job.setOutputFormat(rtree ? RTreeGridOutputFormat.class : GridOutputFormat.class);
+    if (blockSize != 0)
+      job.setLong(SpatialSite.LOCAL_INDEX_BLOCK_SIZE, blockSize);
     job.set(GridOutputFormat.OUTPUT_CELLS,
         GridOutputFormat.encodeCells(cellInfos));
     job.setBoolean(GridOutputFormat.OVERWRITE, overwrite);
@@ -399,14 +320,16 @@ public class Repartition {
     }
     if (gridInfo.columns == 0 || rtree) {
       // Recalculate grid dimensions
-      int num_cells = calculateNumberOfPartitions(inFs, inFile, outFs, rtree);
+      int num_cells = calculateNumberOfPartitions(
+          inFs, inFile, outFs, blockSize);
       gridInfo.calculateCellDimensions(num_cells);
     }
     CellInfo[] cellInfos = pack ?
         packInRectangles(inFs, inFile, outFs, gridInfo) :
         gridInfo.getAllCells();
         
-    repartitionLocal(inFile, outPath, cellInfos, stockShape, pack, rtree, overwrite);
+    repartitionLocal(inFile, outPath, cellInfos, stockShape, blockSize,
+        pack, rtree, overwrite);
   }
 
   /**
@@ -423,8 +346,8 @@ public class Repartition {
    * @throws IOException 
    */
   public static<S extends Shape> void repartitionLocal(Path in, Path out,
-      CellInfo[] cells, S stockShape, boolean pack, boolean rtree,
-      boolean overwrite) throws IOException {
+      CellInfo[] cells, S stockShape, long blockSize,
+      boolean pack, boolean rtree, boolean overwrite) throws IOException {
     FileSystem inFs = in.getFileSystem(new Configuration());
     FileSystem outFs = out.getFileSystem(new Configuration());
     // Overwrite output file
@@ -442,6 +365,9 @@ public class Repartition {
     } else {
       writer = new GridRecordWriter(outFs, out, cells, overwrite);
     }
+    
+    if (blockSize != 0)
+      ((GridRecordWriter)writer).setBlockSize(blockSize);
     
     long length = inFs.getFileStatus(in).getLen();
     FSDataInputStream datain = inFs.open(in);

@@ -6,7 +6,10 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.Vector;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.BlockLocation;
+import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -24,7 +27,9 @@ import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TextOutputFormat;
+import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.Point;
+import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.LineReader;
@@ -33,6 +38,7 @@ import edu.umn.cs.CommandLineArguments;
 import edu.umn.cs.spatialHadoop.TigerShape;
 import edu.umn.cs.spatialHadoop.mapReduce.BlockFilter;
 import edu.umn.cs.spatialHadoop.mapReduce.DefaultBlockFilter;
+import edu.umn.cs.spatialHadoop.mapReduce.RTreeInputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeInputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
 import edu.umn.cs.spatialHadoop.mapReduce.SplitCalculator;
@@ -43,6 +49,10 @@ import edu.umn.cs.spatialHadoop.mapReduce.SplitCalculator;
  *
  */
 public class KNN {
+  /**Logger for KNN*/
+  private static final Log LOG = LogFactory.getLog(KNN.class);
+
+  
   /**Configuration line name for query point*/
   public static final String QUERY_POINT =
       "edu.umn.cs.spatialHadoop.operations.KNN.QueryPoint";
@@ -171,8 +181,7 @@ public class KNN {
    * @author eldawy
    *
    */
-  public static class KNNMap<S extends Shape> extends MapReduceBase implements
-      Mapper<LongWritable, S, ByteWritable, ShapeWithDistance<S>> {
+  public static class KNNMap<S extends Shape> extends MapReduceBase {
     /**A dummy intermediate value used instead of recreating it again and gain*/
     private static final ByteWritable ONE = new ByteWritable((byte)1);
 
@@ -189,6 +198,14 @@ public class KNN {
       queryPoint.fromText(new Text(job.get(QUERY_POINT)));
     }
 
+    /**
+     * Map for non-indexed (heap) blocks
+     * @param id
+     * @param shape
+     * @param output
+     * @param reporter
+     * @throws IOException
+     */
     public void map(LongWritable id, S shape,
         OutputCollector<ByteWritable, ShapeWithDistance<S>> output,
         Reporter reporter) throws IOException {
@@ -196,7 +213,39 @@ public class KNN {
       temp.distance = (long)shape.distanceTo(queryPoint.x, queryPoint.y);
       output.collect(ONE, temp);
     }
+
+    /**
+     * Map for RTree indexed blocks
+     * @param id
+     * @param shapes
+     * @param output
+     * @param reporter
+     * @throws IOException
+     */
+    public void map(CellInfo cellInfo, RTree<S> shapes,
+        final OutputCollector<ByteWritable, ShapeWithDistance<S>> output,
+        Reporter reporter) throws IOException {
+      shapes.knn(queryPoint.x, queryPoint.y, queryPoint.k, new RTree.ResultCollector2<S, Long>() {
+        @Override
+        public void add(S shape, Long distance) {
+          try {
+            temp.shape = shape;
+            temp.distance = distance;
+            output.collect(ONE, temp);
+          } catch (IOException e) {
+            e.printStackTrace();
+          }
+        }
+      });
+    }
+
   }
+  
+  public static class Map1<S extends Shape> extends KNNMap<S>
+    implements Mapper<LongWritable, S, ByteWritable, ShapeWithDistance<S>> {}
+
+  public static class Map2<S extends Shape> extends KNNMap<S>
+    implements Mapper<CellInfo, RTree<S>, ByteWritable, ShapeWithDistance<S>> {}
 
   /**
    * Reduce (and combine) class for KNN MapReduce. Given a list of shapes,
@@ -281,7 +330,20 @@ public class KNN {
     outFs.deleteOnExit(outputPath);
     
     job.setJobName("KNN");
-    job.setMapperClass(KNNMap.class);
+    
+    FSDataInputStream in = fs.open(file);
+    if (in.readLong() == SpatialSite.RTreeFileMarker) {
+      LOG.info("Performing KNN on RTree blocks");
+      job.setMapperClass(Map2.class);
+      job.setInputFormat(RTreeInputFormat.class);
+    } else {
+      LOG.info("Performing KNN on heap blocks");
+      job.setMapperClass(Map1.class);
+      // Combiner is needed for heap blocks
+      job.setCombinerClass(KNNReduce.class);
+      job.setInputFormat(ShapeInputFormat.class);
+    }
+    
     job.setMapOutputKeyClass(ByteWritable.class);
     job.setMapOutputValueClass(ShapeWithDistance.class);
     Text text = new Text();
@@ -290,10 +352,8 @@ public class KNN {
     job.setClass(SpatialSite.FilterClass, KNNFilter.class, BlockFilter.class);
     
     job.setReducerClass(KNNReduce.class);
-    job.setCombinerClass(KNNReduce.class);
     job.setNumReduceTasks(1);
     
-    job.setInputFormat(ShapeInputFormat.class);
     job.set(SpatialSite.SHAPE_CLASS, TigerShape.class.getName());
     String query_point_distance = queryPoint.x+","+queryPoint.y+","+0;
     job.set(SplitCalculator.QUERY_POINT_DISTANCE, query_point_distance);
