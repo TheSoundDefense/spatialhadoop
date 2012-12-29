@@ -429,6 +429,31 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
     in.skipBytes(nodeCount * NodeSize);
     return elementCount;
   }
+  
+  /**
+   * Returns the total size of the header (including the index) in bytes.
+   * Assume that the input is aligned to the start offset of the tree (header).
+   * Note that the part of the header is consumed from the given input to be
+   * able to determine header size.
+   * @param in
+   * @return
+   * @throws IOException
+   */
+  public static int getHeaderSize(DataInput in) throws IOException {
+    int header_size = 0;
+    /*int treeSize = */in.readInt(); header_size += 4;
+    int height = in.readInt(); header_size += 4;
+    if (height == 0) {
+      // Empty tree. No results
+      return header_size;
+    }
+    int degree = in.readInt(); header_size += 4;
+    int nodeCount = (int) ((Math.pow(degree, height) - 1) / (degree - 1));
+    /*int elementCount = */in.readInt(); header_size += 4;
+    // Add the size of all nodes
+    header_size += nodeCount * NodeSize;
+    return header_size;
+  }
 
   private void readHeader() throws IOException {
     startQuery();

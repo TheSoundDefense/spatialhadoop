@@ -295,7 +295,7 @@ public class Rectangle implements Shape {
    *      the specified <code>Rectangle</code> and this 
    *      <code>Rectangle</code>.
    */
-  public Shape union(final Shape s) {
+  public Rectangle union(final Shape s) {
     Rectangle r = s.getMBR();
     long tx2 = this.width;
     long ty2 = this.height;

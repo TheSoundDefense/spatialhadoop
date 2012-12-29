@@ -5,7 +5,7 @@ package org.apache.hadoop.io;
  * @author eldawy
  *
  */
-public class Text2 extends Text {
+public class Text2 extends Text implements TextSerializable {
 
   public Text2() {
   }
@@ -42,5 +42,16 @@ public class Text2 extends Text {
     if (newlen < length) {
       length = newlen;
     }
+  }
+
+  @Override
+  public Text toText(Text text) {
+    text.append(getBytes(), 0, getLength());
+    return text;
+  }
+
+  @Override
+  public void fromText(Text text) {
+    this.set(text);
   }
 }
