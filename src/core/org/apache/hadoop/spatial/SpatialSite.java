@@ -28,7 +28,7 @@ public class SpatialSite {
   
   /**Whether to build the RTree in fast mode or slow (memory saving) mode.*/
   public static final String RTREE_BUILD_MODE =
-      "spatialHadoop.storage.RTreeBuiltMode";
+      "spatialHadoop.storage.RTreeBuildMode";
   
   /**Configuration line to set the default shape class to use if not set*/
   public static final String SHAPE_CLASS =
@@ -40,7 +40,7 @@ public class SpatialSite {
   
   /**Configuration line name for replication overhead*/
   public static final String INDEXING_OVERHEAD =
-      "spatialHadoop.storage.IndexingOverHead";
+      "spatialHadoop.storage.IndexingOverhead";
   
   /**
    * A marker put in the beginning of each block to indicate that this block
