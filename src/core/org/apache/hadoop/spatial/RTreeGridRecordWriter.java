@@ -112,7 +112,7 @@ public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> 
     LOG.info("Stuffing file " + cellIndex +  " with new lines: " + remainingBytes);
     // Create a buffer filled with zeros
     byte[] buffer = new byte[fileSystem.getConf().getInt("io.file.buffer.size", 1024 * 1024)];
-    Arrays.fill(buffer, (byte)0);
+    Arrays.fill(buffer, (byte)'\n');
     // Write some bytes so that remainingBytes is multiple of buffer.length
     cellStream.write(buffer, 0, (int)(remainingBytes % buffer.length));
     remainingBytes -= remainingBytes % buffer.length;

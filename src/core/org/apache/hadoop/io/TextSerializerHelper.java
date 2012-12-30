@@ -13,7 +13,20 @@ public final class TextSerializerHelper {
     'u' , 'v' , 'w' , 'x' , 'y' , 'z'
   };
   
+  final static boolean[] HexadecimalChars;
+  
   static byte[] buffer = new byte[64];
+  
+  static {
+    HexadecimalChars = new boolean[256];
+    for (char i = 'a'; i <= 'f'; i++)
+      HexadecimalChars[i] = true;
+    for (char i = 'A'; i <= 'F'; i++)
+      HexadecimalChars[i] = true;
+    for (char i = '0'; i <= '9'; i++)
+      HexadecimalChars[i] = true;
+    HexadecimalChars['-'] = true;
+  }
 
   /**
    * Appends hex representation of the given number to the given string.
@@ -85,11 +98,13 @@ public final class TextSerializerHelper {
     int i = 0;
     byte[] bytes = text.getBytes();
     // Skip until the separator or end of text
-    while (i < text.getLength() && bytes[i] != separator)
+    while (i < text.getLength() && HexadecimalChars[bytes[i]])
       i++;
     long l = deserializeLong(bytes, 0, i);
-    if (separator != 0 && i < text.getLength())
+    // If the first char after the long is the separator, skip it
+    if (i < text.getLength() && bytes[i] == separator)
       i++;
+    // Shift bytes after the long
     System.arraycopy(bytes, i, bytes, 0, text.getLength() - i);
     text.set(bytes, 0, text.getLength() - i);
     return l;

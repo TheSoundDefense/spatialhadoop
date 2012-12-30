@@ -92,13 +92,10 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
   
   @Override
   public synchronized void write(LongWritable dummyId, S shape) throws IOException {
-    if (shape == null) {
-      write(shape, null);
-    } else {
-      text.clear();
+    text.clear();
+    if (shape != null)
       shape.toText(text);
-      write(shape, text);
-    }
+    write(shape, text);
   }
 
   /**
@@ -118,6 +115,7 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
     Rectangle mbr = shape.getMBR();
     for (int cellIndex = 0; cellIndex < cells.length; cellIndex++) {
       if (mbr.isIntersected(cells[cellIndex])) {
+        System.out.println(shape+" matched with cell "+cells[cellIndex]);
         writeInternal(cellIndex, text);
       }
     }
