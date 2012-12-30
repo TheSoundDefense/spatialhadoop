@@ -163,7 +163,6 @@ public class Sampler {
           check_offset *= 2;
         }
 
-        System.out.println("Range ["+data_start_offset+","+data_end_offset+"]");
         long block_fill_size = data_end_offset - data_start_offset;
 
         // Consider all positions in this block
