@@ -241,7 +241,7 @@ public class KNN {
       queryPoint = new PointWithK();
       queryPoint.fromText(new Text(job.get(QUERY_POINT)));
       try {
-        temp = job.getMapOutputKeyClass().asSubclass(ShapeWithDistance.class)
+        temp = job.getMapOutputValueClass().asSubclass(ShapeWithDistance.class)
             .newInstance();
       } catch (InstantiationException e) {
         e.printStackTrace();
@@ -290,7 +290,6 @@ public class KNN {
         }
       });
     }
-
   }
   
   public static class Map1<S extends Shape> extends KNNMap<S>

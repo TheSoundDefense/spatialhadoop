@@ -179,7 +179,7 @@ public class Repartition {
     FileSystem inFs = inFile.getFileSystem(new Configuration());
     FileSystem outFs = outPath.getFileSystem(new Configuration());
     if (gridInfo == null) {
-      Rectangle mbr = FileMBR.fileMBRLocal(inFs, inFile);
+      Rectangle mbr = FileMBR.fileMBRMapReduce(inFs, inFile);
       gridInfo = new GridInfo(mbr.x, mbr.y, mbr.width, mbr.height);
     }
     
