@@ -121,7 +121,7 @@ public class Sampler {
         current_file_in.seek(current_block_start_offset);
         // The start and end offsets of data within this block
         // offsets are calculated relative to file start
-        long data_start_offset = 0;
+        long data_start_offset = current_block_start_offset;
         if (current_file_in.readLong() == SpatialSite.RTreeFileMarker) {
           // This block is an RTree block. Update the start offset to point
           // to the first byte after the header
