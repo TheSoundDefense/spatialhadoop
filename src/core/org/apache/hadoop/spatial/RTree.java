@@ -635,7 +635,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
    * @param startOffset
    * @return
    */
-  static int skipToEOL(byte[] bytes, int startOffset) {
+  public static int skipToEOL(byte[] bytes, int startOffset) {
     int eol = startOffset;
     while (eol < bytes.length && (bytes[eol] != '\n' && bytes[eol] != '\r'))
       eol++;
