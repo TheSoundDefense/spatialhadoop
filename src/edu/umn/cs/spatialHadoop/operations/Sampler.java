@@ -1,5 +1,6 @@
 package edu.umn.cs.spatialHadoop.operations;
 
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.Arrays;
 
@@ -7,6 +8,7 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.MemoryInputStream;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Text2;
 import org.apache.hadoop.io.TextSerializable;
@@ -24,6 +26,7 @@ import edu.umn.cs.CommandLineArguments;
  */
 public class Sampler {
 
+  private static final int BIG_SAMPLE = 10000;
   private static final int MAX_LINE_LENGTH = 4096;
   
   /**
@@ -48,16 +51,30 @@ public class Sampler {
       int count = (int) ((total_size - current_sample_size.get()) / average_record_size);
       if (count < 10)
         count = 10;
-      sample_count += sampleLocal(fs, files, count, new OutputCollector<LongWritable, T>() {
-        @Override
-        public void collect(LongWritable key, T value) throws IOException {
-          text.clear();
-          value.toText(text);
-          current_sample_size.set(current_sample_size.get() + text.getLength());
-          if (output != null)
-            output.collect(key, value);
-        }
-      } , stockObject);
+      
+      if (count < BIG_SAMPLE) {
+        sample_count += sampleLocal(fs, files, count, new OutputCollector<LongWritable, T>() {
+          @Override
+          public void collect(LongWritable key, T value) throws IOException {
+            text.clear();
+            value.toText(text);
+            current_sample_size.set(current_sample_size.get() + text.getLength());
+            if (output != null)
+              output.collect(key, value);
+          }
+        } , stockObject);
+      } else {
+        sample_count += sampleLocalBig(fs, files, count, new OutputCollector<LongWritable, T>() {
+          @Override
+          public void collect(LongWritable key, T value) throws IOException {
+            text.clear();
+            value.toText(text);
+            current_sample_size.set(current_sample_size.get() + text.getLength());
+            if (output != null)
+              output.collect(key, value);
+          }
+        } , stockObject);
+      }
       // Update average_records_size
       average_record_size = (int) (current_sample_size.get() / sample_count);
     }
@@ -216,6 +233,153 @@ public class Sampler {
     return records_returned;
   }
   
+  /**
+   * Reads a relatively big sample of the file.
+   * @param fs
+   * @param file
+   * @param count
+   * @return
+   * @throws IOException 
+   */
+  public static <T extends TextSerializable> int sampleLocalBig(FileSystem fs,
+      Path[] files, int count, OutputCollector<LongWritable, T> output,
+      T stockObject) throws IOException {
+    long[] files_start_offset = new long[files.length+1]; // Prefix sum of files sizes
+    long total_length = 0;
+    for (int i_file = 0; i_file < files.length; i_file++) {
+      files_start_offset[i_file] = total_length;
+      total_length += fs.getFileStatus(files[i_file]).getLen();
+    }
+    files_start_offset[files.length] = total_length;
+    
+    // Generate offsets to read from and make sure they are ordered to minimize
+    // seeks between different HDFS blocks
+    long[] offsets = new long[count];
+    for (int i = 0; i < offsets.length; i++) {
+      offsets[i] = (long) (Math.random() * total_length);
+    }
+    Arrays.sort(offsets);
+
+    LongWritable elementId = new LongWritable(); // Key for returned elements
+    int record_i = 0; // Number of records read so far
+    int records_returned = 0;
+    // A temporary text to store one line
+    Text line = new Text();
+    
+    int file_i = 0; // Index of the current file being sampled
+    while (record_i < count) {
+      // Skip to the file that contains the next sample
+      while (offsets[record_i] > files_start_offset[file_i+1])
+        file_i++;
+
+      // Open a stream to the current file and use it to read all samples
+      // in this file
+      FSDataInputStream current_file_in = fs.open(files[file_i]);
+      long current_file_size = files_start_offset[file_i+1] - files_start_offset[file_i];
+      long current_file_block_size = fs.getFileStatus(files[file_i]).getBlockSize();
+      byte[] block_data = new byte[(int) current_file_block_size];
+      
+      // Keep sampling as long as records offsets are within this file
+      while (record_i < count &&
+          (offsets[record_i] -= files_start_offset[file_i]) < current_file_size) {
+        long current_block_start_offset = offsets[record_i] -
+            (offsets[record_i] % current_file_block_size);
+
+        // Calculate the start and end offset of record data within the block
+        // Both offsets are calculated relative to this block
+        int data_start_offset = 0;
+        int data_end_offset = (int) Math.min(current_file_block_size, 
+            current_file_size - current_block_start_offset);
+
+        // Seek to this block and check its type
+        if (current_file_in.getPos() != current_block_start_offset)
+          current_file_in.seek(current_block_start_offset);
+        
+        // Read the whole block in memory
+        current_file_in.readFully(block_data, 0, data_end_offset);
+        
+        // Check if this block is an RTree
+        int i = 0;
+        while (i < SpatialSite.RTreeFileMarkerB.length &&
+            SpatialSite.RTreeFileMarkerB[i] == block_data[i]) {
+          i++;
+        }
+
+        // If RTree, update data_start_offset to point right after the index
+        if (i == SpatialSite.RTreeFileMarkerB.length) {
+          DataInputStream temp_is =
+              new DataInputStream(new MemoryInputStream(block_data));
+          // This block is an RTree block. Update the start offset to point
+          // to the first byte after the header
+          data_start_offset = RTree.getHeaderSize(temp_is);
+        } 
+        // Get the end offset of data by searching for the last non-empty line
+        // We perform an exponential search starting from the last offset in
+        // block. This assumes that all empty lines occur at the end
+        int check_offset = 1;
+        while (check_offset < data_end_offset) {
+          int check_position = data_end_offset - check_offset * 2;
+          if (block_data[check_position] != '\n' || block_data[check_position+1] != '\n') {
+            // We found a non-empty line. Perform a binary search till we find
+            // the last non-empty line
+            int l = data_end_offset - check_offset * 2;
+            int h = data_end_offset - check_offset;
+            while (l < h) {
+              int m = (l + h) / 2;
+              if (block_data[m] == '\n' && block_data[m+1] == '\n'){
+                // This is an empty line, check before that
+                h = m-1;
+              } else {
+                // This is a non-empty line, check after that
+                l = m+1;
+              }
+            }
+            // Subtract 100 to ensure the mapped offset doesn't fall
+            // in the last line
+            data_end_offset = l - 100;
+            break;
+          }
+          check_offset *= 2;
+        }
+        
+        System.out.println("Block data range: ["+data_start_offset+","+data_end_offset+"]");
+
+        long block_fill_size = data_end_offset - data_start_offset;
+
+        // Consider all positions in this block
+        while (record_i < count &&
+            offsets[record_i] < current_block_start_offset + current_file_block_size) {
+          // Map file position to element index in this tree assuming fixed
+          // size records
+          int element_offset_in_block = (int)
+              ((offsets[record_i] - current_block_start_offset) *
+                  block_fill_size / current_file_block_size);
+          
+          int bol = RTree.skipToEOL(block_data, element_offset_in_block);
+          int eol = RTree.skipToEOL(block_data, bol);
+          // Skip empty line
+          if (eol - bol < 2) {
+            // Skip this line
+            record_i++;
+            continue;
+          }
+          line.set(block_data, bol, eol - bol);
+
+          // Report this element to output
+          if (output != null) {
+            stockObject.fromText(line);
+            output.collect(elementId, stockObject);
+          }
+          record_i++;
+          records_returned++;
+        }
+      }
+      current_file_in.close();
+    }
+    return records_returned;
+  }
+
+  
   public static void main(String[] args) throws IOException {
     CommandLineArguments cla = new CommandLineArguments(args);
     JobConf conf = new JobConf(Sampler.class);
@@ -238,7 +402,11 @@ public class Sampler {
     
     long record_count;
     if (size == 0) {
-      record_count = sampleLocal(fs, inputFiles, count, output, stockObject);
+      if (count < BIG_SAMPLE) {
+        record_count = sampleLocal(fs, inputFiles, count, output, stockObject);
+      } else {
+        record_count = sampleLocalBig(fs, inputFiles, count, output, stockObject);
+      }
     } else {
       record_count = sampleLocalWithSize(fs, inputFiles, size, output, stockObject);
     }

@@ -3,6 +3,7 @@ package edu.umn.cs.spatialHadoop.operations;
 import java.io.IOException;
 import java.util.Iterator;
 
+import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -17,6 +18,7 @@ import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.spatial.Rectangle;
+import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.LineReader;
 
@@ -79,6 +81,21 @@ public class FileMBR {
    * @throws IOException 
    */
   public static Rectangle fileMBRMapReduce(FileSystem fs, Path file) throws IOException {
+    // Try to get file MBR from the MBRs of blocks
+    BlockLocation[] fileBlockLocations = fs.getFileBlockLocations(
+        fs.getFileStatus(file), 0, fs.getFileStatus(file).getLen());
+    if (fileBlockLocations[0].getCellInfo() != null) {
+      Rectangle mbr = fileBlockLocations[0].getCellInfo();
+      for (BlockLocation blockLocation : fileBlockLocations) {
+        if (blockLocation.getCellInfo() == null) {
+          mbr = null;
+          break;
+        }
+        mbr = mbr.union(blockLocation.getCellInfo());
+      }
+      if (mbr != null)
+        return mbr;
+    }
     JobConf job = new JobConf(FileMBR.class);
     
     Path outputPath = new Path(file.toUri().getPath()+".mbr");
@@ -133,9 +150,25 @@ public class FileMBR {
    * @throws IOException
    */
   public static Rectangle fileMBRLocal(FileSystem fs, Path file) throws IOException {
+    // Try to get file MBR from the MBRs of blocks
+    BlockLocation[] fileBlockLocations = fs.getFileBlockLocations(
+        fs.getFileStatus(file), 0, fs.getFileStatus(file).getLen());
+    if (fileBlockLocations[0].getCellInfo() != null) {
+      Rectangle mbr = fileBlockLocations[0].getCellInfo();
+      for (BlockLocation blockLocation : fileBlockLocations) {
+        if (blockLocation.getCellInfo() == null) {
+          mbr = null;
+          break;
+        }
+        mbr = mbr.union(blockLocation.getCellInfo());
+      }
+      if (mbr != null)
+        return mbr;
+    }
     long file_size = fs.getFileStatus(file).getLen();
-    ShapeRecordReader shapeReader =
-        new ShapeRecordReader(fs.open(file), 0, file_size);
+    
+    ShapeRecordReader<Shape> shapeReader =
+        new ShapeRecordReader<Shape>(fs.open(file), 0, file_size);
 
     long x1 = Long.MAX_VALUE;
     long y1 = Long.MAX_VALUE;

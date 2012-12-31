@@ -277,24 +277,29 @@ public class RangeQuery {
     CommandLineArguments cla = new CommandLineArguments(args);
     JobConf conf = new JobConf(FileMBR.class);
     final Path inputFile = cla.getPath();
-    final Rectangle queryRange = cla.getRectangle();
+    Rectangle queryRange = cla.getRectangle();
     final FileSystem fs = inputFile.getFileSystem(conf);
     int count = cla.getCount();
     final float ratio = cla.getSelectionRatio();
     int concurrency = cla.getConcurrency();
     final Shape stockShape = cla.getShape(true);
+    boolean local = cla.isLocal();
 
     final Vector<Long> results = new Vector<Long>();
     
     if (ratio >= 0.0 && ratio <= 1.0f) {
+      final Rectangle queryMBR = queryRange != null?
+          queryRange :
+            (local ? FileMBR.fileMBRLocal(fs, inputFile) :
+              FileMBR.fileMBRMapReduce(fs, inputFile));
       final Vector<Thread> threads = new Vector<Thread>();
       final Vector<Rectangle> query_rectangles = new Vector<Rectangle>();
       Sampler.sampleLocal(fs, inputFile, count, new OutputCollector<LongWritable, Shape>(){
         @Override
         public void collect(final LongWritable key, final Shape value) throws IOException {
           Rectangle query_rectangle = new Rectangle();
-          query_rectangle.width = (long) (queryRange.width * ratio);
-          query_rectangle.height = (long) (queryRange.height * ratio);
+          query_rectangle.width = (long) (queryMBR.width * ratio);
+          query_rectangle.height = (long) (queryMBR.height * ratio);
           query_rectangle.x = value.getMBR().x - query_rectangle.width / 2;
           query_rectangle.y = value.getMBR().y - query_rectangle.height / 2;
           query_rectangles.add(query_rectangle);
