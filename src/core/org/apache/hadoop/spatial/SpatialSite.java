@@ -42,6 +42,10 @@ public class SpatialSite {
   public static final String INDEXING_OVERHEAD =
       "spatialHadoop.storage.IndexingOverhead";
   
+  /**Ratio of the sample to read from files to build a global R-tree*/
+  public static final String SAMPLE_RATIO =
+      "spatialHadoop.storage.SampleRatio";
+  
   /**
    * A marker put in the beginning of each block to indicate that this block
    * is stored as an RTree. It might be better to store this in the BlockInfo

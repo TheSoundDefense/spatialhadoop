@@ -185,7 +185,11 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
               
               @Override
               public int compare(int i, int j) {
-                return (int)(xs[i] - xs[j]);
+                if (xs[i] < xs[j])
+                  return -1;
+                if (xs[i] > xs[j])
+                  return 1;
+                return 0;
               }
             };
             
@@ -208,8 +212,12 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
               
               @Override
               public int compare(int i, int j) {
-                return (int)(ys[i] - ys[j]);
-                }
+                if (ys[i] < ys[j])
+                  return -1;
+                if (ys[i] > ys[j])
+                  return 1;
+                return 0;
+              }
             };
           } else {
             // No materialized xs and ys. Always deserialize objects to compare
@@ -234,7 +242,11 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
                 line.set(element_bytes, offsets[j], eol - offsets[j]);
                 stockObject.fromText(line);
                 long xj = stockObject.getMBR().getXMid();
-                return (int) (xi - xj);
+                if (xi < xj)
+                  return -1;
+                if (xi > xj)
+                  return 1;
+                return 0;
               }
             };
             
@@ -258,7 +270,11 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
                 line.set(element_bytes, offsets[j], eol - offsets[j]);
                 stockObject.fromText(line);
                 long yj = stockObject.getMBR().getYMid();
-                return (int) (yi - yj);
+                if (yi < yj)
+                  return -1;
+                if (yi > yj)
+                  return 1;
+                return 0;
               }
             };
           }
@@ -529,7 +545,11 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
 
       @Override
       public int compare(int i, int j) {
-        return (int) (sample[i].x - sample[j].x);
+        if (sample[i].x < sample[j].x)
+          return -1;
+        if (sample[i].x > sample[j].x)
+          return 1;
+        return 0;
       }
     };
 
@@ -544,7 +564,11 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
 
       @Override
       public int compare(int i, int j) {
-        return (int) (sample[i].y - sample[j].y);
+        if (sample[i].y < sample[j].y)
+          return -1;
+        if (sample[i].y > sample[j].y)
+          return 1;
+        return 0;
       }
     };
 
