@@ -26,7 +26,7 @@ public class ReadFile {
       if (blk.getCellInfo() != null) {
         if (blocks_per_cell.containsKey(blk.getCellInfo())) {
           int count = blocks_per_cell.get(blk.getCellInfo());
-          blocks_per_cell.put(blk.getCellInfo(), count);
+          blocks_per_cell.put(blk.getCellInfo(), count + 1);
         } else {
           blocks_per_cell.put(blk.getCellInfo(), 1);
         }
