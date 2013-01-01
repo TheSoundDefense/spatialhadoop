@@ -579,7 +579,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
     int xindex1 = 0;
     long x1 = gridInfo.xOrigin;
     for (int col = 0; col < gridInfo.columns; col++) {
-      int xindex2 = sample.length * (col + 1) / gridInfo.rows;
+      int xindex2 = sample.length * (col + 1) / gridInfo.columns;
       
       // Determine extents for all rectangles in this column
       long x2 = col == gridInfo.columns - 1 ? 
