@@ -5,17 +5,27 @@ import java.io.IOException;
 import java.util.Arrays;
 
 import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.ByteWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.MemoryInputStream;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Text2;
 import org.apache.hadoop.io.TextSerializable;
+import org.apache.hadoop.mapred.ClusterStatus;
+import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.mapred.MapReduceBase;
+import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
+import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.mapred.TextInputFormat;
+import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.SpatialSite;
+import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.CommandLineArguments;
 
@@ -26,9 +36,115 @@ import edu.umn.cs.CommandLineArguments;
  */
 public class Sampler {
 
+  /**Name of the configuration line for sample ratio*/
+  private static final String SAMPLE_RATIO =
+      "edu.umn.cs.spatialHadoop.operations.Sampler.SampleRatio";
+  /**
+   * The threshold in number of samples after which the BIG version is used
+   */
   private static final int BIG_SAMPLE = 10000;
   private static final int MAX_LINE_LENGTH = 4096;
   
+  public static class Map extends MapReduceBase implements
+  Mapper<LongWritable, Text, ByteWritable, Text> {
+    private static final ByteWritable ONE = new ByteWritable((byte) 1);
+
+    /**Ratio of lines to sample*/
+    private double sampleRatio;
+    
+    @Override
+    public void configure(JobConf job) {
+      sampleRatio = job.getFloat(SAMPLE_RATIO, 0.01f);
+    }
+    
+    public void map(LongWritable lineId, Text line,
+        OutputCollector<ByteWritable, Text> output, Reporter reporter)
+            throws IOException {
+      if (Math.random() < sampleRatio)
+        output.collect(ONE, line);
+    }
+  }
+
+  public static <T extends TextSerializable> int sampleLocalWithRatio(
+      FileSystem fs, Path[] files, double ratio,
+      final OutputCollector<LongWritable, T> output, T stockObject) throws IOException {
+    long total_size = 0;
+    for (Path file : files) {
+      total_size += fs.getFileStatus(file).getLen();
+    }
+    return sampleLocalWithSize(fs, files, (long) (total_size * ratio), output,
+        stockObject);
+  }
+
+  /**
+   * Sample a ratio of the file through a MapReduce job
+   * @param fs
+   * @param files
+   * @param ratio
+   * @param output
+   * @param stockObject
+   * @return
+   * @throws IOException
+   */
+  public static <T extends TextSerializable> int sampleMapReduceWithRatio(
+      FileSystem fs, Path[] files, double ratio,
+      final OutputCollector<LongWritable, T> output, T stockObject) throws IOException {
+    JobConf job = new JobConf(FileMBR.class);
+    
+    Path outputPath =
+        new Path(files[0].toUri().getPath()+".mbr_"+Math.random()*1000000);
+    FileSystem outFs = outputPath.getFileSystem(job);
+    outFs.delete(outputPath, true);
+    
+    job.setJobName("Sample");
+    job.setMapOutputKeyClass(ByteWritable.class);
+    job.setMapOutputValueClass(Text.class);
+    
+    job.setMapperClass(Map.class);
+    job.setFloat(SAMPLE_RATIO, (float) ratio);
+
+    ClusterStatus clusterStatus = new JobClient(job).getClusterStatus();
+    job.setNumMapTasks(clusterStatus.getMaxMapTasks() * 5);
+    job.setNumReduceTasks(0);
+    
+    job.setInputFormat(TextInputFormat.class);
+    job.setOutputFormat(TextOutputFormat.class);
+    
+    TextInputFormat.setInputPaths(job, files);
+    TextOutputFormat.setOutputPath(job, outputPath);
+    
+    // Submit the job
+    JobClient.runJob(job);
+    
+    // Read job result
+    int result_size = 0;
+    if (output != null) {
+      LongWritable line_offset = new LongWritable();
+      Text line = new Text();
+      FileStatus[] results = outFs.listStatus(outputPath);
+      
+      for (FileStatus fileStatus : results) {
+        if (fileStatus.getLen() > 0 && fileStatus.getPath().getName().startsWith("part-")) {
+          LineReader lineReader = new LineReader(outFs.open(fileStatus.getPath()));
+          while (lineReader.readLine(line) > 0) {
+            String str = line.toString();
+            String[] parts = str.split("\t");
+            line_offset.set(Long.parseLong(parts[0]));
+            line.set(parts[1]);
+            stockObject.fromText(line);
+            output.collect(line_offset, stockObject);
+            result_size++;
+          }
+          lineReader.close();
+        }
+      }
+    }
+    
+//    outFs.delete(outputPath, true);
+    
+    return result_size;
+  }
+
   /**
    * Records as many records as wanted until the total size of the text
    * serialization of sampled records exceed the given limit
@@ -43,7 +159,7 @@ public class Sampler {
   public static <T extends TextSerializable> int sampleLocalWithSize(
       FileSystem fs, Path[] files, long total_size,
       final OutputCollector<LongWritable, T> output, T stockObject) throws IOException {
-    int average_record_size = 40; // A wild guess for record size
+    int average_record_size = 1024; // A wild guess for record size
     final LongWritable current_sample_size = new LongWritable();
     final Text text = new Text();
     int sample_count = 0;
@@ -342,8 +458,6 @@ public class Sampler {
           check_offset *= 2;
         }
         
-        System.out.println("Block data range: ["+data_start_offset+","+data_end_offset+"]");
-
         long block_fill_size = data_end_offset - data_start_offset;
 
         // Consider all positions in this block
@@ -387,6 +501,7 @@ public class Sampler {
     FileSystem fs = inputFiles[0].getFileSystem(conf);
     int count = cla.getCount();
     long size = cla.getSize();
+    double ratio = cla.getSelectionRatio();
     TextSerializable stockObject = cla.getShape(true);
     if (stockObject == null)
       stockObject = new Text2();
@@ -401,14 +516,16 @@ public class Sampler {
     };
     
     long record_count;
-    if (size == 0) {
+    if (size != 0) {
+      record_count = sampleLocalWithSize(fs, inputFiles, size, output, stockObject);
+    } else if (ratio != -1.0) {
+      record_count = sampleMapReduceWithRatio(fs, inputFiles, ratio, output, stockObject);
+    } else {
       if (count < BIG_SAMPLE) {
         record_count = sampleLocal(fs, inputFiles, count, output, stockObject);
       } else {
         record_count = sampleLocalBig(fs, inputFiles, count, output, stockObject);
       }
-    } else {
-      record_count = sampleLocalWithSize(fs, inputFiles, size, output, stockObject);
     }
     System.out.println("Sampled "+record_count+" records");
   }

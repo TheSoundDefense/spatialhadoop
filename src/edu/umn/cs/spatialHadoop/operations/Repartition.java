@@ -34,7 +34,6 @@ import org.apache.hadoop.spatial.ShapeRecordWriter;
 import org.apache.hadoop.spatial.SpatialSite;
 
 import edu.umn.cs.CommandLineArguments;
-import edu.umn.cs.spatialHadoop.TigerShape;
 import edu.umn.cs.spatialHadoop.mapReduce.GridOutputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.GridRecordWriter;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridOutputFormat;
@@ -191,7 +190,7 @@ public class Repartition {
     }
     LOG.info("Calculated grid: "+gridInfo);
     CellInfo[] cellInfos = pack ?
-        packInRectangles(inFs, inFile, outFs, gridInfo) :
+        packInRectangles(inFs, inFile, outFs, gridInfo, stockShape, false) :
         gridInfo.getAllCells();
         
     repartitionMapReduce(inFile, outPath, cellInfos, blockSize, stockShape,
@@ -282,35 +281,49 @@ public class Repartition {
     }
   }
   
-  public static CellInfo[] packInRectangles(FileSystem inFileSystem, Path inputPath,
-      FileSystem outFileSystem, GridInfo gridInfo) throws IOException {
-    return packInRectangles(inFileSystem, new Path[] {inputPath}, outFileSystem, gridInfo);
+  public static <S extends Shape> CellInfo[] packInRectangles(
+      FileSystem inFileSystem, Path inputPath, FileSystem outFileSystem,
+      GridInfo gridInfo, S stockShape, boolean local) throws IOException {
+    return packInRectangles(inFileSystem, new Path[] { inputPath },
+        outFileSystem, gridInfo, stockShape, local);
   }
-  public static CellInfo[] packInRectangles(FileSystem fs, Path[] files,
-      FileSystem outFileSystem, GridInfo gridInfo) throws IOException {
+  
+  public static <S extends Shape> CellInfo[] packInRectangles(FileSystem fs,
+      Path[] files, FileSystem outFileSystem, GridInfo gridInfo, S stockShape,
+      boolean local)
+      throws IOException {
     final Vector<Point> sample = new Vector<Point>();
-    long total_size = 0;
-    for (Path file : files) {
-      total_size += fs.getFileStatus(file).getLen();
+    
+    double sample_ratio =
+        outFileSystem.getConf().getFloat(SpatialSite.SAMPLE_RATIO, 0.01f);
+    
+    LOG.info("Reading a sample of "+(int)(sample_ratio*100) + "%");
+    if (local) {
+      Sampler.sampleLocalWithRatio(fs, files, sample_ratio , new OutputCollector<LongWritable, S>(){
+        @Override
+        public void collect(LongWritable key, S value)
+            throws IOException {
+          sample.add(new Point(value.getMBR().getX1(), value.getMBR().getY1()));
+        }
+      }, stockShape);
+    } else {
+      Sampler.sampleMapReduceWithRatio(fs, files, sample_ratio , new OutputCollector<LongWritable, S>(){
+        @Override
+        public void collect(LongWritable key, S value)
+            throws IOException {
+          sample.add(new Point(value.getMBR().getX1(), value.getMBR().getY1()));
+        }
+      }, stockShape);
     }
-    long sample_size = Math.max(total_size / 500, 10 * 1024 * 1024);
-    LOG.info("Reading a sample of size: "+sample_size + " bytes");
-    Sampler.sampleLocalWithSize(fs, files, sample_size , new OutputCollector<LongWritable, TigerShape>(){
-      @Override
-      public void collect(LongWritable key, TigerShape value)
-          throws IOException {
-        sample.add(new Point(value.getX1(), value.getX2()));
-      }
-    }, new TigerShape());
     LOG.info("Finished reading a sample of size: "+sample.size()+" records");
     Rectangle[] rectangles = RTree.packInRectangles(gridInfo,
             sample.toArray(new Point[sample.size()]));
     CellInfo[] cellsInfo = new CellInfo[rectangles.length];
     for (int i = 0; i < rectangles.length; i++)
       cellsInfo[i] = new CellInfo(i, rectangles[i]);
+    
     return cellsInfo;
   }
-
   
   public static<S extends Shape> void repartitionLocal(Path inFile, Path outPath,
       GridInfo gridInfo, S stockShape, long blockSize,
@@ -330,7 +343,7 @@ public class Repartition {
       gridInfo.calculateCellDimensions(num_cells);
     }
     CellInfo[] cellInfos = pack ?
-        packInRectangles(inFs, inFile, outFs, gridInfo) :
+        packInRectangles(inFs, inFile, outFs, gridInfo, stockShape, true) :
         gridInfo.getAllCells();
         
     repartitionLocal(inFile, outPath, cellInfos, stockShape, blockSize,

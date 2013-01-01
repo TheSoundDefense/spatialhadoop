@@ -10,6 +10,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.ByteWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapred.ClusterStatus;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.MapReduceBase;
@@ -85,16 +86,26 @@ public class FileMBR {
     BlockLocation[] fileBlockLocations = fs.getFileBlockLocations(
         fs.getFileStatus(file), 0, fs.getFileStatus(file).getLen());
     if (fileBlockLocations[0].getCellInfo() != null) {
-      Rectangle mbr = fileBlockLocations[0].getCellInfo();
+      boolean heap_file = false;
+      long x1 = Long.MAX_VALUE;
+      long y1 = Long.MAX_VALUE;
+      long x2 = Long.MIN_VALUE;
+      long y2 = Long.MIN_VALUE;
+      Rectangle mbr;
       for (BlockLocation blockLocation : fileBlockLocations) {
+        Rectangle rect = blockLocation.getCellInfo();
         if (blockLocation.getCellInfo() == null) {
-          mbr = null;
+          heap_file = true;
           break;
         }
-        mbr = mbr.union(blockLocation.getCellInfo());
+        if (rect.getX1() < x1) x1 = rect.getX1();
+        if (rect.getY1() < y1) y1 = rect.getY1();
+        if (rect.getX2() > x2) x2 = rect.getX2();
+        if (rect.getY2() > y2) y2 = rect.getY2();
       }
-      if (mbr != null)
-        return mbr;
+      if (!heap_file) {
+        return new Rectangle(x1, y1, x2-x1, y2-y1);
+      }
     }
     JobConf job = new JobConf(FileMBR.class);
     
@@ -105,10 +116,12 @@ public class FileMBR {
     job.setJobName("FileMBR");
     job.setMapOutputKeyClass(ByteWritable.class);
     job.setMapOutputValueClass(Rectangle.class);
-    
+
     job.setMapperClass(Map.class);
     job.setReducerClass(Reduce.class);
     job.setCombinerClass(Reduce.class);
+    ClusterStatus clusterStatus = new JobClient(job).getClusterStatus();
+    job.setNumMapTasks(clusterStatus.getMaxMapTasks() * 5);
     
     job.setInputFormat(ShapeInputFormat.class);
     job.set(SpatialSite.SHAPE_CLASS, TigerShape.class.getName());
@@ -154,16 +167,26 @@ public class FileMBR {
     BlockLocation[] fileBlockLocations = fs.getFileBlockLocations(
         fs.getFileStatus(file), 0, fs.getFileStatus(file).getLen());
     if (fileBlockLocations[0].getCellInfo() != null) {
-      Rectangle mbr = fileBlockLocations[0].getCellInfo();
+      boolean heap_file = false;
+      long x1 = Long.MAX_VALUE;
+      long y1 = Long.MAX_VALUE;
+      long x2 = Long.MIN_VALUE;
+      long y2 = Long.MIN_VALUE;
+      Rectangle mbr;
       for (BlockLocation blockLocation : fileBlockLocations) {
+        Rectangle rect = blockLocation.getCellInfo();
         if (blockLocation.getCellInfo() == null) {
-          mbr = null;
+          heap_file = true;
           break;
         }
-        mbr = mbr.union(blockLocation.getCellInfo());
+        if (rect.getX1() < x1) x1 = rect.getX1();
+        if (rect.getY1() < y1) y1 = rect.getY1();
+        if (rect.getX2() > x2) x2 = rect.getX2();
+        if (rect.getY2() > y2) y2 = rect.getY2();
       }
-      if (mbr != null)
-        return mbr;
+      if (!heap_file) {
+        return new Rectangle(x1, y1, x2-x1, y2-y1);
+      }
     }
     long file_size = fs.getFileStatus(file).getLen();
     
@@ -198,7 +221,9 @@ public class FileMBR {
     JobConf conf = new JobConf(FileMBR.class);
     Path inputFile = cla.getPath();
     FileSystem fs = inputFile.getFileSystem(conf);
-    Rectangle mbr = fileMBRLocal(fs, inputFile);
+    boolean local = cla.isLocal();
+    Rectangle mbr = local ? fileMBRLocal(fs, inputFile) :
+      fileMBRMapReduce(fs, inputFile);
     System.out.println("MBR of records in file "+inputFile+" is "+mbr);
   }
 

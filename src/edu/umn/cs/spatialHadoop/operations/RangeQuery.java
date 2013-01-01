@@ -226,7 +226,7 @@ public class RangeQuery {
           // Report every single result
           LineReader lineReader = new LineReader(outFs.open(fileStatus.getPath()));
           text.clear();
-          if (lineReader.readLine(text) > 0) {
+          while (lineReader.readLine(text) > 0) {
             String str = text.toString();
             String[] parts = str.split("\t", 2);
             shape.fromText(new Text(parts[1]));
@@ -236,6 +236,7 @@ public class RangeQuery {
         }
       }
     }
+    outFs.delete(outputPath, true);
     
     return resultCount;
   }

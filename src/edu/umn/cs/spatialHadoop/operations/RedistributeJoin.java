@@ -252,7 +252,7 @@ public class RedistributeJoin {
               new PairShape<S>(stockShape, stockShape);
           LineReader lineReader = new LineReader(outFs.open(fileStatus.getPath()));
           Text text = new Text();
-          if (lineReader.readLine(text) > 0) {
+          while (lineReader.readLine(text) > 0) {
             String str = text.toString();
             String[] parts = str.split("\t", 2);
             cells.fromText(new Text(parts[0]));

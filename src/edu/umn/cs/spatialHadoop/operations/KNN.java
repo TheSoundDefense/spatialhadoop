@@ -19,6 +19,7 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.TextSerializable;
 import org.apache.hadoop.io.TextSerializerHelper;
 import org.apache.hadoop.io.Writable;
+import org.apache.hadoop.mapred.ClusterStatus;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.MapReduceBase;
@@ -323,6 +324,8 @@ public class KNN {
     public void reduce(ByteWritable dummy, Iterator<ShapeWithDistance<S>> values,
         OutputCollector<ByteWritable, ShapeWithDistance<S>> output, Reporter reporter)
             throws IOException {
+      if (queryPoint.k == 0)
+        return;
       ShapeWithDistance<S>[] knn = new ShapeWithDistance[queryPoint.k];
       int neighborsFound = 0;
       int maxi = 0;
@@ -405,6 +408,8 @@ public class KNN {
       job.setCombinerClass(KNNReduce.class);
       job.setInputFormat(ShapeInputFormat.class);
     }
+    ClusterStatus clusterStatus = new JobClient(job).getClusterStatus();
+    job.setNumMapTasks(clusterStatus.getMaxMapTasks() * 5);
     
     job.setMapOutputKeyClass(ByteWritable.class);
     job.setMapOutputValueClass(shapeWithDistanceClass);
@@ -441,7 +446,7 @@ public class KNN {
             shapeWithDistance.shape = shape;
             LineReader lineReader = new LineReader(outFs.open(fileStatus.getPath()));
             text.clear();
-            if (lineReader.readLine(text) > 0) {
+            while (lineReader.readLine(text) > 0) {
               String str = text.toString();
               String[] parts = str.split("\t", 2);
               shapeWithDistance.fromText(new Text(parts[1]));
@@ -456,6 +461,8 @@ public class KNN {
     } catch (IllegalAccessException e) {
       e.printStackTrace();
     }
+    
+    outFs.delete(outputPath, true);
     
     return resultCount;
   }
