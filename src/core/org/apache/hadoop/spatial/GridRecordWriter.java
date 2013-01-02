@@ -115,7 +115,6 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
     Rectangle mbr = shape.getMBR();
     for (int cellIndex = 0; cellIndex < cells.length; cellIndex++) {
       if (mbr.isIntersected(cells[cellIndex])) {
-        System.out.println(shape+" matched with cell "+cells[cellIndex]);
         writeInternal(cellIndex, text);
       }
     }
