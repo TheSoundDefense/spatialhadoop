@@ -48,13 +48,24 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
       CellInfo[] cells, boolean overwrite) throws IOException {
     this.fileSystem = outFileSystem;
     this.outFile = outFile;
-    this.cells = cells;
     // Make sure cellIndex maps to array index. This necessary for calls that call directly
     // write(int, Text)
-    Arrays.sort(this.cells);
+    int highest_index = 0;
+    for (CellInfo cell : cells) {
+      if (cell.cellId > highest_index)
+        highest_index = (int) cell.cellId;
+    }
+    this.cells = new CellInfo[highest_index + 1];
+    for (CellInfo cell : cells) {
+      this.cells[(int) cell.cellId] = cell;
+    }
+    
+    for (int i = 0; i < this.cells.length; i++) {
+      LOG.info(i+": "+this.cells[i]);
+    }
 
     // Prepare arrays that hold streams
-    cellStreams = new OutputStream[cells.length];
+    cellStreams = new OutputStream[this.cells.length];
 
     Vector<Path> filesToOverwrite = new Vector<Path>();
     
@@ -66,8 +77,6 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
       Path cellFilePath = getCellFilePath(cellIndex);
       if (outFileSystem.exists(cellFilePath) && overwrite)
         filesToOverwrite.add(cellFilePath);
-      
-      LOG.info("Partitioning according to cell: " + cells[cellIndex]);
     }
     if (!overwrite && !filesToOverwrite.isEmpty()) {
       throw new RuntimeException("Cannot overwrite existing files: "+filesToOverwrite);

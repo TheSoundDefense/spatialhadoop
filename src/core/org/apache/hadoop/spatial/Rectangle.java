@@ -173,7 +173,7 @@ public class Rectangle implements Shape {
    *      this <code>Rectangle</code>; or if the rectangles
    *            do not intersect, an empty rectangle.
    */
-  public Shape getIntersection(Shape s) {
+  public Rectangle getIntersection(Shape s) {
     Rectangle r = s.getMBR();
     long tx1 = this.x;
     long ty1 = this.y;
