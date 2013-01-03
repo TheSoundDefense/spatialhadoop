@@ -10,10 +10,13 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.spatial.CellInfo;
+import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.Shape;
+import org.apache.hadoop.spatial.SpatialAlgorithms;
 
 import edu.umn.cs.CommandLineArguments;
 import edu.umn.cs.spatialHadoop.mapReduce.PairShape;
@@ -53,18 +56,55 @@ public class RepartitionJoin {
       }
     }
     
-    // Get the partitions of the other file
-    Set<CellInfo> cells = new HashSet<CellInfo>();
+    // Get the partitions to use for partitioning the smaller file
     
-    long length = fs.getFileStatus(larger_file).getLen();
-    
-    BlockLocation[] fileBlockLocations =
-        fs.getFileBlockLocations(fs.getFileStatus(larger_file), 0, length);
-    for (BlockLocation blk : fileBlockLocations) {
-      if (blk.getCellInfo() != null) {
-        cells.add(blk.getCellInfo());
-      }
+    // Do a spatial join between partitions of the two files to find
+    // overlapping partitions.
+    final Set<CellInfo> cellSet = new HashSet<CellInfo>();
+    for (BlockLocation blk :
+      fs.getFileBlockLocations(fs.getFileStatus(larger_file), 0, larger_size)) {
+      if (blk.getCellInfo() != null)
+        cellSet.add(blk.getCellInfo());
     }
+    CellInfo[] largerFileCells = cellSet.toArray(new CellInfo[cellSet.size()]);
+    
+    cellSet.clear();
+    for (BlockLocation blk :
+      fs.getFileBlockLocations(fs.getFileStatus(smaller_file), 0, smaller_size)) {
+      if (blk.getCellInfo() != null)
+        cellSet.add(blk.getCellInfo());
+    }
+    CellInfo[] smallerFileCells = cellSet.toArray(new CellInfo[cellSet.size()]);
+    
+    cellSet.clear();
+    final DoubleWritable matched_area = new DoubleWritable(0);
+    SpatialAlgorithms.SpatialJoin_planeSweep(largerFileCells, smallerFileCells,
+        new SpatialAlgorithms.ResultCollector2<CellInfo, CellInfo>() {
+          @Override
+          public void add(CellInfo x, CellInfo y) {
+            // Always use the cell of the larger file
+            cellSet.add(x);
+            Rectangle intersection = x.getIntersection(y);
+            matched_area.set(matched_area.get() +
+                (double)intersection.width * intersection.height);
+          }
+    });
+    
+    // Estimate output file size of repartition based on the ratio of
+    // matched area to smaller file area
+    Rectangle smaller_file_mbr = FileMBR.fileMBRLocal(fs, larger_file);
+    long estimatedRepartitionedFileSize = (long) (smaller_size *
+        matched_area.get() / (smaller_file_mbr.width * smaller_file_mbr.height));
+    LOG.info("Estimated repartitioned file size: "+estimatedRepartitionedFileSize);
+    // Choose a good block size for repartitioned file to make every partition
+    // fits in one block
+    long blockSize = estimatedRepartitionedFileSize / cellSet.size();
+    // Adjust blockSize to a multiple of bytes per checksum
+    int bytes_per_checksum =
+        new Configuration().getInt("io.bytes.per.checksum", 512);
+    blockSize = (long) (Math.ceil((double)blockSize / bytes_per_checksum) *
+        bytes_per_checksum);
+    LOG.info("Using a block size of "+blockSize);
     
     // Repartition the smaller file
     Path partitioned_file;
@@ -73,9 +113,8 @@ public class RepartitionJoin {
       partitioned_file = new Path(smaller_file.toUri().getPath()+
           ".repartitioned_"+(int)(Math.random() * 1000000));
     } while (outFs.exists(partitioned_file));
-    long blockSize = fs.getFileStatus(larger_file).getBlockSize();
     Repartition.repartitionMapReduce(smaller_file, partitioned_file,
-        cells.toArray(new CellInfo[cells.size()]),
+        cellSet.toArray(new CellInfo[cellSet.size()]),
         blockSize, stockShape, false, false, true);
     t2 = System.currentTimeMillis();
     System.out.println("Repartition time "+(t2-t1)+" millis");
