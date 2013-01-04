@@ -380,6 +380,7 @@ public class Repartition {
     ShapeRecordWriter<Shape> writer;
     if (rtree) {
       writer = new RTreeGridRecordWriter(outFs, out, cells, overwrite);
+      writer.setStockObject(stockShape);
     } else {
       writer = new GridRecordWriter(outFs, out, cells, overwrite);
     }
