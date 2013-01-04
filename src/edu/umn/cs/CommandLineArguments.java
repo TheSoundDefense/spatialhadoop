@@ -1,16 +1,22 @@
 package edu.umn.cs;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.Vector;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.BlockLocation;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Text2;
 import org.apache.hadoop.mapred.OutputCollector;
+import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Rectangle;
@@ -191,6 +197,21 @@ public class CommandLineArguments {
   }
   
   /**
+   * Finds any parameters that has with the given key name
+   * @param key
+   * @return
+   */
+  protected String get(String key) {
+    key = key +":";
+    for (String arg : args) {
+      if (arg.startsWith(key)) {
+        return arg.substring(arg.indexOf(':')+1);
+      }
+    }
+    return null;
+  }
+  
+  /**
    * 
    * @param autodetect - Automatically detect shape type from input file
    *   if shape is not explicitly set by user
@@ -241,5 +262,30 @@ public class CommandLineArguments {
     }
     
     return stockShape;
+  }
+  
+  public CellInfo[] getCells() {
+    String cell_of = get("cells-of");
+    if (cell_of == null)
+      return null;
+    Path path = new Path(cell_of);
+    FileSystem fs;
+    try {
+      fs = path.getFileSystem(new Configuration());
+      FileStatus fileStatus = fs.getFileStatus(path);
+      BlockLocation[] fileBlockLocations =
+          fs.getFileBlockLocations(fileStatus, 0, fileStatus.getLen());
+      Set<CellInfo> cellSet = new HashSet<CellInfo>();
+      for (BlockLocation block : fileBlockLocations) {
+        if (block.getCellInfo() != null)
+          cellSet.add(block.getCellInfo());
+      }
+      if (cellSet.isEmpty())
+        return null;
+      return cellSet.toArray(new CellInfo[cellSet.size()]);
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+    return null;
   }
 }

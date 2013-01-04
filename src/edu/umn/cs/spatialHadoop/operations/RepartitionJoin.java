@@ -115,7 +115,7 @@ public class RepartitionJoin {
     } while (outFs.exists(partitioned_file));
     Repartition.repartitionMapReduce(smaller_file, partitioned_file,
         cellSet.toArray(new CellInfo[cellSet.size()]),
-        blockSize, stockShape, false, false, true);
+        stockShape, blockSize, false, false, true);
     t2 = System.currentTimeMillis();
     System.out.println("Repartition time "+(t2-t1)+" millis");
     

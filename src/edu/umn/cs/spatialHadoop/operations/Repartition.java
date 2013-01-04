@@ -193,7 +193,7 @@ public class Repartition {
         packInRectangles(inFs, inFile, outFs, gridInfo, stockShape, false) :
         gridInfo.getAllCells();
         
-    repartitionMapReduce(inFile, outPath, cellInfos, blockSize, stockShape,
+    repartitionMapReduce(inFile, outPath, cellInfos, stockShape, blockSize,
         pack, rtree, overwrite);
   }
   
@@ -208,7 +208,7 @@ public class Repartition {
    * @throws IOException
    */
   public static void repartitionMapReduce(Path inFile, Path outPath,
-      CellInfo[] cellInfos, long blockSize, Shape stockShape,
+      CellInfo[] cellInfos, Shape stockShape, long blockSize,
       boolean pack, boolean rtree, boolean overwrite) throws IOException {
     JobConf job = new JobConf(Repartition.class);
     job.setJobName("Repartition");
@@ -420,13 +420,43 @@ public class Repartition {
     boolean local = cla.isLocal();
     long blockSize = cla.getBlockSize();
     Shape stockShape = cla.getShape(true);
+    CellInfo[] cells = cla.getCells();
     
-    if (local) {
-      repartitionLocal(inputPath, outputPath, gridInfo, stockShape,
-          blockSize, pack, rtree, overwrite);
+    if (cells != null) {
+      if (blockSize == 0) {
+        // Calculate block size based on overlap between given cells and
+        // file mbr
+        FileSystem fs = inputPath.getFileSystem(new Configuration());
+        Rectangle mbr = local ? FileMBR.fileMBRLocal(fs, inputPath):
+          FileMBR.fileMBRMapReduce(fs, inputPath);
+        double overlap_area = 0;
+        for (CellInfo cell : cells) {
+          Rectangle overlap = mbr.getIntersection(cell);
+          overlap_area += overlap.width * overlap.height;
+        }
+        long estimatedRepartitionedFileSize = (long) (fs.getFileStatus(
+            inputPath).getLen() * overlap_area / (mbr.width * mbr.height));
+        blockSize = estimatedRepartitionedFileSize / cells.length;
+        // Adjust blockSize to a multiple of bytes per checksum
+        int bytes_per_checksum =
+            new Configuration().getInt("io.bytes.per.checksum", 512);
+        blockSize = (long) (Math.ceil((double)blockSize / bytes_per_checksum) *
+            bytes_per_checksum);
+        LOG.info("Calculated block size: "+blockSize);
+      }
+      if (local)
+        repartitionLocal(inputPath, outputPath, cells, stockShape,
+            blockSize, pack, rtree, overwrite);
+      else
+        repartitionMapReduce(inputPath, outputPath, cells, stockShape,
+            blockSize, pack, rtree, overwrite);
     } else {
-      repartitionMapReduce(inputPath, outputPath, gridInfo, stockShape,
-          blockSize, pack, rtree, overwrite);
+      if (local)
+        repartitionLocal(inputPath, outputPath, gridInfo, stockShape,
+            blockSize, pack, rtree, overwrite);
+      else
+        repartitionMapReduce(inputPath, outputPath, gridInfo, stockShape,
+            blockSize, pack, rtree, overwrite);
     }
 	}
 }
