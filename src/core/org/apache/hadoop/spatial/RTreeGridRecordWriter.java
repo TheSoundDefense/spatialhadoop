@@ -1,12 +1,11 @@
 package org.apache.hadoop.spatial;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.Arrays;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -15,17 +14,29 @@ import org.apache.hadoop.io.Text;
 public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> {
   public static final Log LOG = LogFactory.getLog(RTreeGridRecordWriter.class);
   
-  /**Temporary streams to cells for writing element data*/
-  protected OutputStream[] tempCellStreams;
-
-  /**Keeps the number of elements written to each cell so far*/
+  /**
+   * Keeps the number of elements written to each cell so far.
+   * Helps calculating the overhead of RTree indexing
+   */
   private int[] cellCount;
-  /**The required degree of the rtree to be built*/
+
+  /**The degree of the trees built*/
   private final int rtreeDegree;
   
-  /**Whether to use the fast mode for building RTree or not*/
+  /**
+   * Whether to use the fast mode for building RTree or not.
+   * @see RTree#bulkLoadWrite(byte[], int, int, int, java.io.DataOutput, boolean)
+   */
   protected boolean fastRTree;
-  
+
+  /**
+   * Initializes a new RTreeGridRecordWriter.
+   * @param fileSystem - of output file
+   * @param outFile - output file path
+   * @param cells - the cells used to partition the input
+   * @param overwrite - whether to overwrite existing files or not
+   * @throws IOException
+   */
   public RTreeGridRecordWriter(FileSystem fileSystem, Path outFile,
       CellInfo[] cells, boolean overwrite) throws IOException {
     super(fileSystem, outFile, cells, overwrite);
@@ -33,160 +44,87 @@ public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> 
 
     // Initialize the counters for each cell
     cellCount = new int[cells.length];
-    tempCellStreams = new OutputStream[cells.length];
     
     // Determine the size of each RTree to decide when to flush a cell
-    this.rtreeDegree = fileSystem.getConf().getInt(SpatialSite.RTREE_DEGREE, 11);
+    this.rtreeDegree = fileSystem.getConf().getInt(SpatialSite.RTREE_DEGREE, 25);
     this.fastRTree = fileSystem.getConf().get(SpatialSite.RTREE_BUILD_MODE, "fast").equals("fast");
   }
   
-  public void setStockObject(S stockObject) {
-    super.setStockObject(stockObject);
-  }
-
   @Override
   protected synchronized void writeInternal(int cellIndex, Text text)
       throws IOException {
     if (text.getLength() == 0) {
-      closeCell(cellIndex);
+      // Write to parent cell which will close the index
+      super.writeInternal(cellIndex, text);
       return;
     }
-    FSDataOutputStream cellOutput = getTempCellStream(cellIndex);
-    
-    // Check if the RTree is filled up
-    int storage_overhead = RTree.calculateStorageOverhead(cellCount[cellIndex] + 1, rtreeDegree);
-    // rtree_file_size consists of
-    // 8 bytes for the signatures
-    // RTree index size (storage_overhead)
-    // total size of data (including the new item)
-    long rtree_file_size = 8 + storage_overhead + cellOutput.getPos() + text.getLength() + NEW_LINE.length;
+    FSDataOutputStream cellOutput = (FSDataOutputStream) getCellStream(cellIndex);
+
+    // Check if the RTree will overflow when writing this new object
+    int storage_overhead = RTree.calculateStorageOverhead(
+        cellCount[cellIndex] + 1, rtreeDegree);
+    // Calculate the expected RTree file size after writing this new object
+    // 8: File signature
+    // storage_overhead: Total size of the RTree after adding this object
+    // cellOutput.getPos(): Current data size
+    // text.getLength() + NEW_LINE.length: New object data size
+    long rtree_file_size = 8 + storage_overhead + cellOutput.getPos()
+        + text.getLength() + NEW_LINE.length;
     if (rtree_file_size > blockSize) {
-      flushCell(cellIndex);
+      // Write an empty line to close the cell
+      super.writeInternal(cellIndex, new Text());
+      return;
     }
-    
-    cellOutput.write(text.getBytes(), 0, text.getLength());
-    cellOutput.write(NEW_LINE);
+
+    super.writeInternal(cellIndex, text);
     cellCount[cellIndex]++;
   }
   
-  @Override
-  protected boolean isCellEmpty(int cellIndex) {
-    return super.isCellEmpty(cellIndex) && tempCellStreams[cellIndex] == null;
-  }
-
   @Override
   protected int getMaxConcurrentThreads() {
     // Since the closing cell is memory intensive, limit it to one
     return 1;
   }
+
   
+  /**
+   * Closes a cell by writing all outstanding objects and closing current file.
+   * Then, the file is read again, an RTree is built on top of it and, finally,
+   * the file is written again with the RTree built.
+   */
   @Override
-  protected void flushCell(int cellIndex) throws IOException {
-    LOG.info("Writing the RTree at cell #"+cellIndex);
-    if (tempCellStreams[cellIndex] == null)
-      return;
-    // Read element data
-    tempCellStreams[cellIndex].close();
-    tempCellStreams[cellIndex] = null;
-    int fileSize = (int) fileSystem.getFileStatus(
-        getTempCellFilePath(cellIndex)).getLen();
-    FSDataInputStream cellIn = fileSystem.open(getTempCellFilePath(cellIndex));
-    byte[] cellData = new byte[fileSize];
-    cellIn.read(cellData, 0, fileSize);
-    cellIn.close();
+  protected void closeCell(int cellIndex) throws IOException {
+    // close current stream.
+    // PS: No need to stuff it with new lines as it is only a temporary file
+    OutputStream tempCellStream = cellStreams[cellIndex];
+    tempCellStream.close();
     
-    // Create the RTree using the element data
+    // Read all data of the written file in memory
+    Path cellFile = cellFilePath[cellIndex];
+    long length = fileSystem.getFileStatus(cellFile).getLen();
+    byte[] cellData = new byte[(int) length];
+    InputStream cellIn = fileSystem.open(cellFile);
+    cellIn.read(cellData);
+    cellIn.close();
+    // Delete the file to be able recreate it when written as an RTree
+    fileSystem.delete(cellFile, true);
+    
+    // Build an RTree over the elements read from file
     RTree<S> rtree = new RTree<S>();
     rtree.setStockObject(stockObject);
-    FSDataOutputStream cellStream = getCellStream(cellIndex);
+    // Set cellStream to null to ensure that getCellStream will create a new one
+    cellStreams[cellIndex] = null;
+    // It should create a new stream
+    FSDataOutputStream cellStream = (FSDataOutputStream) getCellStream(cellIndex);
     cellStream.writeLong(SpatialSite.RTreeFileMarker);
-    rtree.bulkLoadWrite(cellData, 0, fileSize, rtreeDegree, cellStream, fastRTree);
-    cellData = null;
-    long blockSize =
-        fileSystem.getFileStatus(getCellFilePath(cellIndex)).getBlockSize();
-    // Stuff the file with bytes to make a complete block
-    long cellSize = cellStream.getPos();
-    LOG.info("Current size: "+cellSize);
-    // Stuff all open streams with empty lines until each one is 64 MB
-    long remainingBytes = (blockSize - cellSize % blockSize) % blockSize;
-    LOG.info("Stuffing file " + cellIndex +  " with new lines: " + remainingBytes);
-    // Create a buffer filled with zeros
-    byte[] buffer = new byte[fileSystem.getConf().getInt("io.file.buffer.size", 1024 * 1024)];
-    Arrays.fill(buffer, (byte)'\n');
-    // Write some bytes so that remainingBytes is multiple of buffer.length
-    cellStream.write(buffer, 0, (int)(remainingBytes % buffer.length));
-    remainingBytes -= remainingBytes % buffer.length;
-    // Write chunks of size buffer.length
-    while (remainingBytes > 0) {
-      cellStream.write(buffer);
-      remainingBytes -= buffer.length;
-    }
-    buffer = null;
-    LOG.info("Size after writing the cell: "+cellStream.getPos());
+    rtree.bulkLoadWrite(cellData, 0, (int) length, rtreeDegree, cellStream,
+        fastRTree);
+    cellData = null; // To allow GC to collect it
+    // Call the parent implementation which will stuff it with new lines
+    super.closeCell(cellIndex);
     cellCount[cellIndex] = 0;
-    // Clean up after writing each cell as the code is heavy in memory
-    fileSystem.delete(getTempCellFilePath(cellIndex), false);
-    System.gc();
-  }
-
-  @Override
-  protected void finalizeCell(int cellIndex) throws IOException {
-    // Close the cellStream if still open
-    if (cellStreams[cellIndex] != null) {
-      cellStreams[cellIndex].close();
-      LOG.info("Final size: "+
-          fileSystem.getFileStatus(getCellFilePath(cellIndex)).getLen());
-      cellStreams[cellIndex] = null;
-    }
   }
   
-  @Override
-  protected FSDataOutputStream getCellStream(int cellIndex) throws IOException {
-    if (cellStreams[cellIndex] == null) {
-      Path cellFilePath = getCellFilePath(cellIndex);
-      if (!fileSystem.exists(cellFilePath)) {
-        // Create new file
-        cellStreams[cellIndex] = fileSystem.create(cellFilePath, true,
-            fileSystem.getConf().getInt("io.file.buffer.size", 4096),
-            fileSystem.getDefaultReplication(), this.blockSize,
-            cells[cellIndex]);
-      } else {
-        // Append to existing file
-        cellStreams[cellIndex] = fileSystem.append(cellFilePath);
-      }
-    }
-    return (FSDataOutputStream) cellStreams[cellIndex];
-  }
-  
-  /**
-   * Return path to a temp file used to write element data before writing
-   * the tree
-   * @param column
-   * @param row
-   * @return
-   */
-  protected Path getTempCellFilePath(int cellIndex) {
-    return new Path(outFile.toUri().getPath() + '_' + cellIndex +".tmp");
-  }
-  
-  /**
-   * Creates a temporary file used to write element data to of a cell
-   * @param cellIndex
-   * @return
-   * @throws IOException
-   */
-  protected OutputStream createTempCellStream(int cellIndex) throws IOException {
-    // Create new file
-    return fileSystem.create(getTempCellFilePath(cellIndex), true);
-  }
-  
-  protected FSDataOutputStream getTempCellStream(int cellIndex) throws IOException {
-    if (tempCellStreams[cellIndex] == null) {
-      // Create new file
-      tempCellStreams[cellIndex] = createTempCellStream(cellIndex);
-    }
-    return (FSDataOutputStream) tempCellStreams[cellIndex];
-  }
 /*  
   public static void main(String[] args) throws IOException {
     Configuration conf = new Configuration();
