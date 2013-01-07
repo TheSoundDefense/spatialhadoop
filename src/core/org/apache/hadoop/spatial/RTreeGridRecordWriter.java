@@ -7,6 +7,7 @@ import java.io.OutputStream;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.Text;
@@ -86,6 +87,13 @@ public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> 
     return 1;
   }
 
+
+  @Override
+  protected void closeCell(int cellIndex, boolean background)
+      throws IOException {
+    super.closeCell(cellIndex, background);
+    cellCount[cellIndex] = 0;
+  }
   
   /**
    * Closes a cell by writing all outstanding objects and closing current file.
@@ -93,36 +101,37 @@ public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> 
    * the file is written again with the RTree built.
    */
   @Override
-  protected void closeCell(int cellIndex) throws IOException {
-    // close current stream.
+  protected void closeCell(Path cellFilePath, OutputStream tempCellStream) throws IOException {
+    // close stream to current file.
     // PS: No need to stuff it with new lines as it is only a temporary file
-    OutputStream tempCellStream = cellStreams[cellIndex];
     tempCellStream.close();
     
     // Read all data of the written file in memory
-    Path cellFile = cellFilePath[cellIndex];
-    long length = fileSystem.getFileStatus(cellFile).getLen();
+    
+    FileStatus fileStatus = fileSystem.getFileStatus(cellFilePath);
+    long length = fileStatus.getLen();
     byte[] cellData = new byte[(int) length];
-    InputStream cellIn = fileSystem.open(cellFile);
+    InputStream cellIn = fileSystem.open(cellFilePath);
     cellIn.read(cellData);
     cellIn.close();
+    // Get cell info of the file to use it when writing the RTree file
+    CellInfo cellInfo = fileSystem.getFileBlockLocations(fileStatus, 0, 1)[0]
+        .getCellInfo();
     // Delete the file to be able recreate it when written as an RTree
-    fileSystem.delete(cellFile, true);
+    fileSystem.delete(cellFilePath, true);
     
     // Build an RTree over the elements read from file
     RTree<S> rtree = new RTree<S>();
     rtree.setStockObject(stockObject);
-    // Set cellStream to null to ensure that getCellStream will create a new one
-    cellStreams[cellIndex] = null;
     // It should create a new stream
-    FSDataOutputStream cellStream = (FSDataOutputStream) getCellStream(cellIndex);
+    FSDataOutputStream cellStream =
+      (FSDataOutputStream) createCellStream(cellFilePath, cellInfo);
     cellStream.writeLong(SpatialSite.RTreeFileMarker);
     rtree.bulkLoadWrite(cellData, 0, (int) length, rtreeDegree, cellStream,
         fastRTree);
     cellData = null; // To allow GC to collect it
     // Call the parent implementation which will stuff it with new lines
-    super.closeCell(cellIndex);
-    cellCount[cellIndex] = 0;
+    super.closeCell(cellFilePath, cellStream);
   }
   
 /*  

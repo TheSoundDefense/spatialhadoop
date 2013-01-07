@@ -165,7 +165,7 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
    */
   protected synchronized void writeInternal(int cellIndex, Text text) throws IOException {
     if (text.getLength() == 0) {
-      closeCell(cellIndex);
+      closeCell(cellIndex, false);
     } else {
       OutputStream cellStream = getCellStream(cellIndex);
       cellStream.write(text.getBytes(), 0, text.getLength());
@@ -177,18 +177,48 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
   protected OutputStream getCellStream(int cellIndex) throws IOException {
     if (cellStreams[cellIndex] == null) {
       Path cellFilePath = getCellFilePath(cellIndex);
-      if (!fileSystem.exists(cellFilePath)) {
-        // Create new file
-        cellStreams[cellIndex] = fileSystem.create(cellFilePath, true,
-            fileSystem.getConf().getInt("io.file.buffer.size", 4096),
-            fileSystem.getDefaultReplication(), this.blockSize,
-            cells[cellIndex]);
-      } else {
-        // Append to existing file
-        cellStreams[cellIndex] = fileSystem.append(cellFilePath);
-      }
+      cellStreams[cellIndex] = createCellStream(cellFilePath, cells[cellIndex]);
     }
     return cellStreams[cellIndex];
+  }
+  
+  /**
+   * Creates an output stream that will be used to write a cell file.
+   * @param cellFilePath
+   * @return
+   * @throws IOException 
+   */
+  protected OutputStream createCellStream(Path cellFilePath, CellInfo cellInfo)
+      throws IOException {
+    OutputStream cellStream;
+    if (!fileSystem.exists(cellFilePath)) {
+      // Create new file
+      cellStream = fileSystem.create(cellFilePath, true,
+          fileSystem.getConf().getInt("io.file.buffer.size", 4096),
+          fileSystem.getDefaultReplication(), this.blockSize,
+          cellInfo);
+    } else {
+      // Append to existing file
+      cellStream = fileSystem.append(cellFilePath);
+    }
+    return cellStream;
+  }
+  
+  /**
+   * Close a cell given an ID.
+   * @param cellIndex
+   * @param background
+   * @throws IOException 
+   */
+  protected void closeCell(int cellIndex, boolean background) throws IOException {
+    if (background) {
+      closingThreads.add(new CloseCell(cellFilePath[cellIndex], cellStreams[cellIndex]));
+      refreshClosingThreads();
+    } else {
+      closeCell(cellFilePath[cellIndex], cellStreams[cellIndex]);
+    }
+    cellFilePath[cellIndex] = null;
+    cellStreams[cellIndex] = null;
   }
   
   /**
@@ -197,20 +227,58 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
    *
    */
   private class CloseCell extends Thread {
-    private int cellId;
+    /**The path of the file to close*/
+    private Path cellFilePath;
+    /**An output stream open on the cell file*/
+    private OutputStream cellStream;
 
-    public CloseCell(int cellId) {
-      this.cellId = cellId;
+    public CloseCell(Path cellFilePath, OutputStream cellStream) {
+      this.cellFilePath = cellFilePath;
+      this.cellStream = cellStream;
     }
     
     @Override
     public void run() {
       try {
-        closeCell(cellId);
+        closeCell(cellFilePath, cellStream);
       } catch (IOException e) {
         e.printStackTrace();
       }
     }
+  }
+  
+  /**
+   * Close the given cell freeing all memory reserved by it.
+   * Once a cell is closed, we should not write more data to it.
+   * @param cellInfo
+   * @throws IOException
+   */
+  protected void closeCell(Path cellFilePath, OutputStream cellStream) throws IOException {
+    // Get current file size
+    long currSize = ((FSDataOutputStream)cellStream).getPos();
+
+    // Check if we need to write empty lines
+    long blockSize =
+        fileSystem.getFileStatus(cellFilePath).getBlockSize();
+    //LOG.info("Cell #"+cellIndex+" current size: "+currSize);
+    // Stuff the open stream with empty lines until it becomes of size blockSize
+    long remainingBytes = (blockSize - currSize % blockSize) % blockSize;
+    
+    if (remainingBytes > 0) {
+      //LOG.info("Cell #"+cellIndex+" stuffing file with "+remainingBytes+" new lines");
+      // Write some bytes so that remainingBytes is multiple of buffer.length
+      cellStream.write(buffer, 0, (int)(remainingBytes % buffer.length));
+      remainingBytes -= remainingBytes % buffer.length;
+      // Write chunks of size buffer.length
+      while (remainingBytes > 0) {
+        cellStream.write(buffer);
+        remainingBytes -= buffer.length;
+      }
+    }
+    // Close stream
+    cellStream.close();
+    // Now getFileSize should work because the file is closed
+    //LOG.info("Cell #"+cellIndex+" actual size: "+fileSystem.getFileStatus(getCellFilePath(cellIndex)).getLen());
   }
   
   /**
@@ -223,7 +291,7 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
     // Close all output files
     for (int cellIndex = 0; cellIndex < cells.length; cellIndex++) {
       if (cellStreams[cellIndex] != null) {
-        closingThreads.add(new CloseCell(cellIndex));
+        closeCell(cellIndex, true);
       }
     }
 
@@ -299,43 +367,6 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
     Arrays.fill(buffer, (byte)'\n');
   }
 
-  /**
-   * Close the given cell freeing all memory reserved by it.
-   * Once a cell is closed, we should not write more data to it.
-   * @param cellInfo
-   * @throws IOException
-   */
-  protected void closeCell(int cellIndex) throws IOException {
-    // Get current file size
-    OutputStream cellStream = cellStreams[cellIndex];
-    long currSize = ((FSDataOutputStream)cellStream).getPos();
-
-    // Check if we need to write empty lines
-    long blockSize =
-        fileSystem.getFileStatus(cellFilePath[cellIndex]).getBlockSize();
-    LOG.info("Cell #"+cellIndex+" current size: "+currSize);
-    // Stuff the open stream with empty lines until it becomes of size blockSize
-    long remainingBytes = (blockSize - currSize % blockSize) % blockSize;
-    
-    if (remainingBytes > 0) {
-      LOG.info("Cell #"+cellIndex+" stuffing file with "+remainingBytes+" new lines");
-      // Write some bytes so that remainingBytes is multiple of buffer.length
-      cellStream.write(buffer, 0, (int)(remainingBytes % buffer.length));
-      remainingBytes -= remainingBytes % buffer.length;
-      // Write chunks of size buffer.length
-      while (remainingBytes > 0) {
-        cellStream.write(buffer);
-        remainingBytes -= buffer.length;
-      }
-    }
-    // Close stream
-    cellStream.close();
-    // Now getFileSize should work because the file is closed
-    LOG.info("Cell #"+cellIndex+" actual size: "+fileSystem.getFileStatus(getCellFilePath(cellIndex)).getLen());
-    cellStreams[cellIndex] = null;
-    cellFilePath[cellIndex] = null;
-  }
-  
   /**
    * Return path to a file that is used to write one grid cell
    * @param column
