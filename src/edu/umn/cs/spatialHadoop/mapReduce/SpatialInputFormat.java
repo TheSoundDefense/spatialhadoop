@@ -103,6 +103,7 @@ public abstract class SpatialInputFormat<K, V> extends FileInputFormat<K, V> {
       // If splits generated so far are less required by user, just return
       // them
       if (splits_2b_processed.size() <= numSplits ||
+          numSplits == 0 ||
           !job.getBoolean(SpatialSite.AutoCombineSplits, true))
         return splits_2b_processed.toArray(
             new InputSplit[splits_2b_processed.size()]);
