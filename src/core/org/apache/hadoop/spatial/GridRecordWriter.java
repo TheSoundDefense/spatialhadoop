@@ -378,7 +378,7 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
     if (cellFilePath[cellIndex] == null) {
       do {
         cellFilePath[cellIndex] = new Path(outFile.toUri().getPath() + '_'
-            + (Math.random() * 1000000));
+            + (int)(Math.random() * 1000000));
       } while (fileSystem.exists(cellFilePath[cellIndex]));
       pathsToConcat.add(cellFilePath[cellIndex]);
     }
