@@ -85,14 +85,6 @@ public class CommandLineArguments {
     return point;
   }
 
-  public boolean isRtree() {
-    return is("rtree");
-  }
-
-  public boolean isPack() {
-    return is("pack");
-  }
-  
   public boolean isOverwrite() {
     return is("overwrite");
   }
@@ -287,5 +279,27 @@ public class CommandLineArguments {
       e.printStackTrace();
     }
     return null;
+  }
+  
+  /**
+   * Return the type of the global index to be used. This could be either:
+   * "grid", "rtree" or <code>null</code>.
+   * These are the values currently supported by the system but the user can
+   * provide any text value.
+   * @return
+   */
+  public String getGIndex() {
+    return get("gindex");
+  }
+  
+  /**
+   * Return the type of the local index to be used. This could be either:
+   * "grid", "rtree" or <code>null</code>.
+   * These are the values currently supported by the system but the user can
+   * provide any text value.
+   * @return
+   */
+  public String getLIndex() {
+    return get("lindex");
   }
 }

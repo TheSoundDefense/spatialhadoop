@@ -113,9 +113,10 @@ public class RepartitionJoin {
       partitioned_file = new Path(smaller_file.toUri().getPath()+
           ".repartitioned_"+(int)(Math.random() * 1000000));
     } while (outFs.exists(partitioned_file));
+    // Repartition the smaller file with no local index
     Repartition.repartitionMapReduce(smaller_file, partitioned_file,
-        cellSet.toArray(new CellInfo[cellSet.size()]),
-        stockShape, blockSize, false, false, true);
+        stockShape, blockSize, cellSet.toArray(new CellInfo[cellSet.size()]),
+        null, true);
     t2 = System.currentTimeMillis();
     System.out.println("Repartition time "+(t2-t1)+" millis");
     

@@ -11,6 +11,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Rectangle;
@@ -54,7 +55,8 @@ public class RandomSpatialGenerator {
    * @throws IOException
    */
   public static void generateGridFile(FileSystem outFS, Path outFilePath,
-      final Rectangle mbr, Shape stockShape, final long totalSize, boolean overwrite, boolean rtree) throws IOException {
+      Shape stockShape, final long totalSize, final Rectangle mbr,
+      String gindex, String lindex, boolean overwrite) throws IOException {
     GridInfo gridInfo = new GridInfo(mbr.x, mbr.y, mbr.width, mbr.height);
     Configuration conf = outFS.getConf();
     final double IndexingOverhead =
@@ -66,12 +68,28 @@ public class RandomSpatialGenerator {
     final Text text = new Text();
     int num_of_cells = (int) Math.ceil(totalSize * (1+IndexingOverhead) /
         outFS.getDefaultBlockSize());
+    CellInfo[] cellInfo;
     
-    gridInfo.calculateCellDimensions(num_of_cells);
-    ShapeRecordWriter<Shape> recordWriter = rtree ?
-      new RTreeGridRecordWriter(outFS, outFilePath, gridInfo.getAllCells(), overwrite) :
-      new GridRecordWriter(outFS, outFilePath, gridInfo.getAllCells(), overwrite);
-    recordWriter.setStockObject(stockShape);
+    if (gindex == null) {
+      throw new RuntimeException("Unsupported global index: "+gindex);
+    } else if (gindex.equals("grid")) {
+      gridInfo.calculateCellDimensions(num_of_cells);
+      cellInfo = gridInfo.getAllCells();
+    } else {
+      throw new RuntimeException("Unsupported global index: "+gindex);
+    }
+    
+    ShapeRecordWriter<Shape> recordWriter;
+    if (lindex == null) {
+      recordWriter = new GridRecordWriter(outFS, outFilePath, cellInfo,
+          overwrite);
+    } else if (lindex.equals("rtree")) {
+      recordWriter = new RTreeGridRecordWriter(outFS, outFilePath, cellInfo,
+          overwrite);
+      recordWriter.setStockObject(stockShape);
+    } else {
+      throw new RuntimeException("Unsupported local index: " + lindex);
+    }
 
     Point point = (Point) (stockShape instanceof Point ? stockShape : null);
     Rectangle rectangle = (Rectangle) (stockShape instanceof Rectangle ? stockShape : null);
@@ -89,9 +107,9 @@ public class RandomSpatialGenerator {
       } else if (rectangle != null) {
         rectangle.x = Math.abs(random.nextLong()) % mbr.width + mbr.x;
         rectangle.y = Math.abs(random.nextLong()) % mbr.height + mbr.y;
-        rectangle.width = Math.min(Math.abs(random.nextLong()) % 100,
+        rectangle.width = Math.min(Math.abs(random.nextLong()) % MaxShapeWidth,
             mbr.width + mbr.x - rectangle.x);
-        rectangle.height = Math.min(Math.abs(random.nextLong()) % 100,
+        rectangle.height = Math.min(Math.abs(random.nextLong()) % MaxShapeHeight,
             mbr.height + mbr.y - rectangle.y);
       }
 
@@ -123,7 +141,7 @@ public class RandomSpatialGenerator {
    * @throws IOException 
    */
   public static void generateHeapFile(FileSystem outFS, Path outputFilePath,
-      Rectangle mbr, Shape stockShape, long totalSize, boolean overwrite) throws IOException {
+      Shape stockShape, long totalSize, Rectangle mbr, boolean overwrite) throws IOException {
     OutputStream out = null;
     if (outFS == null || outputFilePath == null)
       out = new BufferedOutputStream(System.out);
@@ -183,29 +201,28 @@ public class RandomSpatialGenerator {
     CommandLineArguments cla = new CommandLineArguments(args);
     Path outputFile = cla.getPath();
     FileSystem fs = outputFile != null? outputFile.getFileSystem(conf) : null;
-    GridInfo grid = cla.getGridInfo();
     Rectangle mbr = cla.getRectangle();
     Shape stockShape = cla.getShape(false);
     if (stockShape == null)
       stockShape = new Rectangle();
     
-    if (mbr == null)
-      mbr = grid.getMBR();
     long totalSize = cla.getSize();
-    boolean rtree = cla.isRtree();
+    String gindex = cla.getGIndex();
+    String lindex = cla.getLIndex();
     boolean overwrite = cla.isOverwrite();
 
     if (outputFile != null) {
-      System.out.print("Generating a ");
-      System.out.print(grid != null || rtree? "grid ": "heap ");
+      System.out.print("Generating a file ");
+      System.out.print("with gindex:"+gindex+" ");
+      System.out.print("with lindex:"+gindex+" ");
       System.out.println("file of size: "+totalSize);
       System.out.println("To: " + outputFile);
       System.out.println("In the range: " + mbr);
     }
-    if (grid != null || rtree)
-      generateGridFile(fs, outputFile, mbr, stockShape, totalSize, overwrite, rtree);
+    if (gindex == null && lindex == null)
+      generateHeapFile(fs, outputFile, stockShape, totalSize, mbr, overwrite);
     else
-      generateHeapFile(fs, outputFile, mbr, stockShape, totalSize, overwrite);
+      generateGridFile(fs, outputFile, stockShape, totalSize, mbr, gindex, lindex, overwrite);
   }
 
 }
