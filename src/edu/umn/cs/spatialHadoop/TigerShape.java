@@ -3,7 +3,6 @@ package edu.umn.cs.spatialHadoop;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.Arrays;
 
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.TextSerializerHelper;
@@ -17,15 +16,10 @@ import org.apache.hadoop.spatial.Shape;
  */
 public class TigerShape extends Rectangle {
   
+  private static final double Precision = 1E+10;
   public long id;
-  public byte[] extraInfo = new byte[1024 - 40];
-  private static final byte[] ExtraInfo;
-  private static final byte[] Comma = { ',' };
-  
-  static {
-    ExtraInfo = new byte[1024 - 40];
-    Arrays.fill(ExtraInfo, (byte)' ');
-  }
+  public int extraInfoLength;
+  public byte[] extraInfo;
 
   public TigerShape() {
   }
@@ -35,29 +29,54 @@ public class TigerShape extends Rectangle {
     this.id = id;
   }
 
-  public TigerShape(TigerShape tigerShape) {
-    super(tigerShape);
-    this.id = tigerShape.id;
+  public TigerShape(TigerShape ts) {
+    super(ts);
+    this.id = ts.id;
+    this.extraInfoLength = ts.extraInfoLength;
+    this.extraInfo = new byte[ts.extraInfo.length];
+    System.arraycopy(ts.extraInfo, 0, this.extraInfo, 0, extraInfoLength);
   }
 
   @Override
   public void write(DataOutput out) throws IOException {
     out.writeLong(id);
     super.write(out);
-    out.write(extraInfo);
+    out.writeInt(extraInfoLength);
+    if (extraInfoLength > 0) {
+      out.write(extraInfo, 0, extraInfoLength);
+    }
   }
 
   @Override
   public void readFields(DataInput in) throws IOException {
     id = in.readLong();
     super.readFields(in);
-    in.readFully(extraInfo);
+    extraInfoLength = in.readInt();
+    if (extraInfoLength > 0) {
+      if (extraInfo == null || extraInfo.length < extraInfoLength) {
+        // Get the next power of two for the new extraInfoLength
+        int new_capacity = extraInfoLength;
+        new_capacity |= new_capacity >> 1;
+        new_capacity |= new_capacity >> 2;
+        new_capacity |= new_capacity >> 4;
+        new_capacity |= new_capacity >> 8;
+        new_capacity |= new_capacity >> 16;
+        new_capacity |= new_capacity >> 32;
+        new_capacity++;
+        extraInfo = new byte[new_capacity];
+      }
+      in.readFully(extraInfo, 0, extraInfoLength);
+    }
   }
 
   @Override
   public int compareTo(Shape s) {
-    throw new RuntimeException("Why do you compare TigerShapes?");
-//    return (int)(id - ((TigerShape)s).id);
+    TigerShape ts = (TigerShape) s;
+    if (id < ts.id)
+      return -1;
+    if (id > ts.id)
+      return 1;
+    return 0;
   }
 
   @Override
@@ -73,16 +92,39 @@ public class TigerShape extends Rectangle {
   @Override
   public Text toText(Text text) {
     TextSerializerHelper.serializeLong(id, text, ',');
-    super.toText(text);
-    text.append(Comma, 0, 1);
-    text.append(ExtraInfo, 0, ExtraInfo.length);
+    TextSerializerHelper.serializeDouble((double)getX1() / Precision, text, ',');
+    TextSerializerHelper.serializeDouble((double)getY1() / Precision, text, ',');
+    TextSerializerHelper.serializeDouble((double)getX2() / Precision, text, ',');
+    TextSerializerHelper.serializeDouble((double)getY2() / Precision, text, ',');
+    // TODO handle the case when extraInfo contains a new line character
+    text.append(extraInfo, 0, extraInfoLength);
     return text;
   }
 
   @Override
   public void fromText(Text text) {
     this.id = TextSerializerHelper.consumeLong(text, ',');
-    super.fromText(text);
-    System.arraycopy(text.getBytes(), 0, extraInfo, 0, Math.min(extraInfo.length, text.getLength()));
+    double x1 = TextSerializerHelper.consumeDouble(text, ',');
+    double y1 = TextSerializerHelper.consumeDouble(text, ',');
+    double x2 = TextSerializerHelper.consumeDouble(text, ',');;
+    double y2 = TextSerializerHelper.consumeDouble(text, ',');
+    this.x = Math.round(x1 * Precision);
+    this.y = Math.round(y1 * Precision);
+    this.width = Math.round(x2 * Precision) - this.x;
+    this.height = Math.round(y2 * Precision) - this.y;
+    extraInfoLength = text.getLength();
+    if (extraInfo == null || extraInfo.length < extraInfoLength) {
+      // Get the next power of two for the new extraInfoLength
+      int new_capacity = extraInfoLength;
+      new_capacity |= new_capacity >> 1;
+      new_capacity |= new_capacity >> 2;
+      new_capacity |= new_capacity >> 4;
+      new_capacity |= new_capacity >> 8;
+      new_capacity |= new_capacity >> 16;
+      new_capacity |= new_capacity >> 32;
+      new_capacity++;
+      extraInfo = new byte[new_capacity];
+    }
+    System.arraycopy(text.getBytes(), 0, extraInfo, 0, extraInfoLength);
   }
 }
