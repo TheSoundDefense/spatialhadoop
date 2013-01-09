@@ -436,7 +436,7 @@ public class KNN {
     // Submit the job
     RunningJob runningJob = JobClient.runJob(job);
     Counters counters = runningJob.getCounters();
-    Counter outputRecordCounter = counters.findCounter(Task.Counter.MAP_OUTPUT_RECORDS);
+    Counter outputRecordCounter = counters.findCounter(Task.Counter.REDUCE_OUTPUT_RECORDS);
     final long resultCount = outputRecordCounter.getValue();
     
     // Read job result
