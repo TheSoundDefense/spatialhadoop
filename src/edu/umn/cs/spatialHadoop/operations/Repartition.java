@@ -128,12 +128,15 @@ public class Repartition {
     public void reduce(IntWritable cellId, Iterator<Text> values,
         OutputCollector<IntWritable, Text> output, Reporter reporter)
             throws IOException {
-      while (values.hasNext()) {
-        Text value = values.next();
-        output.collect(cellId, value);
+      // Initial check which avoids closing the cell for empty partitions
+      if (values.hasNext()) {
+        while (values.hasNext()) {
+          Text value = values.next();
+          output.collect(cellId, value);
+        }
+        // Close this cell as we will not write any more data to it
+        output.collect(cellId, new Text());
       }
-      // Close this cell as we will not write any more data to it
-      output.collect(cellId, new Text());
     }
   }
   
