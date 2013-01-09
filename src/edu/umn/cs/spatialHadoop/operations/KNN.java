@@ -20,6 +20,7 @@ import org.apache.hadoop.io.TextSerializable;
 import org.apache.hadoop.io.TextSerializerHelper;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapred.ClusterStatus;
+import org.apache.hadoop.mapred.Counters;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.MapReduceBase;
@@ -27,7 +28,10 @@ import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.mapred.RunningJob;
+import org.apache.hadoop.mapred.Task;
 import org.apache.hadoop.mapred.TextOutputFormat;
+import org.apache.hadoop.mapred.Counters.Counter;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.RTree;
@@ -430,16 +434,17 @@ public class KNN {
     TextOutputFormat.setOutputPath(job, outputPath);
     
     // Submit the job
-    JobClient.runJob(job);
+    RunningJob runningJob = JobClient.runJob(job);
+    Counters counters = runningJob.getCounters();
+    Counter outputRecordCounter = counters.findCounter(Task.Counter.MAP_OUTPUT_RECORDS);
+    final long resultCount = outputRecordCounter.getValue();
     
     // Read job result
-    FileStatus[] results = outFs.listStatus(outputPath);
-    long resultCount = 0;
-    try {
-      for (FileStatus fileStatus : results) {
-        if (fileStatus.getLen() > 0 && fileStatus.getPath().getName().startsWith("part-")) {
-          resultCount = RecordCount.recordCountLocal(outFs, fileStatus.getPath());
-          if (output != null) {
+    if (output != null) {
+      FileStatus[] results = outFs.listStatus(outputPath);
+      try {
+        for (FileStatus fileStatus : results) {
+          if (fileStatus.getLen() > 0 && fileStatus.getPath().getName().startsWith("part-")) {
             // Report every single result as a pair of shape with distance
             ShapeWithDistance<S> shapeWithDistance =
                 (ShapeWithDistance<S>) shapeWithDistanceClass.newInstance();
@@ -455,11 +460,11 @@ public class KNN {
             lineReader.close();
           }
         }
+      } catch (InstantiationException e) {
+        e.printStackTrace();
+      } catch (IllegalAccessException e) {
+        e.printStackTrace();
       }
-    } catch (InstantiationException e) {
-      e.printStackTrace();
-    } catch (IllegalAccessException e) {
-      e.printStackTrace();
     }
     
     outFs.delete(outputPath, true);
