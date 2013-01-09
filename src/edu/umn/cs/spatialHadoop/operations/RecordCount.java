@@ -132,6 +132,7 @@ public class RecordCount {
       if (line.getLength() > 0)
         lineCount++;
     }
+    lineReader.close();
     return lineCount;
   }
   
