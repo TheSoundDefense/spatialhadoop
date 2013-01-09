@@ -8,6 +8,7 @@ import java.util.Vector;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.LongWritable;
@@ -211,6 +212,8 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
    * @throws IOException 
    */
   protected void closeCell(int cellIndex, boolean background) throws IOException {
+    if (cellStreams[cellIndex] == null)
+      return; // No cell to close
     if (background) {
       closingThreads.add(new CloseCell(cellFilePath[cellIndex], cellStreams[cellIndex]));
       refreshClosingThreads();
@@ -258,14 +261,20 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
     long currSize = ((FSDataOutputStream)cellStream).getPos();
 
     // Check if we need to write empty lines
-    long blockSize =
-        fileSystem.getFileStatus(cellFilePath).getBlockSize();
-    //LOG.info("Cell #"+cellIndex+" current size: "+currSize);
+    FileStatus fileStatus = fileSystem.getFileStatus(cellFilePath);
+    long blockSize = fileStatus.getBlockSize();
+
+    // Get cell info of the file to use it when writing the RTree file
+    CellInfo cellInfo = fileSystem.getFileBlockLocations(fileStatus, 0, 1)[0]
+        .getCellInfo();
+
+    
+    LOG.info("Cell #"+cellInfo.cellId+" current size: "+currSize);
     // Stuff the open stream with empty lines until it becomes of size blockSize
     long remainingBytes = (blockSize - currSize % blockSize) % blockSize;
     
     if (remainingBytes > 0) {
-      //LOG.info("Cell #"+cellIndex+" stuffing file with "+remainingBytes+" new lines");
+      LOG.info("Cell #"+cellInfo.cellId+" stuffing file with "+remainingBytes+" new lines");
       // Write some bytes so that remainingBytes is multiple of buffer.length
       cellStream.write(buffer, 0, (int)(remainingBytes % buffer.length));
       remainingBytes -= remainingBytes % buffer.length;
@@ -278,7 +287,8 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
     // Close stream
     cellStream.close();
     // Now getFileSize should work because the file is closed
-    //LOG.info("Cell #"+cellIndex+" actual size: "+fileSystem.getFileStatus(getCellFilePath(cellIndex)).getLen());
+    LOG.info("Cell #" + cellInfo.cellId + " actual size: "
+        + fileSystem.getFileStatus(cellFilePath).getLen());
   }
   
   /**
