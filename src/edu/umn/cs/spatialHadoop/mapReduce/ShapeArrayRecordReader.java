@@ -64,7 +64,8 @@ public class ShapeArrayRecordReader extends SpatialRecordReader<CellInfo, ArrayW
         fs.getFileBlockLocations(fs.getFileStatus(path), getPos(), 1);
     if (fileBlockLocations.length == 0)
       return false;
-    key.set(fileBlockLocations[0].getCellInfo());
+    if (fileBlockLocations[0].getCellInfo() != null)
+      key.set(fileBlockLocations[0].getCellInfo());
     return nextShapes(shapes);
   }
 
