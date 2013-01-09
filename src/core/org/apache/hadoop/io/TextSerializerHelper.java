@@ -126,8 +126,8 @@ public final class TextSerializerHelper {
     // Skip until the separator or end of text
     while (i < text.getLength() && bytes[i] != separator)
       i++;
-    double d = Double.parseDouble(new String(bytes, 0, text.getLength() - i));
-    if (separator != 0 && i < text.getLength())
+    double d = Double.parseDouble(new String(bytes, 0, i));
+    if (i < text.getLength())
       i++;
     System.arraycopy(bytes, i, bytes, 0, text.getLength() - i);
     text.set(bytes, 0, text.getLength() - i);
