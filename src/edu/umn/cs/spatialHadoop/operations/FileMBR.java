@@ -24,7 +24,6 @@ import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.CommandLineArguments;
-import edu.umn.cs.spatialHadoop.TigerShape;
 import edu.umn.cs.spatialHadoop.mapReduce.STextOutputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeInputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
@@ -39,8 +38,8 @@ public class FileMBR {
   private static final Rectangle MBR = new Rectangle();
 
   public static class Map extends MapReduceBase implements
-      Mapper<LongWritable, TigerShape, ByteWritable, Rectangle> {
-    public void map(LongWritable shapeId, TigerShape shape,
+      Mapper<LongWritable, Shape, ByteWritable, Rectangle> {
+    public void map(LongWritable shapeId, Shape shape,
         OutputCollector<ByteWritable, Rectangle> output, Reporter reporter)
         throws IOException {
       Rectangle mbr = shape.getMBR();
@@ -81,7 +80,8 @@ public class FileMBR {
    * @return
    * @throws IOException 
    */
-  public static Rectangle fileMBRMapReduce(FileSystem fs, Path file) throws IOException {
+  public static <S extends Shape> Rectangle fileMBRMapReduce(FileSystem fs,
+      Path file, S stockShape) throws IOException {
     // Try to get file MBR from the MBRs of blocks
     BlockLocation[] fileBlockLocations = fs.getFileBlockLocations(
         fs.getFileStatus(file), 0, fs.getFileStatus(file).getLen());
@@ -124,7 +124,7 @@ public class FileMBR {
     job.setNumMapTasks(clusterStatus.getMaxMapTasks() * 5);
     
     job.setInputFormat(ShapeInputFormat.class);
-    job.set(SpatialSite.SHAPE_CLASS, TigerShape.class.getName());
+    job.set(SpatialSite.SHAPE_CLASS, stockShape.getClass().getName());
     job.setOutputFormat(STextOutputFormat.class);
     
     ShapeInputFormat.setInputPaths(job, file);
@@ -162,7 +162,8 @@ public class FileMBR {
    * @return
    * @throws IOException
    */
-  public static Rectangle fileMBRLocal(FileSystem fs, Path file) throws IOException {
+  public static <S extends Shape> Rectangle fileMBRLocal(FileSystem fs,
+      Path file, S stockShape) throws IOException {
     // Try to get file MBR from the MBRs of blocks
     BlockLocation[] fileBlockLocations = fs.getFileBlockLocations(
         fs.getFileStatus(file), 0, fs.getFileStatus(file).getLen());
@@ -199,10 +200,9 @@ public class FileMBR {
     long y2 = Long.MIN_VALUE;
     
     LongWritable key = shapeReader.createKey();
-    TigerShape value = new TigerShape();
 
-    while (shapeReader.next(key, value)) {
-      Rectangle rect = value.getMBR();
+    while (shapeReader.next(key, stockShape)) {
+      Rectangle rect = stockShape.getMBR();
       if (rect.getX1() < x1) x1 = rect.getX1();
       if (rect.getY1() < y1) y1 = rect.getY1();
       if (rect.getX2() > x2) x2 = rect.getX2();
@@ -221,9 +221,10 @@ public class FileMBR {
     JobConf conf = new JobConf(FileMBR.class);
     Path inputFile = cla.getPath();
     FileSystem fs = inputFile.getFileSystem(conf);
+    Shape stockShape = cla.getShape(true);
     boolean local = cla.isLocal();
-    Rectangle mbr = local ? fileMBRLocal(fs, inputFile) :
-      fileMBRMapReduce(fs, inputFile);
+    Rectangle mbr = local ? fileMBRLocal(fs, inputFile, stockShape) :
+      fileMBRMapReduce(fs, inputFile, stockShape);
     System.out.println("MBR of records in file "+inputFile+" is "+mbr);
   }
 

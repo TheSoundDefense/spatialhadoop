@@ -73,16 +73,13 @@ public class SJMR {
    *
    * @param <T>
    */
-  public static class IndexedShape<T extends Shape> implements WritableComparable<IndexedShape<T>> {
+  public static abstract class IndexedShape<T extends Shape> implements
+    WritableComparable<IndexedShape<T>> {
     /** Index of the shape */
     public int index;
     /** Value of the shape */
     public T shape;
     
-    public IndexedShape() {
-      shape = (T) new TigerShape();
-    }
-
     public IndexedShape(int index, T shape) {
       this.index = index;
       this.shape = shape;
@@ -103,6 +100,26 @@ public class SJMR {
     @Override
     public int compareTo(IndexedShape<T> o) {
       return index - o.index;
+    }
+  }
+  
+  public static class IndexedRectangle extends IndexedShape<Rectangle> {
+    public IndexedRectangle() {
+      super(0, new Rectangle());
+    }
+    
+    public IndexedRectangle(int index, Rectangle shape) {
+      super(index, shape);
+    }
+  }
+  
+  public static class IndexedTigerShape extends IndexedShape<TigerShape> {
+    public IndexedTigerShape() {
+      super(0, new TigerShape());
+    }
+    
+    public IndexedTigerShape(int index, TigerShape shape) {
+      super(index, shape);
     }
   }
   
@@ -204,11 +221,15 @@ public class SJMR {
     
     /**The index of the file being read*/
     private int index;
+
+    private Class<? extends IndexedShape<S>> mapOutputValueClass;
     
     public SJMRRecordReader(Configuration job, FileSplit split, int fileIndex)
         throws IOException {
       internalReader = new ShapeRecordReader<S>(job, split);
       this.index = fileIndex;
+      mapOutputValueClass = (Class<? extends IndexedShape<S>>)
+      ((JobConf)job).getMapOutputValueClass().asSubclass(IndexedShape.class);
     }
     
     @Override
@@ -224,8 +245,18 @@ public class SJMR {
 
     @Override
     public IndexedShape<S> createValue() {
-      LOG.info("Creating a value");
-      return new IndexedShape<S>(index, internalReader.createValue());
+      IndexedShape<S> value;
+      try {
+        value = mapOutputValueClass.newInstance();
+        value.index = index;
+        value.shape = internalReader.createValue();
+        return value;
+      } catch (InstantiationException e) {
+        e.printStackTrace();
+      } catch (IllegalAccessException e) {
+        e.printStackTrace();
+      }
+      return null;
     }
 
     @Override
@@ -268,8 +299,8 @@ public class SJMR {
   }
 
   public static<S extends Shape> long sjmr(FileSystem fs, Path[] files,
-      GridInfo gridInfo, OutputCollector<PairShape<CellInfo>, PairShape<? extends Shape>> output)
-          throws IOException {
+      GridInfo gridInfo, S stockShape, OutputCollector<PairShape<CellInfo>,
+      PairShape<? extends Shape>> output) throws IOException {
     JobConf job = new JobConf(SJMR.class);
     
     Path outputPath;
@@ -284,7 +315,13 @@ public class SJMR {
     job.setJobName("SJMR");
     job.setMapperClass(SJMRMap.class);
     job.setMapOutputKeyClass(IntWritable.class);
-    job.setMapOutputValueClass(IndexedShape.class);
+    if (stockShape instanceof Rectangle) {
+      job.setMapOutputValueClass(IndexedRectangle.class);
+    } else if (stockShape instanceof TigerShape) {
+      job.setMapOutputValueClass(IndexedTigerShape.class);
+    } else {
+      throw new RuntimeException("Unsupported shape: "+stockShape.getClass());
+    }
     job.setBoolean(SpatialSite.AutoCombineSplits, false);
     job.setNumMapTasks(10 * Math.max(1, clusterStatus.getMaxMapTasks()));
 
@@ -293,7 +330,7 @@ public class SJMR {
     job.setNumReduceTasks(Math.max(1, clusterStatus.getMaxReduceTasks()));
 
     job.setInputFormat(SJMRInputFormat.class);
-    job.set(SpatialSite.SHAPE_CLASS, TigerShape.class.getName());
+    job.set(SpatialSite.SHAPE_CLASS, stockShape.getClass().getName());
     job.setOutputFormat(TextOutputFormat.class);
     
     String commaSeparatedFiles = "";
@@ -351,7 +388,7 @@ public class SJMR {
           PairShape<CellInfo> cells =
               new PairShape<CellInfo>(new CellInfo(), new CellInfo());
           PairShape<? extends Shape> shapes =
-              new PairShape<TigerShape>(new TigerShape(), new TigerShape());
+              new PairShape<S>(stockShape, (S) stockShape.clone());
           LineReader lineReader = new LineReader(outFs.open(fileStatus.getPath()));
           Text text = new Text();
           while (lineReader.readLine(text) > 0) {
@@ -379,19 +416,20 @@ public class SJMR {
     JobConf conf = new JobConf(RedistributeJoin.class);
     FileSystem fs = inputPaths[0].getFileSystem(conf);
     GridInfo gridInfo = cla.getGridInfo();
+    Shape stockShape = cla.getShape(true);
     if (gridInfo == null) {
       Rectangle rect = cla.getRectangle();
       if (rect == null) {
         rect = new Rectangle();
         for (Path path : inputPaths) {
-          Rectangle file_mbr = FileMBR.fileMBRLocal(fs, path);
+          Rectangle file_mbr = FileMBR.fileMBRLocal(fs, path, stockShape);
           rect = rect.union(file_mbr);
         }
       }
       gridInfo = new GridInfo(rect.x, rect.y, rect.width, rect.height);
     }
     long t1 = System.currentTimeMillis();
-    long resultSize = sjmr(fs, inputPaths, gridInfo, null);
+    long resultSize = sjmr(fs, inputPaths, gridInfo, stockShape, null);
     long t2 = System.currentTimeMillis();
     System.out.println("Total time: "+(t2-t1)+" millis");
     System.out.println("Result size: "+resultSize);

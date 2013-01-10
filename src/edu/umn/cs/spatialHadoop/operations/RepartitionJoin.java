@@ -92,7 +92,7 @@ public class RepartitionJoin {
     
     // Estimate output file size of repartition based on the ratio of
     // matched area to smaller file area
-    Rectangle smaller_file_mbr = FileMBR.fileMBRLocal(fs, larger_file);
+    Rectangle smaller_file_mbr = FileMBR.fileMBRLocal(fs, larger_file, stockShape);
     long estimatedRepartitionedFileSize = (long) (smaller_size *
         matched_area.get() / (smaller_file_mbr.width * smaller_file_mbr.height));
     LOG.info("Estimated repartitioned file size: "+estimatedRepartitionedFileSize);

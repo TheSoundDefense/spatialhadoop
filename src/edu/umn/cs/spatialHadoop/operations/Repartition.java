@@ -180,7 +180,7 @@ public class Repartition {
     FileSystem inFs = inFile.getFileSystem(new Configuration());
     FileSystem outFs = outPath.getFileSystem(new Configuration());
     if (input_mbr == null)
-      input_mbr = FileMBR.fileMBRMapReduce(inFs, inFile);
+      input_mbr = FileMBR.fileMBRMapReduce(inFs, inFile, stockShape);
 
     // Calculate number of partitions in output file
     int num_partitions = calculateNumberOfPartitions(inFs, inFile, outFs, blockSize);
@@ -357,7 +357,7 @@ public class Repartition {
     int num_partitions = calculateNumberOfPartitions(inFs, inFile, outFs, blockSize);
     
     if (input_mbr == null)
-      input_mbr = FileMBR.fileMBRLocal(inFs, inFile);
+      input_mbr = FileMBR.fileMBRLocal(inFs, inFile, stockShape);
     
     // Calculate the dimensions of each partition based on gindex type
     CellInfo[] cellInfos;
@@ -470,8 +470,8 @@ public class Repartition {
         // file mbr
         FileSystem fs = inputPath.getFileSystem(new Configuration());
         if (input_mbr == null)
-          input_mbr = local ? FileMBR.fileMBRLocal(fs, inputPath) :
-            FileMBR.fileMBRMapReduce(fs, inputPath);
+          input_mbr = local ? FileMBR.fileMBRLocal(fs, inputPath, stockShape) :
+            FileMBR.fileMBRMapReduce(fs, inputPath, stockShape);
         double overlap_area = 0;
         for (CellInfo cell : cells) {
           Rectangle overlap = input_mbr.getIntersection(cell);

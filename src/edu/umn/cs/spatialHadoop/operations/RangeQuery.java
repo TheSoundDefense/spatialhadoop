@@ -298,8 +298,8 @@ public class RangeQuery {
     if (ratio >= 0.0 && ratio <= 1.0f) {
       final Rectangle queryMBR = queryRange != null?
           queryRange :
-            (local ? FileMBR.fileMBRLocal(fs, inputFile) :
-              FileMBR.fileMBRMapReduce(fs, inputFile));
+            (local ? FileMBR.fileMBRLocal(fs, inputFile, stockShape) :
+              FileMBR.fileMBRMapReduce(fs, inputFile, stockShape));
       final Vector<Thread> threads = new Vector<Thread>();
       final Vector<Rectangle> query_rectangles = new Vector<Rectangle>();
       Sampler.sampleLocal(fs, inputFile, count, new OutputCollector<LongWritable, Shape>(){
