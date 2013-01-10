@@ -264,17 +264,12 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
     FileStatus fileStatus = fileSystem.getFileStatus(cellFilePath);
     long blockSize = fileStatus.getBlockSize();
 
-    // Get cell info of the file to use it when writing the RTree file
-    CellInfo cellInfo = fileSystem.getFileBlockLocations(fileStatus, 0, 1)[0]
-        .getCellInfo();
-
-    
-    LOG.info("Cell #"+cellInfo.cellId+" current size: "+currSize);
+    LOG.info("Cell current size: "+currSize);
     // Stuff the open stream with empty lines until it becomes of size blockSize
     long remainingBytes = (blockSize - currSize % blockSize) % blockSize;
     
     if (remainingBytes > 0) {
-      LOG.info("Cell #"+cellInfo.cellId+" stuffing file with "+remainingBytes+" new lines");
+      LOG.info("Cell stuffing file with "+remainingBytes+" new lines");
       // Write some bytes so that remainingBytes is multiple of buffer.length
       cellStream.write(buffer, 0, (int)(remainingBytes % buffer.length));
       remainingBytes -= remainingBytes % buffer.length;
@@ -287,7 +282,7 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
     // Close stream
     cellStream.close();
     // Now getFileSize should work because the file is closed
-    LOG.info("Cell #" + cellInfo.cellId + " actual size: "
+    LOG.info("Cell actual size: "
         + fileSystem.getFileStatus(cellFilePath).getLen());
   }
   
