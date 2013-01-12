@@ -107,6 +107,12 @@ public class Rectangle implements Shape {
     return this.getMaxDistanceTo(px, py);
   }
 
+  /**
+   * Maximum distance to the perimeter of the Rectangle
+   * @param px
+   * @param py
+   * @return
+   */
   public double getMaxDistanceTo(long px, long py) {
     double dx = Math.max(px - this.x, this.x + this.width - px);
     double dy = Math.max(py - this.y, this.y + this.height - py);

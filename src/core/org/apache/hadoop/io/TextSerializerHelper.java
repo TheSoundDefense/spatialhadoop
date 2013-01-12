@@ -144,5 +144,8 @@ public final class TextSerializerHelper {
   public static void serializeDouble(double d, Text t, char toAppend) {
     byte[] bytes = Double.toString(d).getBytes();
     t.append(bytes, 0, bytes.length);
+    if (toAppend != '\0') {
+      t.append(new byte[] {(byte)toAppend}, 0, 1);
+    }
   }
 }

@@ -21,6 +21,12 @@ public class Circle extends Arc2D.Double implements Shape {
   private static final long serialVersionUID = 9221371239739890276L;
 
   /**
+   * Default constructor to allow construction then deserialization
+   */
+  public Circle() {
+  }
+  
+  /**
    * Initializes a circle with zero radius
    * @param x
    * @param y
@@ -67,7 +73,7 @@ public class Circle extends Arc2D.Double implements Shape {
   public Text toText(Text text) {
     TextSerializerHelper.serializeDouble(getCenterX(), text, ',');
     TextSerializerHelper.serializeDouble(getCenterY(), text, ',');
-    TextSerializerHelper.serializeDouble(getWidth() / 2, text, '\0');
+    TextSerializerHelper.serializeDouble(getRadius(), text, '\0');
     return text;
   }
 
@@ -77,6 +83,15 @@ public class Circle extends Arc2D.Double implements Shape {
     double y = TextSerializerHelper.consumeDouble(text, ',');
     double r = TextSerializerHelper.consumeDouble(text, '\0');
     set(x, y, r);
+  }
+  
+  private double getRadius() {
+    return getWidth() / 2.0;
+  }
+  
+  @Override
+  public String toString() {
+    return "Circle: @("+x+","+y+")- radius "+getRadius();
   }
 
   @Override
