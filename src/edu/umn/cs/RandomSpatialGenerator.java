@@ -51,12 +51,13 @@ public class RandomSpatialGenerator {
    * @param mbr
    * @param stockShape 
    * @param totalSize
+   * @param blocksize - Size of each block in the generated file
    * @param rtree
    * @throws IOException
    */
   public static void generateGridFile(FileSystem outFS, Path outFilePath,
       Shape stockShape, final long totalSize, final Rectangle mbr,
-      String gindex, String lindex, boolean overwrite) throws IOException {
+      long blocksize, String gindex, String lindex, boolean overwrite) throws IOException {
     GridInfo gridInfo = new GridInfo(mbr.x, mbr.y, mbr.width, mbr.height);
     Configuration conf = outFS.getConf();
     final double IndexingOverhead =
@@ -67,7 +68,7 @@ public class RandomSpatialGenerator {
     final int MaxShapeHeight = 100;
     final Text text = new Text();
     int num_of_cells = (int) Math.ceil(totalSize * (1+IndexingOverhead) /
-        outFS.getDefaultBlockSize());
+        blocksize);
     CellInfo[] cellInfo;
     
     if (gindex == null) {
@@ -90,6 +91,7 @@ public class RandomSpatialGenerator {
     } else {
       throw new RuntimeException("Unsupported local index: " + lindex);
     }
+    ((GridRecordWriter)recordWriter).setBlockSize(blocksize);
 
     Point point = (Point) (stockShape instanceof Point ? stockShape : null);
     Rectangle rectangle = (Rectangle) (stockShape instanceof Rectangle ? stockShape : null);
@@ -203,6 +205,7 @@ public class RandomSpatialGenerator {
     FileSystem fs = outputFile != null? outputFile.getFileSystem(conf) : null;
     Rectangle mbr = cla.getRectangle();
     Shape stockShape = cla.getShape(false);
+    long blocksize = cla.getBlockSize();
     if (stockShape == null)
       stockShape = new Rectangle();
     
@@ -222,7 +225,7 @@ public class RandomSpatialGenerator {
     if (gindex == null && lindex == null)
       generateHeapFile(fs, outputFile, stockShape, totalSize, mbr, overwrite);
     else
-      generateGridFile(fs, outputFile, stockShape, totalSize, mbr, gindex, lindex, overwrite);
+      generateGridFile(fs, outputFile, stockShape, totalSize, mbr, blocksize, gindex, lindex, overwrite);
   }
 
 }
