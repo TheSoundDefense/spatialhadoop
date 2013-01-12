@@ -21,6 +21,7 @@ import org.apache.hadoop.io.TextSerializerHelper;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapred.ClusterStatus;
 import org.apache.hadoop.mapred.Counters;
+import org.apache.hadoop.mapred.Counters.Counter;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.MapReduceBase;
@@ -31,7 +32,6 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.RunningJob;
 import org.apache.hadoop.mapred.Task;
 import org.apache.hadoop.mapred.TextOutputFormat;
-import org.apache.hadoop.mapred.Counters.Counter;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.RTree;
@@ -47,7 +47,6 @@ import edu.umn.cs.spatialHadoop.mapReduce.DefaultBlockFilter;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeInputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeInputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
-import edu.umn.cs.spatialHadoop.mapReduce.SplitCalculator;
 
 /**
  * Performs k Nearest Neighbor (kNN) query over a spatial file.
@@ -427,7 +426,6 @@ public class KNN {
     
     job.set(SpatialSite.SHAPE_CLASS, shape.getClass().getName());
     String query_point_distance = queryPoint.x+","+queryPoint.y+","+0;
-    job.set(SplitCalculator.QUERY_POINT_DISTANCE, query_point_distance);
     job.setOutputFormat(TextOutputFormat.class);
     
     ShapeInputFormat.setInputPaths(job, file);
