@@ -59,6 +59,7 @@ public class Circle extends Arc2D.Double implements Shape {
   public void write(DataOutput out) throws IOException {
     out.writeDouble(getCenterX());
     out.writeDouble(getCenterY());
+    out.writeDouble(getRadius());
   }
 
   @Override
@@ -91,7 +92,7 @@ public class Circle extends Arc2D.Double implements Shape {
   
   @Override
   public String toString() {
-    return "Circle: @("+x+","+y+")- radius "+getRadius();
+    return "Circle: @("+getCenterX()+","+getCenterY()+")- radius "+getRadius();
   }
 
   @Override
