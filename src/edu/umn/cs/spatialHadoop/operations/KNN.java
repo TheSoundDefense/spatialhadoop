@@ -5,6 +5,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Vector;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -60,11 +61,17 @@ public class KNN {
   /**Logger for KNN*/
   private static final Log LOG = LogFactory.getLog(KNN.class);
 
+  /**Statistics for debugging. Total number of iterations by all KNN queries*/
+  private static AtomicInteger TotalIterations = new AtomicInteger();
   
   /**Configuration line name for query point*/
   public static final String QUERY_POINT =
       "edu.umn.cs.spatialHadoop.operations.KNN.QueryPoint";
 
+  /**
+   * Holds a query point with k for KNN queries
+   * @author eldawy
+   */
   public static class PointWithK extends Point {
     /** SK, number of nearest neighbors required to find */
     public int k;
@@ -500,9 +507,6 @@ public class KNN {
         LOG.info("Expanding to kth neighbor: "+distance_to_kth_neighbor);
       }
       
-      System.out.println("Range for this iteration: "+range_for_this_iteration);
-      System.out.println("Range for next iteration: "+range_for_next_iteration);
-
       // Calculate the number of blocks to be processed to check the
       // terminating condition;
       additional_blocks_2b_processed = 0;
@@ -536,7 +540,7 @@ public class KNN {
     }
 
     outFs.delete(outputPath, true);
-    System.out.println("Total iterations: "+iterations);
+    TotalIterations.addAndGet(iterations);
     
     return resultCount;
   }
@@ -599,7 +603,6 @@ public class KNN {
     JobConf conf = new JobConf(FileMBR.class);
     final Path inputFile = cla.getPath();
     Point queryPoint = cla.getPoint();
-    System.out.println("Query: "+queryPoint);
     final FileSystem fs = inputFile.getFileSystem(conf);
     final int k = cla.getK();
     int count = cla.getCount();
@@ -615,7 +618,6 @@ public class KNN {
       // User provided a query, use it
       long resultCount = 
           knnMapReduce(fs, inputFile, new PointWithK(queryPoint, k), shape, null);
-      System.out.println("Found "+resultCount+" results");
     } else {
       // Generate query at random points
       final Vector<Thread> threads = new Vector<Thread>();
@@ -627,7 +629,6 @@ public class KNN {
           query_point.k = k;
           query_point.x = value.getMBR().x;
           query_point.y = value.getMBR().y;
-          System.out.println(query_point.x+","+query_point.y);
           query_points.add(query_point);
           threads.add(new Thread() {
             @Override
@@ -676,5 +677,6 @@ public class KNN {
       System.out.println("Time for "+count+" jobs is "+(t2-t1)+" millis");
       System.out.println("Results: "+results);
     }
+    System.out.println("Total iterations: "+TotalIterations);
   }
 }
