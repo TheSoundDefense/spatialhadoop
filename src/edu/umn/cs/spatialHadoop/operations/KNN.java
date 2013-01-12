@@ -5,6 +5,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Vector;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -14,8 +15,10 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.ByteWritable;
+import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.Text2;
 import org.apache.hadoop.io.TextSerializable;
 import org.apache.hadoop.io.TextSerializerHelper;
 import org.apache.hadoop.io.Writable;
@@ -33,6 +36,7 @@ import org.apache.hadoop.mapred.RunningJob;
 import org.apache.hadoop.mapred.Task;
 import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.CellInfo;
+import org.apache.hadoop.spatial.Circle;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Rectangle;
@@ -43,8 +47,8 @@ import org.apache.hadoop.util.LineReader;
 import edu.umn.cs.CommandLineArguments;
 import edu.umn.cs.spatialHadoop.TigerShape;
 import edu.umn.cs.spatialHadoop.mapReduce.BlockFilter;
-import edu.umn.cs.spatialHadoop.mapReduce.DefaultBlockFilter;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeInputFormat;
+import edu.umn.cs.spatialHadoop.mapReduce.RangeFilter;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeInputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
 
@@ -57,11 +61,17 @@ public class KNN {
   /**Logger for KNN*/
   private static final Log LOG = LogFactory.getLog(KNN.class);
 
+  /**Statistics for debugging. Total number of iterations by all KNN queries*/
+  private static AtomicInteger TotalIterations = new AtomicInteger();
   
   /**Configuration line name for query point*/
   public static final String QUERY_POINT =
       "edu.umn.cs.spatialHadoop.operations.KNN.QueryPoint";
 
+  /**
+   * Holds a query point with k for KNN queries
+   * @author eldawy
+   */
   public static class PointWithK extends Point {
     /** SK, number of nearest neighbors required to find */
     public int k;
@@ -153,6 +163,14 @@ public class KNN {
       this.distance = in.readLong();
       shape.readFields(in);
     }
+    
+    /**
+     * Ensures that TextOutputFormat writes the Text representation
+     */
+    @Override
+    public String toString() {
+      return toText(new Text()).toString();
+    }
   }
   
   /*
@@ -202,24 +220,6 @@ public class KNN {
     @Override
     public ShapeWithDistance<TigerShape> clone() {
       return new TigerShapeWithDistance(shape.clone(), distance);
-    }
-  }
-  
-  public static class KNNFilter extends DefaultBlockFilter {
-    /**User query*/
-    private PointWithK queryPoint;
-    
-    @Override
-    public void configure(JobConf job) {
-      super.configure(job);
-      queryPoint = new PointWithK();
-      queryPoint.fromText(new Text(job.get(QUERY_POINT)));
-    }
-    
-    @Override
-    public boolean processBlock(BlockLocation blk) {
-      return (blk.getCellInfo() == null ||
-          blk.getCellInfo().contains(queryPoint.x, queryPoint.y));
     }
   }
   
@@ -380,11 +380,6 @@ public class KNN {
     
     Path outputPath;
     FileSystem outFs = file.getFileSystem(job);
-    do {
-      outputPath = new Path(file.toUri().getPath()+
-          ".knn_"+(int)(Math.random() * 1000000));
-    } while (outFs.exists(outputPath));
-    outFs.deleteOnExit(outputPath);
     
     Class shapeWithDistanceClass;
     if (shape instanceof Point) {
@@ -396,7 +391,19 @@ public class KNN {
     } else {
       throw new RuntimeException("Class not supported "+shape.getClass());
     }
-    
+
+    final ShapeWithDistance<S> shapeWithDistance;
+    try {
+      shapeWithDistance = (ShapeWithDistance<S>) shapeWithDistanceClass.newInstance();
+      shapeWithDistance.shape = shape;
+    } catch (InstantiationException e) {
+      e.printStackTrace();
+      throw new RuntimeException();
+    } catch (IllegalAccessException e) {
+      e.printStackTrace();
+      throw new RuntimeException();
+    }
+
     job.setJobName("KNN");
     
     FSDataInputStream in = fs.open(file);
@@ -416,56 +423,124 @@ public class KNN {
     
     job.setMapOutputKeyClass(ByteWritable.class);
     job.setMapOutputValueClass(shapeWithDistanceClass);
-    Text text = new Text();
-    queryPoint.toText(text);
-    job.set(QUERY_POINT, text.toString());
-    job.setClass(SpatialSite.FilterClass, KNNFilter.class, BlockFilter.class);
+    job.set(QUERY_POINT, queryPoint.toText(new Text()).toString());
     
     job.setReducerClass(KNNReduce.class);
     job.setNumReduceTasks(1);
     
     job.set(SpatialSite.SHAPE_CLASS, shape.getClass().getName());
-    String query_point_distance = queryPoint.x+","+queryPoint.y+","+0;
     job.setOutputFormat(TextOutputFormat.class);
     
     ShapeInputFormat.setInputPaths(job, file);
-    TextOutputFormat.setOutputPath(job, outputPath);
+
+    RunningJob runningJob;
+    FileStatus fileStatus = fs.getFileStatus(file);
+    BlockLocation[] fileBlockLocations =
+        fs.getFileBlockLocations(fileStatus, 0, fileStatus.getLen());
+
+    job.setClass(SpatialSite.FilterClass, RangeFilter.class, BlockFilter.class);
     
-    // Submit the job
-    RunningJob runningJob = JobClient.runJob(job);
-    Counters counters = runningJob.getCounters();
-    Counter outputRecordCounter = counters.findCounter(Task.Counter.REDUCE_OUTPUT_RECORDS);
-    final long resultCount = outputRecordCounter.getValue();
+    Shape range_for_this_iteration = new Point(queryPoint.x, queryPoint.y);
+    int additional_blocks_2b_processed;
+    long resultCount;
+    int iterations = 0;
+    do {
+      do {
+        outputPath = new Path(file.toUri().getPath()+
+            ".knn_"+(int)(Math.random() * 1000000));
+      } while (outFs.exists(outputPath));
+      outFs.deleteOnExit(outputPath);
+
+      TextOutputFormat.setOutputPath(job, outputPath);
+      
+      LOG.info("Running iteration: "+(++iterations));
+      RangeFilter.setQueryRange(job, range_for_this_iteration);
+
+      // Submit the job
+      runningJob = JobClient.runJob(job);
+
+      // Retrieve answers for this iteration
+      Counters counters = runningJob.getCounters();
+      Counter outputRecordCounter = counters.findCounter(Task.Counter.REDUCE_OUTPUT_RECORDS);
+      resultCount = outputRecordCounter.getValue();
+      
+      Circle range_for_next_iteration;
+      if (resultCount < queryPoint.k) {
+        LOG.info("Found only "+resultCount+" results");
+        // Did not find enough results in the query space
+        // Increase the distance by doubling the maximum distance
+        double maximum_distance = 0;
+        for (BlockLocation l : fileBlockLocations) {
+          if (l.getCellInfo().isIntersected(range_for_this_iteration)) {
+            double distance =
+                l.getCellInfo().getMaxDistanceTo(queryPoint.x, queryPoint.y);
+            if (distance > maximum_distance)
+              maximum_distance = distance;
+          }
+        }
+        range_for_next_iteration =
+            new Circle(queryPoint.x, queryPoint.y, maximum_distance*2);
+        LOG.info("Expanding to "+maximum_distance*2);
+      } else {
+        // Calculate the new test range which is a circle centered at the
+        // query point and distance to the k^{th} neighbor
+
+        // Get distance to the kth neighbor
+        final DoubleWritable distance_to_kth_neighbor = new DoubleWritable();
+        FileStatus[] results = outFs.listStatus(outputPath);
+        for (FileStatus result_file : results) {
+          if (result_file.getLen() > 0 && result_file.getPath().getName().startsWith("part-")) {
+            Tail.tail(outFs, result_file.getPath(), 1, new Text2(), new OutputCollector<LongWritable, Text2>() {
+              @Override
+              public void collect(LongWritable key, Text2 line)
+                  throws IOException {
+                String str = line.toString();
+                String[] parts = str.split("\t", 2);
+                shapeWithDistance.fromText(new Text(parts[1]));
+                distance_to_kth_neighbor.set(shapeWithDistance.distance);
+              }
+            });
+          }
+        }
+        range_for_next_iteration = new Circle(queryPoint.x, queryPoint.y,
+            distance_to_kth_neighbor.get());
+        LOG.info("Expanding to kth neighbor: "+distance_to_kth_neighbor);
+      }
+      
+      // Calculate the number of blocks to be processed to check the
+      // terminating condition;
+      additional_blocks_2b_processed = 0;
+      for (BlockLocation l : fileBlockLocations) {
+        if (l.getCellInfo().isIntersected(range_for_next_iteration) &&
+            !(l.getCellInfo().isIntersected(range_for_this_iteration))) {
+          additional_blocks_2b_processed++;
+        }
+      }
+      range_for_this_iteration = range_for_next_iteration;
+    } while (additional_blocks_2b_processed > 0);
     
     // Read job result
     if (output != null) {
       FileStatus[] results = outFs.listStatus(outputPath);
-      try {
-        for (FileStatus fileStatus : results) {
-          if (fileStatus.getLen() > 0 && fileStatus.getPath().getName().startsWith("part-")) {
-            // Report every single result as a pair of shape with distance
-            ShapeWithDistance<S> shapeWithDistance =
-                (ShapeWithDistance<S>) shapeWithDistanceClass.newInstance();
-            shapeWithDistance.shape = shape;
-            LineReader lineReader = new LineReader(outFs.open(fileStatus.getPath()));
-            text.clear();
-            while (lineReader.readLine(text) > 0) {
-              String str = text.toString();
-              String[] parts = str.split("\t", 2);
-              shapeWithDistance.fromText(new Text(parts[1]));
-              output.collect(null, shapeWithDistance);
-            }
-            lineReader.close();
+      for (FileStatus result_file : results) {
+        if (result_file.getLen() > 0 && result_file.getPath().getName().startsWith("part-")) {
+          // Report every single result as a pair of shape with distance
+          LineReader lineReader = new LineReader(outFs.open(result_file.getPath()));
+          Text line = new Text();
+          line.clear();
+          while (lineReader.readLine(line) > 0) {
+            String str = line.toString();
+            String[] parts = str.split("\t", 2);
+            shapeWithDistance.fromText(new Text(parts[1]));
+            output.collect(null, shapeWithDistance);
           }
+          lineReader.close();
         }
-      } catch (InstantiationException e) {
-        e.printStackTrace();
-      } catch (IllegalAccessException e) {
-        e.printStackTrace();
       }
     }
-    
+
     outFs.delete(outputPath, true);
+    TotalIterations.addAndGet(iterations);
     
     return resultCount;
   }
@@ -528,12 +603,14 @@ public class KNN {
     JobConf conf = new JobConf(FileMBR.class);
     final Path inputFile = cla.getPath();
     Point queryPoint = cla.getPoint();
-    System.out.println("Query: "+queryPoint);
     final FileSystem fs = inputFile.getFileSystem(conf);
     final int k = cla.getK();
     int count = cla.getCount();
     int concurrency = cla.getConcurrency();
     final Shape shape = cla.getShape(true);
+    if (k == 0) {
+      LOG.warn("k = 0");
+    }
     
     final Vector<Long> results = new Vector<Long>();
     
@@ -541,7 +618,6 @@ public class KNN {
       // User provided a query, use it
       long resultCount = 
           knnMapReduce(fs, inputFile, new PointWithK(queryPoint, k), shape, null);
-      System.out.println("Found "+resultCount+" results");
     } else {
       // Generate query at random points
       final Vector<Thread> threads = new Vector<Thread>();
@@ -601,5 +677,6 @@ public class KNN {
       System.out.println("Time for "+count+" jobs is "+(t2-t1)+" millis");
       System.out.println("Results: "+results);
     }
+    System.out.println("Total iterations: "+TotalIterations);
   }
 }
