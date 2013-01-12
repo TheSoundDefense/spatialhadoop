@@ -1,5 +1,7 @@
 package org.apache.hadoop.io;
 
+import java.util.Arrays;
+
 public final class TextSerializerHelper {
   /**
    * All possible chars for representing a number as a String
@@ -15,7 +17,8 @@ public final class TextSerializerHelper {
   
   final static boolean[] HexadecimalChars;
   
-  static byte[] buffer = new byte[64];
+  /**64 bytes to append to a string if necessary*/
+  final static byte[] ToAppend = new byte[64];
   
   static {
     HexadecimalChars = new boolean[256];
@@ -26,6 +29,8 @@ public final class TextSerializerHelper {
     for (char i = '0'; i <= '9'; i++)
       HexadecimalChars[i] = true;
     HexadecimalChars['-'] = true;
+    
+    Arrays.fill(ToAppend, (byte)' ');
   }
 
   /**
@@ -36,10 +41,33 @@ public final class TextSerializerHelper {
    * @param appendComma
    */
   public static void serializeLong(long i, Text t, char toAppend) {
-    int charPos = 64;
-    if (toAppend != '\0') {
-      buffer[--charPos] = (byte)toAppend;
+    // Calculate number of bytes needed to serialize the given long
+    int bytes_needed = 0;
+    long temp;
+    if (i < 0) {
+      bytes_needed++; // An additional
+      temp = -i;
+    } else {
+      temp = i;
     }
+    do {
+      bytes_needed += 1;
+      temp >>>= 4;
+    } while (temp != 0);
+    
+    if (toAppend != '\0')
+      bytes_needed++;
+
+    // Reserve the bytes needed in the text
+    t.append(ToAppend, 0, bytes_needed);
+    // Extract the underlying buffer array and fill it directly
+    byte[] buffer = t.getBytes();
+    // Position of the next character to write in the text
+    int position = t.getLength() - 1;
+    
+    if (toAppend != '\0')
+      buffer[position--] = (byte) toAppend;
+    
     final int shift = 4;
     final int radix = 1 << shift;
     final long mask = radix - 1;
@@ -51,12 +79,11 @@ public final class TextSerializerHelper {
       negative = true;
     }
     do {
-      buffer[--charPos] = digits[(int)(i & mask)];
+      buffer[position--] = digits[(int)(i & mask)];
       i >>>= shift;
     } while (i != 0);
     if (negative)
-      buffer[--charPos] = '-';
-    t.append(buffer, charPos, buffer.length - charPos);
+      buffer[position--] = '-';
   }
   
   /**
