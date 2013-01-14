@@ -33,8 +33,10 @@ public class TigerShape extends Rectangle {
     super(ts);
     this.id = ts.id;
     this.extraInfoLength = ts.extraInfoLength;
-    this.extraInfo = new byte[ts.extraInfo.length];
-    System.arraycopy(ts.extraInfo, 0, this.extraInfo, 0, extraInfoLength);
+    if (extraInfoLength > 0) {
+      this.extraInfo = new byte[ts.extraInfo.length];
+      System.arraycopy(ts.extraInfo, 0, this.extraInfo, 0, extraInfoLength);
+    }
   }
 
   @Override
@@ -86,7 +88,7 @@ public class TigerShape extends Rectangle {
   
   @Override
   public String toString() {
-    return String.format("TIGER #%x %s", id, super.toString());
+    return toText(new Text()).toString();
   }
 
   @Override
@@ -97,7 +99,8 @@ public class TigerShape extends Rectangle {
     TextSerializerHelper.serializeDouble((double)getX2() / Precision, text, ',');
     TextSerializerHelper.serializeDouble((double)getY2() / Precision, text, ',');
     // TODO handle the case when extraInfo contains a new line character
-    text.append(extraInfo, 0, extraInfoLength);
+    if (extraInfoLength > 0)
+      text.append(extraInfo, 0, extraInfoLength);
     return text;
   }
 
