@@ -142,15 +142,20 @@ public class RandomSpatialGenerator {
    * @param mbr - The whole MBR to generate in
    * @param stockShape 
    * @param totalSize - The total size of the generated file
+   * @param blocksize 
    * @throws IOException 
    */
   public static void generateHeapFile(FileSystem outFS, Path outputFilePath,
-      Shape stockShape, long totalSize, Rectangle mbr, boolean overwrite) throws IOException {
+      Shape stockShape, long totalSize, Rectangle mbr, long blocksize, boolean overwrite) throws IOException {
     OutputStream out = null;
+    if (blocksize == 0)
+      blocksize = outFS.getDefaultBlockSize();
     if (outFS == null || outputFilePath == null)
       out = new BufferedOutputStream(System.out);
     else
-      out = new BufferedOutputStream(outFS.create(outputFilePath, true));
+      out = new BufferedOutputStream(outFS.create(outputFilePath, true,
+          outFS.getConf().getInt("io.file.buffer.size", 4096),
+          outFS.getDefaultReplication(), blocksize));
     long generatedSize = 0;
     Random random = new Random();
     Text text = new Text();
@@ -225,7 +230,7 @@ public class RandomSpatialGenerator {
       System.out.println("In the range: " + mbr);
     }
     if (gindex == null && lindex == null)
-      generateHeapFile(fs, outputFile, stockShape, totalSize, mbr, overwrite);
+      generateHeapFile(fs, outputFile, stockShape, totalSize, mbr, blocksize, overwrite);
     else
       generateGridFile(fs, outputFile, stockShape, totalSize, mbr, blocksize, gindex, lindex, overwrite);
   }
