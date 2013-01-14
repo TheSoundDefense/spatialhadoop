@@ -126,14 +126,18 @@ public class Sampler {
       for (FileStatus fileStatus : results) {
         if (fileStatus.getLen() > 0 && fileStatus.getPath().getName().startsWith("part-")) {
           LineReader lineReader = new LineReader(outFs.open(fileStatus.getPath()));
-          while (lineReader.readLine(line) > 0) {
-            String str = line.toString();
-            String[] parts = str.split("\t");
-            line_offset.set(Long.parseLong(parts[0]));
-            line.set(parts[1]);
-            stockObject.fromText(line);
-            output.collect(line_offset, stockObject);
-            result_size++;
+          try {
+            while (lineReader.readLine(line) > 0) {
+              String str = line.toString();
+              String[] parts = str.split("\t");
+              line_offset.set(Long.parseLong(parts[0]));
+              line.set(parts[1]);
+              stockObject.fromText(line);
+              output.collect(line_offset, stockObject);
+              result_size++;
+            }
+          } catch (RuntimeException e) {
+            e.printStackTrace();
           }
           lineReader.close();
         }

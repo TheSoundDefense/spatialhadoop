@@ -67,6 +67,8 @@ public class RandomSpatialGenerator {
     final int MaxShapeWidth = 100;
     final int MaxShapeHeight = 100;
     final Text text = new Text();
+    if (blocksize == 0)
+      blocksize = outFS.getDefaultBlockSize();
     int num_of_cells = (int) Math.ceil(totalSize * (1+IndexingOverhead) /
         blocksize);
     CellInfo[] cellInfo;
