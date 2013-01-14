@@ -47,8 +47,6 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
   protected Text tempLine;
   int maxLineLength;
   protected byte[] signature;
-  /**Number of elements to be read from the current RTree*/
-  protected int elementsLeftInRTree;
 
   /**Block size for the read file. Used with RTrees*/
   protected long blockSize;
@@ -223,7 +221,7 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
         if (moveToNextBlock()) {
           // Skip R-tree header
           if (isRTree) {
-            elementsLeftInRTree = RTree.skipHeader(in);
+            RTree.skipHeader(in);
           }
           // Reinitialize the lineReader at the new position.
           // lineReader should not be closed because it will close the underlying
@@ -245,10 +243,6 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
           value.append(tmp.getBytes(), 0, tmp.getLength());
           pos += signature.length;
           signature = null;
-        }
-        // XXX Is it possible that value is an empty line?
-        if (value.getLength() == 0) {
-          throw new RuntimeException("Empty line at: "+pos+" from "+end+" b="+b);
         }
         return true;
       }
@@ -299,7 +293,7 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
     if (isRTree) {
       try {
         // No more RTrees in file
-        if (pos >= end)
+        if (getPos() >= end)
           return false;
         // Check RTree signature
         if (signature == null) {
