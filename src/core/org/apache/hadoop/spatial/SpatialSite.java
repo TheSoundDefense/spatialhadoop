@@ -71,4 +71,26 @@ public class SpatialSite {
     }
   }
   
+  /**
+   * Creates a stock shape according to the given configuration
+   * @param job
+   * @return
+   */
+  public static Shape createStockShape(Configuration job) {
+    Shape stockShape = null;
+    String shapeClassName = job.get(SHAPE_CLASS, Point.class.getName());
+    try {
+      Class<? extends Shape> shapeClass =
+          Class.forName(shapeClassName).asSubclass(Shape.class);
+      stockShape = shapeClass.newInstance();
+    } catch (ClassNotFoundException e) {
+      e.printStackTrace();
+    } catch (InstantiationException e) {
+      e.printStackTrace();
+    } catch (IllegalAccessException e) {
+      e.printStackTrace();
+    }
+    return stockShape;
+  }
+  
 }

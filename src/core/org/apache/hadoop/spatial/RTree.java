@@ -639,7 +639,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
 
     @Override
     public T next() {
-      // TODO get the end of current line and deserialize stock object
+      // get the end of current line and deserialize stock object
       int eol = skipToEOL(serializedTree, offset);
       line.set(serializedTree, offset, eol - offset);
       _stockObject.fromText(line);
