@@ -12,7 +12,6 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.ArrayWritable;
-import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.compress.CompressionCodec;
 import org.apache.hadoop.io.compress.CompressionCodecFactory;
@@ -24,8 +23,6 @@ import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.LineReader;
-
-import edu.umn.cs.spatialHadoop.TigerShape;
 
 /**
  * A base class to read shapes from files. It reads either single shapes,
@@ -50,8 +47,8 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
   protected Text tempLine;
   int maxLineLength;
   protected byte[] signature;
-  /**Number of elements in the RTree currently being read*/
-  protected int elementCountInRTree;
+  /**Number of elements to be read from the current RTree*/
+  protected int elementsLeftInRTree;
 
   /**Block size for the read file. Used with RTrees*/
   protected long blockSize;
@@ -88,12 +85,13 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
       in.seek(start);
     }
 
+    blockSize = fs.getFileStatus(p).getBlockSize();
+
     is.read(signature);
     isRTree = Arrays.equals(signature, SpatialSite.RTreeFileMarkerB);
     LOG.info("isRTree: "+isRTree+" at position "+start);
     if (isRTree) {
       // Block size is crucial for reading RTrees
-      blockSize = fs.getFileStatus(p).getBlockSize();
       LOG.info("RTree block size "+blockSize);
       // File is an RTree
       if (!(is instanceof FSDataInputStream)) {
@@ -214,26 +212,67 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
    * @throws IOException
    */
   protected boolean nextLine(Text value) throws IOException {
-    if (!isRTree) {
-      if (getPos() > end)
-        return false;
+    while (getPos() <= end) {
+      // Attempt to read a line
       int b = lineReader.readLine(value);
       pos += b;
-      if (b == 0)
-        return false;
-      if (signature != null) {
-        Text tmp = new Text();
-        tmp.append(signature, 0, signature.length);
-        tmp.append(value.getBytes(), 0, value.getLength());
-        value.clear();
-        value.append(tmp.getBytes(), 0, tmp.getLength());
-        pos += signature.length;
-        signature = null;
+
+      if (b <= 1) {
+        // An empty line indicates an end of block (for Grid files and R-trees)
+        // Advance to next block
+        if (moveToNextBlock()) {
+          // Skip R-tree header
+          if (isRTree) {
+            elementsLeftInRTree = RTree.skipHeader(in);
+          }
+          // Reinitialize the lineReader at the new position.
+          // lineReader should not be closed because it will close the underlying
+          // input stream (in)
+          lineReader = new LineReader(in);
+        }
+        
+      } else {
+        // Some bytes were read to check the signature but they are actually
+        // part of the first line
+        if (signature != null) {
+          Text tmp = new Text();
+          // Append bytes left in the signature
+          tmp.append(signature, 0, signature.length);
+          // Append the line read from lineReader
+          tmp.append(value.getBytes(), 0, value.getLength());
+          // Copy the concatenated line to the return value
+          value.clear();
+          value.append(tmp.getBytes(), 0, tmp.getLength());
+          pos += signature.length;
+          signature = null;
+        }
+        // XXX Is it possible that value is an empty line?
+        if (value.getLength() == 0) {
+          throw new RuntimeException("Empty line at: "+pos+" from "+end+" b="+b);
+        }
+        return true;
       }
-      return value.getLength() != 0;
-    } else {
-      throw new RuntimeException("Not supported");
     }
+    return false;
+  }
+
+  /**
+   * @throws IOException
+   */
+  protected boolean moveToNextBlock() throws IOException {
+    // P.S. getPos() % blockSize cannot be equal to zero because there
+    // are no empty blocks
+    long new_pos = getPos() + blockSize - (getPos() % blockSize);
+    pos = new_pos;
+    if (new_pos >= end)
+      return false;
+    in.seek(new_pos);
+    if (isRTree) {
+      // Skip the R-tree signature
+      in.readLong();
+      pos += 8;
+    }
+    return true;
   }
   
   /**
@@ -244,47 +283,10 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
    * @throws IOException 
    */
   protected boolean nextShape(Shape s) throws IOException {
-    if (isRTree) {
-      if (elementCountInRTree == 0) {
-        // Read next RTree
-        if (signature == null) {
-          // Check if there are more trees in file
-          if (elementCountInRTree == 0) {
-            if (pos >= end)
-              return false;
-            // Skip the rest of this block as only one RTree is stored per block
-            in.seek(pos);
-          }
-
-          // Read and skip signature
-          if (in.readLong() != SpatialSite.RTreeFileMarker) {
-            throw new RuntimeException("RTree not found at: "+getPos());
-          }
-        }
-        // Signature was already read in initialization.
-        signature = null;
-        elementCountInRTree = RTree.skipHeader(in);
-        pos = in.getPos();
-      }
-      
-      if (elementCountInRTree > 0) {
-        s.readFields(in);
-        elementCountInRTree--;
-        if (elementCountInRTree == 0) {
-          pos = in.getPos() + (blockSize - in.getPos() % blockSize)%blockSize;
-        } else {
-          pos = in.getPos();
-        }
-      } else {
-        throw new RuntimeException();
-      }
-      return true;
-    } else {
-      if (!nextLine(tempLine))
-        return false;
-      s.fromText(tempLine);
-      return true;
-    }
+    if (!nextLine(tempLine))
+      return false;
+    s.fromText(tempLine);
+    return true;
   }
   
   /**
@@ -370,39 +372,6 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
     } else {
       throw new RuntimeException("Not implemented");
     }
-  }
-  
-  public static class ShapesRecordReader extends SpatialRecordReader<LongWritable, RTree> {
-    ShapesRecordReader() throws IOException {
-      super(FileSystem.getLocal(new Configuration()).open(new Path("file:///media/scratch/test.rtree")), 0, 134217728);
-    }
-    @Override
-    public boolean next(LongWritable key, RTree value) throws IOException {
-      key.set(getPos());
-      return nextRTree(value);
-    }
-    @Override
-    public LongWritable createKey() {
-      return new LongWritable();
-    }
-    @Override
-    public RTree createValue() {
-      RTree rtree = new RTree();
-      rtree.setStockObject(new TigerShape());
-      return rtree;
-    }
-  }
-  
-  public static void main(String[] args) throws IOException {
-    ShapesRecordReader r = new ShapesRecordReader();
-    LongWritable k = r.createKey();
-    RTree v = r.createValue();
-    int i = 0;
-    while (r.next(k, v)) {
-      i += v.getElementCount();
-//      System.out.println(k+":"+v);
-    }
-    System.out.println("Read "+i+" items");
   }
 
 }

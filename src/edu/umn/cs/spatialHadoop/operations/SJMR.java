@@ -348,8 +348,10 @@ public class SJMR {
     for (Path file : files) {
       long size = fs.getFileStatus(file).getLen();
       total_size += size;
-      if (size > max_size)
+      if (size > max_size) {
+        max_size = size;
         largest_file = file;
+      }
     }
     // If the largest file is globally indexed, use its partitions
     BlockLocation[] fileBlockLocations =
