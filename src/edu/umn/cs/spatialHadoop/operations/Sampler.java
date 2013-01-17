@@ -43,7 +43,6 @@ public class Sampler {
    * The threshold in number of samples after which the BIG version is used
    */
   private static final int BIG_SAMPLE = 10000;
-  private static final int MAX_LINE_LENGTH = 4096;
   
   public static class Map extends MapReduceBase implements
   Mapper<LongWritable, Text, ByteWritable, Text> {
@@ -313,20 +312,26 @@ public class Sampler {
           current_file_in.seek(data_start_offset + element_offset_in_block);
           // Read the first line after that offset
           Text line = new Text();
-          byte[] line_bytes = new byte[MAX_LINE_LENGTH];
+          byte[] line_buffer = new byte[1024];
 
           // Skip the rest of this line
           int line_length = 0;
           do {
-            line_bytes[line_length] = current_file_in.readByte();
+            line_buffer[line_length] = current_file_in.readByte();
           } while (current_file_in.getPos() < data_end_offset &&
-              (line_bytes[line_length] != '\n' && line_bytes[line_length] != '\r'));
+              (line_buffer[line_length] != '\n' && line_buffer[line_length] != '\r'));
 
           elementId.set(files_start_offset[file_i] + current_file_in.getPos());
 
           do {
-            line_bytes[line_length] = current_file_in.readByte();
-            if (line_bytes[line_length] == '\n' || line_bytes[line_length] == '\r')
+            if (line_length == line_buffer.length) {
+              // Expand array
+              byte[] new_buffer = new byte[line_buffer.length * 2];
+              System.arraycopy(line_buffer, 0, new_buffer, 0, line_length);
+              line_buffer = new_buffer;
+            }
+            line_buffer[line_length] = current_file_in.readByte();
+            if (line_buffer[line_length] == '\n' || line_buffer[line_length] == '\r')
               break;
             line_length++;
           } while (current_file_in.getPos() < data_end_offset);
@@ -340,7 +345,7 @@ public class Sampler {
 
           // Report this element to output
           if (output != null) {
-            line.set(line_bytes, 0, line_length);
+            line.set(line_buffer, 0, line_length);
             stockObject.fromText(line);
             output.collect(elementId, stockObject);
           }
