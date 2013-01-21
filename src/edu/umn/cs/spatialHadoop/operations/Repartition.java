@@ -265,6 +265,13 @@ public class Repartition {
     } else {
       throw new RuntimeException("Unsupported local index: "+lindex);
     }
+    // Copy blocksize from source file if it's globally indexed
+    FileSystem inFs = inFile.getFileSystem(job);
+    FileStatus inFileStatus = inFs.getFileStatus(inFile);
+    if (blockSize == 0 &&
+        inFs.getFileBlockLocations(inFileStatus, 0, 1)[0].getCellInfo() != null) {
+      blockSize = inFileStatus.getBlockSize();
+    }
     if (blockSize != 0)
       job.setLong(SpatialSite.LOCAL_INDEX_BLOCK_SIZE, blockSize);
     job.set(GridOutputFormat.OUTPUT_CELLS,
@@ -420,10 +427,16 @@ public class Repartition {
       throw new RuntimeException("Unupoorted local idnex: "+lindex);
     }
     
+    FileStatus inFileStatus = inFs.getFileStatus(in);
+    // Copy blocksize from source file if it's globally indexed
+    if (blockSize == 0 &&
+        inFs.getFileBlockLocations(inFileStatus, 0, 1)[0].getCellInfo() != null) {
+      blockSize = inFileStatus.getBlockSize();
+    }
     if (blockSize != 0)
       ((GridRecordWriter)writer).setBlockSize(blockSize);
     
-    long length = inFs.getFileStatus(in).getLen();
+    long length = inFileStatus.getLen();
     FSDataInputStream datain = inFs.open(in);
     ShapeRecordReader<S> reader = new ShapeRecordReader<S>(datain, 0, length);
     LongWritable k = reader.createKey();

@@ -8,9 +8,9 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.ByteWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.MemoryInputStream;
+import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Text2;
 import org.apache.hadoop.io.TextSerializable;
@@ -21,13 +21,13 @@ import org.apache.hadoop.mapred.MapReduceBase;
 import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reporter;
-import org.apache.hadoop.mapred.TextInputFormat;
 import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.CommandLineArguments;
+import edu.umn.cs.spatialHadoop.mapReduce.ShapeLineInputFormat;
 
 /**
  * Reads a random sample of a file.
@@ -45,11 +45,13 @@ public class Sampler {
   private static final int BIG_SAMPLE = 10000;
   
   public static class Map extends MapReduceBase implements
-  Mapper<LongWritable, Text, ByteWritable, Text> {
-    private static final ByteWritable ONE = new ByteWritable((byte) 1);
+  Mapper<LongWritable, Text, NullWritable, Text> {
 
     /**Ratio of lines to sample*/
     private double sampleRatio;
+    
+    /**A dummy key for all keys*/
+    private final NullWritable dummyKey = NullWritable.get();
     
     @Override
     public void configure(JobConf job) {
@@ -57,10 +59,10 @@ public class Sampler {
     }
     
     public void map(LongWritable lineId, Text line,
-        OutputCollector<ByteWritable, Text> output, Reporter reporter)
+        OutputCollector<NullWritable, Text> output, Reporter reporter)
             throws IOException {
       if (Math.random() < sampleRatio)
-        output.collect(ONE, line);
+        output.collect(dummyKey, line);
     }
   }
 
@@ -96,7 +98,7 @@ public class Sampler {
     outFs.delete(outputPath, true);
     
     job.setJobName("Sample");
-    job.setMapOutputKeyClass(ByteWritable.class);
+    job.setMapOutputKeyClass(NullWritable.class);
     job.setMapOutputValueClass(Text.class);
     
     job.setMapperClass(Map.class);
@@ -106,10 +108,10 @@ public class Sampler {
     job.setNumMapTasks(clusterStatus.getMaxMapTasks() * 5);
     job.setNumReduceTasks(0);
     
-    job.setInputFormat(TextInputFormat.class);
+    job.setInputFormat(ShapeLineInputFormat.class);
     job.setOutputFormat(TextOutputFormat.class);
     
-    TextInputFormat.setInputPaths(job, files);
+    ShapeLineInputFormat.setInputPaths(job, files);
     TextOutputFormat.setOutputPath(job, outputPath);
     
     // Submit the job
@@ -127,10 +129,6 @@ public class Sampler {
           LineReader lineReader = new LineReader(outFs.open(fileStatus.getPath()));
           try {
             while (lineReader.readLine(line) > 0) {
-              String str = line.toString();
-              String[] parts = str.split("\t");
-              line_offset.set(Long.parseLong(parts[0]));
-              line.set(parts[1]);
               stockObject.fromText(line);
               output.collect(line_offset, stockObject);
               result_size++;
@@ -143,7 +141,7 @@ public class Sampler {
       }
     }
     
-//    outFs.delete(outputPath, true);
+    outFs.delete(outputPath, true);
     
     return result_size;
   }
