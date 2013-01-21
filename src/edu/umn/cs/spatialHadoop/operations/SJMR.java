@@ -33,7 +33,6 @@ import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.RunningJob;
 import org.apache.hadoop.mapred.Task;
-import org.apache.hadoop.mapred.TextInputFormat;
 import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
@@ -46,6 +45,7 @@ import org.apache.hadoop.util.LineReader;
 import edu.umn.cs.CommandLineArguments;
 import edu.umn.cs.spatialHadoop.mapReduce.GridOutputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.PairShape;
+import edu.umn.cs.spatialHadoop.mapReduce.ShapeLineInputFormat;
 
 /**
  * An implementation of Spatial Join MapReduce as it appears in
@@ -220,7 +220,7 @@ public class SJMR {
     job.setReducerClass(SJMRReduce.class);
     job.setNumReduceTasks(Math.max(1, clusterStatus.getMaxReduceTasks()));
 
-    job.setInputFormat(TextInputFormat.class);
+    job.setInputFormat(ShapeLineInputFormat.class);
     job.set(SpatialSite.SHAPE_CLASS, stockShape.getClass().getName());
     job.setOutputFormat(TextOutputFormat.class);
     
@@ -230,7 +230,7 @@ public class SJMR {
         commaSeparatedFiles += ',';
       commaSeparatedFiles += files[i].toUri().toString();
     }
-    TextInputFormat.addInputPaths(job, commaSeparatedFiles);
+    ShapeLineInputFormat.addInputPaths(job, commaSeparatedFiles);
     
     // Calculate and set the dimensions of the grid to use in the map phase
     long total_size = 0;
