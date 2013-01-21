@@ -9,8 +9,8 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.ByteWritable;
 import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.ClusterStatus;
 import org.apache.hadoop.mapred.Counters;
@@ -83,16 +83,16 @@ public class RangeQuery {
       }
     }
     
-    private static final ByteWritable ONEB = new ByteWritable((byte)1);
+    private final NullWritable dummy = NullWritable.get();
     
     /**
      * Map function for non-indexed blocks
      */
     public void map(LongWritable shapeId, T shape,
-        OutputCollector<ByteWritable, T> output, Reporter reporter)
+        OutputCollector<NullWritable, T> output, Reporter reporter)
             throws IOException {
       if (shape.isIntersected(queryShape)) {
-        output.collect(ONEB, shape);
+        output.collect(dummy, shape);
       }
     }
     
@@ -104,13 +104,13 @@ public class RangeQuery {
      * @param reporter
      */
     public void map(CellInfo cellInfo, RTree<T> shapes,
-        final OutputCollector<ByteWritable, T> output, Reporter reporter) {
+        final OutputCollector<NullWritable, T> output, Reporter reporter) {
       LOG.info("Searching in the range: "+cellInfo+" for the query: "+queryShape.getMBR());
       int count = shapes.search(queryShape.getMBR(), new RTree.ResultCollector<T>() {
         @Override
         public void add(T x) {
           try {
-            output.collect(ONEB, x);
+            output.collect(dummy, x);
           } catch (IOException e) {
             e.printStackTrace();
           }
@@ -122,11 +122,11 @@ public class RangeQuery {
   
   /** Mapper for non-indexed blocks */
   public static class Map1<T extends Shape> extends RangeQueryMap<T> implements
-      Mapper<LongWritable, T, ByteWritable, T> { }
+      Mapper<LongWritable, T, NullWritable, T> { }
 
   /** Mapper for RTree indexed blocks */
   public static class Map2<T extends Shape> extends RangeQueryMap<T> implements
-      Mapper<CellInfo, RTree<T>, ByteWritable, T> { }
+      Mapper<CellInfo, RTree<T>, NullWritable, T> { }
   
   /**
    * Performs a range query using MapReduce
@@ -159,7 +159,7 @@ public class RangeQuery {
     job.setClass(SpatialSite.FilterClass, RangeFilter.class, BlockFilter.class);
     RangeFilter.setQueryRange(job, queryShape); // Set query range for filter
 
-    job.setMapOutputKeyClass(ByteWritable.class);
+    job.setMapOutputKeyClass(NullWritable.class);
     job.setMapOutputValueClass(shape.getClass());
     // Decide which map function to use depending on how blocks are indexed
     // And also which input format to use
@@ -197,6 +197,7 @@ public class RangeQuery {
     
     // Read job result
     if (output != null) {
+      Text line = new Text();
       FileStatus[] results = outFs.listStatus(outputPath);
       for (FileStatus fileStatus : results) {
         if (fileStatus.getLen() > 0
@@ -204,11 +205,9 @@ public class RangeQuery {
           // Report every single result
           LineReader lineReader = new LineReader(outFs.open(fileStatus
               .getPath()));
-          new Text().clear();
-          while (lineReader.readLine(new Text()) > 0) {
-            String str = new Text().toString();
-            String[] parts = str.split("\t", 2);
-            shape.fromText(new Text(parts[1]));
+          line.clear();
+          while (lineReader.readLine(line) > 0) {
+            shape.fromText(line);
             output.collect(null, shape);
           }
           lineReader.close();
