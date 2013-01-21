@@ -137,8 +137,9 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
     isRTree = Arrays.equals(signature, SpatialSite.RTreeFileMarkerB);
     LOG.info("isRTree: "+isRTree+" at "+start);
     
+    blockSize = FileSystem.get(new Configuration()).getDefaultBlockSize();
+
     if (isRTree) {
-      blockSize = FileSystem.get(new Configuration()).getDefaultBlockSize();
       LOG.info("RTree size info guessed to "+blockSize);
       if (!(is instanceof FSDataInputStream)) {
         in = new FSDataInputStream(is);
