@@ -146,7 +146,7 @@ public class RangeQuery {
     Path outputPath;
     FileSystem outFs = file.getFileSystem(job);
     do {
-      outputPath = new Path(file.toUri().getPath()+
+      outputPath = new Path("/"+file.getName()+
           ".rangequery_"+(int)(Math.random() * 1000000));
     } while (outFs.exists(outputPath));
     outFs.deleteOnExit(outputPath);

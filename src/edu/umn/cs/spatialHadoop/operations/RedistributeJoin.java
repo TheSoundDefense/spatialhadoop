@@ -213,7 +213,7 @@ public class RedistributeJoin {
     Path outputPath;
     FileSystem outFs = files[0].getFileSystem(job);
     do {
-      outputPath = new Path(files[0].toUri().getPath()+
+      outputPath = new Path("/"+files[0].getName()+
           ".dj_"+(int)(Math.random() * 1000000));
     } while (outFs.exists(outputPath));
     outFs.deleteOnExit(outputPath);

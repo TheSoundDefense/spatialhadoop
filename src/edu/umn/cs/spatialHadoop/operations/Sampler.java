@@ -92,10 +92,12 @@ public class Sampler {
       final OutputCollector<LongWritable, T> output, T stockObject) throws IOException {
     JobConf job = new JobConf(FileMBR.class);
     
-    Path outputPath =
-        new Path(files[0].toUri().getPath()+".mbr_"+Math.random()*1000000);
-    FileSystem outFs = outputPath.getFileSystem(job);
-    outFs.delete(outputPath, true);
+    Path outputPath;
+    FileSystem outFs = FileSystem.get(job);
+    do {
+      outputPath = new Path("/"+files[0].getName()+
+          ".sample_"+(int)(Math.random()*1000000));
+    } while (outFs.exists(outputPath));
     
     job.setJobName("Sample");
     job.setMapOutputKeyClass(NullWritable.class);

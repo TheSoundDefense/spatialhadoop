@@ -110,7 +110,7 @@ public class RepartitionJoin {
     Path partitioned_file;
     FileSystem outFs = smaller_file.getFileSystem(new Configuration());
     do {
-      partitioned_file = new Path(smaller_file.toUri().getPath()+
+      partitioned_file = new Path("/"+smaller_file.getName()+
           ".repartitioned_"+(int)(Math.random() * 1000000));
     } while (outFs.exists(partitioned_file));
     // Repartition the smaller file with no local index

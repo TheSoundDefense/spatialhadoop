@@ -109,7 +109,8 @@ public class FileMBR {
     }
     JobConf job = new JobConf(FileMBR.class);
     
-    Path outputPath = new Path(file.toUri().getPath()+".mbr");
+    Path outputPath =
+        new Path("/"+file.getName()+".mbr_"+(int)(Math.random()*1000000));
     FileSystem outFs = outputPath.getFileSystem(job);
     outFs.delete(outputPath, true);
     

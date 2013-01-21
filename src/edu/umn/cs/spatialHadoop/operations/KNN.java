@@ -260,7 +260,6 @@ public class KNN {
       throws IOException {
     JobConf job = new JobConf(FileMBR.class);
     
-    Path outputPath;
     FileSystem outFs = file.getFileSystem(job);
     
     job.setJobName("KNN");
@@ -307,13 +306,18 @@ public class KNN {
     int additional_blocks_2b_processed;
     long resultCount;
     int iterations = 0;
+    
+    Path outputPath;
     do {
-      do {
-        outputPath = new Path(file.toUri().getPath()+
-            ".knn_"+(int)(Math.random() * 1000000));
-      } while (outFs.exists(outputPath));
-      outFs.deleteOnExit(outputPath);
+      outputPath = new Path("/"+file.getName()+
+          ".knn_"+(int)(Math.random() * 1000000));
+    } while (outFs.exists(outputPath));
 
+    do {
+      // Delete results of last iteration if not first iteration
+      if (outputPath != null)
+        outFs.delete(outputPath, true);
+        
       TextOutputFormat.setOutputPath(job, outputPath);
       
       LOG.info("Running iteration: "+(++iterations));
