@@ -183,6 +183,12 @@ public class Repartition {
       input_mbr = FileMBR.fileMBRMapReduce(inFs, inFile, stockShape);
 
     // Calculate number of partitions in output file
+    FileStatus inFileStatus = inFs.getFileStatus(inFile);
+    // Copy blocksize from source file if it's globally indexed
+    if (blockSize == 0 &&
+        inFs.getFileBlockLocations(inFileStatus, 0, 1)[0].getCellInfo() != null) {
+      blockSize = inFileStatus.getBlockSize();
+    }
     int num_partitions = calculateNumberOfPartitions(inFs, inFile, outFs, blockSize);
     
     // Calculate the dimensions of each partition based on gindex type
@@ -271,6 +277,7 @@ public class Repartition {
     if (blockSize == 0 &&
         inFs.getFileBlockLocations(inFileStatus, 0, 1)[0].getCellInfo() != null) {
       blockSize = inFileStatus.getBlockSize();
+      LOG.info("Automatically setting block size to "+blockSize);
     }
     if (blockSize != 0)
       job.setLong(SpatialSite.LOCAL_INDEX_BLOCK_SIZE, blockSize);
@@ -361,6 +368,13 @@ public class Repartition {
     FileSystem outFs = outPath.getFileSystem(new Configuration());
     
     // Calculate number of partitions in output file
+    FileStatus inFileStatus = inFs.getFileStatus(inFile);
+    // Copy blocksize from source file if it's globally indexed
+    if (blockSize == 0 &&
+        inFs.getFileBlockLocations(inFileStatus, 0, 1)[0].getCellInfo() != null) {
+      blockSize = inFileStatus.getBlockSize();
+    }
+
     int num_partitions = calculateNumberOfPartitions(inFs, inFile, outFs, blockSize);
     
     if (input_mbr == null)
