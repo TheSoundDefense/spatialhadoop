@@ -3,6 +3,8 @@ package edu.umn.cs.spatialHadoop.mapReduce;
 import java.io.IOException;
 import java.io.InputStream;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapred.FileSplit;
@@ -19,6 +21,8 @@ import org.apache.hadoop.spatial.SpatialSite;
  */
 public class ShapeRecordReader<S extends Shape>
     extends SpatialRecordReader<LongWritable, S> {
+  
+  private static final Log LOG = LogFactory.getLog(ShapeRecordReader.class);
 
   /**Object used for deserialization*/
   private S stockShape;

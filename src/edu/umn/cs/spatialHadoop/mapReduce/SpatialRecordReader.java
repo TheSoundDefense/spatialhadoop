@@ -44,8 +44,8 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
   private FSDataInputStream in;
   /**Reads lines from text files*/
   protected LineReader lineReader;
-  protected Text tempLine;
-  int maxLineLength;
+  /**A temporary text to read lines from lineReader*/
+  protected Text tempLine = new Text();
   protected byte[] signature;
 
   /**Block size for the read file. Used with RTrees*/
@@ -62,8 +62,6 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
   }
 
   public SpatialRecordReader(Configuration job, long s, long l, Path p) throws IOException {
-    this.maxLineLength = job.getInt("mapred.linerecordreader.maxlength",
-        Integer.MAX_VALUE);
     start = s;
     end = start + l;
     compressionCodecs = new CompressionCodecFactory(job);
@@ -102,7 +100,6 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
       }
       // File is text file
       lineReader = new LineReader(is);
-      tempLine = new Text();
       
       if (skipFirstLine) {
         boolean no_new_line_in_signature = true;
@@ -120,7 +117,7 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
         if (no_new_line_in_signature) {
           start += signature.length;
           // Didn't find the new line. Skip it from the reader
-          start += lineReader.readLine(tempLine, 1000, (int)(end - start));
+          start += lineReader.readLine(tempLine, 0, (int)(end - start));
           signature = null;
         }
       }
@@ -139,13 +136,10 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
     
     blockSize = FileSystem.get(new Configuration()).getDefaultBlockSize();
 
+    in = is instanceof FSDataInputStream?
+        (FSDataInputStream)is : new FSDataInputStream(is);
     if (isRTree) {
       LOG.info("RTree size info guessed to "+blockSize);
-      if (!(is instanceof FSDataInputStream)) {
-        in = new FSDataInputStream(is);
-      } else {
-        in = (FSDataInputStream) is;
-      }
     } else {
       boolean skipFirstLine = false;
       if (start != 0) {
@@ -153,7 +147,6 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
       }
       // File is text file
       lineReader = new LineReader(is);
-      tempLine = new Text();
       
       if (skipFirstLine) {
         boolean no_new_line_in_signature = true;
@@ -171,11 +164,12 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
         if (no_new_line_in_signature) {
           start += signature.length;
           // Didn't find the new line. Skip it from the reader
-          start += lineReader.readLine(tempLine, 1000, (int)(end - start));
+          start += lineReader.readLine(tempLine, 0, (int)(end - start));
           signature = null;
         }
       }
     }
+    this.pos = start;
   }
 
   @Override
@@ -223,13 +217,13 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
           // Skip R-tree header
           if (isRTree) {
             RTree.skipHeader(in);
+            pos = in.getPos();
           }
           // Reinitialize the lineReader at the new position.
           // lineReader should not be closed because it will close the underlying
           // input stream (in)
           lineReader = new LineReader(in);
         }
-        
       } else {
         // Some bytes were read to check the signature but they are actually
         // part of the first line
@@ -257,11 +251,10 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
   protected boolean moveToNextBlock() throws IOException {
     // P.S. getPos() % blockSize cannot be equal to zero because there
     // are no empty blocks
-    long new_pos = getPos() + blockSize - (getPos() % blockSize);
-    pos = new_pos;
-    if (new_pos >= end)
+    pos = getPos() + blockSize - (getPos() % blockSize);
+    if (pos >= end)
       return false;
-    in.seek(new_pos);
+    in.seek(pos);
     if (isRTree) {
       // Skip the R-tree signature
       in.readLong();
