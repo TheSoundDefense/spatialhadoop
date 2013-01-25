@@ -172,7 +172,7 @@ public class Sampler {
         count = 10;
       
       if (count < BIG_SAMPLE) {
-        sample_count += sampleLocal(fs, files, count, new OutputCollector<LongWritable, T>() {
+        sample_count += sampleLocalByCount(fs, files, count, new OutputCollector<LongWritable, T>() {
           @Override
           public void collect(LongWritable key, T value) throws IOException {
             text.clear();
@@ -202,7 +202,7 @@ public class Sampler {
 
   public static <T extends TextSerializable> int sampleLocal(FileSystem fs, Path file, int count,
       OutputCollector<LongWritable, T> output, T stockObject) throws IOException {
-    return sampleLocal(fs, new Path[] {file}, count, output, stockObject);
+    return sampleLocalByCount(fs, new Path[] {file}, count, output, stockObject);
   }
   
   /**
@@ -214,8 +214,10 @@ public class Sampler {
    * @return
    * @throws IOException 
    */
-  public static <T extends TextSerializable> int sampleLocal(FileSystem fs, Path[] files, int count,
-      OutputCollector<LongWritable, T> output, T stockObject) throws IOException {
+  public static <T extends TextSerializable> int sampleLocalByCount(
+      FileSystem fs, Path[] files, int count,
+      OutputCollector<LongWritable, T> output, T stockObject)
+      throws IOException {
     long[] files_start_offset = new long[files.length+1]; // Prefix sum of files sizes
     long total_length = 0;
     for (int i_file = 0; i_file < files.length; i_file++) {
@@ -253,6 +255,9 @@ public class Sampler {
           (offsets[record_i] -= files_start_offset[file_i]) < current_file_size) {
         long current_block_start_offset = offsets[record_i] -
             (offsets[record_i] % current_file_block_size);
+        long current_block_end_offset = Math.min(total_length,
+            current_block_start_offset + current_file_block_size);
+        int current_block_size = (int) (current_block_end_offset - current_block_start_offset);
         // Seek to this block and check its type
         current_file_in.seek(current_block_start_offset);
         // The start and end offsets of data within this block
@@ -267,10 +272,9 @@ public class Sampler {
         // Get the end offset of data by searching for the last non-empty line
         // We perform an exponential search starting from the last offset in
         // block. This assumes that all empty lines occur at the end
-        long data_end_offset = Math.min(current_block_start_offset
-            + current_file_block_size, current_file_size);
+        long data_end_offset = current_block_end_offset;
         int check_offset = 1;
-        while (check_offset < current_file_block_size) {
+        while (check_offset < current_block_size) {
           current_file_in.seek(data_end_offset - check_offset * 2);
           byte b1 = current_file_in.readByte();
           byte b2 = current_file_in.readByte();
@@ -291,61 +295,34 @@ public class Sampler {
                 l = m+1;
               }
             }
-            // Subtract 100 to ensure the mapped offset doesn't fall
-            // in the last line
-            data_end_offset = l - 100;
+            // Skip the last line too to ensure to ensure that the mapped position
+            // will be before some line in the block
+            current_file_in.seek(l);
+            data_end_offset = Tail.tail(current_file_in, 1, null, null);
             break;
           }
           check_offset *= 2;
         }
-
         long block_fill_size = data_end_offset - data_start_offset;
 
         // Consider all positions in this block
         while (record_i < count &&
-            offsets[record_i] < current_block_start_offset + current_file_block_size) {
+            offsets[record_i] < current_block_end_offset) {
           // Map file position to element index in this tree assuming fixed
           // size records
           long element_offset_in_block =
               (offsets[record_i] - current_block_start_offset) *
-              block_fill_size / current_file_block_size;
+              block_fill_size / current_block_size;
           current_file_in.seek(data_start_offset + element_offset_in_block);
           // Read the first line after that offset
           Text line = new Text();
-          byte[] line_buffer = new byte[1024];
-
-          // Skip the rest of this line
-          int line_length = 0;
-          do {
-            line_buffer[line_length] = current_file_in.readByte();
-          } while (current_file_in.getPos() < data_end_offset &&
-              (line_buffer[line_length] != '\n' && line_buffer[line_length] != '\r'));
-
-          elementId.set(files_start_offset[file_i] + current_file_in.getPos());
-
-          do {
-            if (line_length == line_buffer.length) {
-              // Expand array
-              byte[] new_buffer = new byte[line_buffer.length * 2];
-              System.arraycopy(line_buffer, 0, new_buffer, 0, line_length);
-              line_buffer = new_buffer;
-            }
-            line_buffer[line_length] = current_file_in.readByte();
-            if (line_buffer[line_length] == '\n' || line_buffer[line_length] == '\r')
-              break;
-            line_length++;
-          } while (current_file_in.getPos() < data_end_offset);
-
-          // Skip empty line
-          if (line_length == 0) {
-            // Skip this line
-            record_i++;
-            continue;
-          }
+          LineReader reader = new LineReader(current_file_in, 1024);
+          int skipped_bytes = reader.readLine(line, 0); // Skip first line
+          elementId.set(current_block_start_offset + element_offset_in_block + skipped_bytes);
+          reader.readLine(line); // Read next line
 
           // Report this element to output
           if (output != null) {
-            line.set(line_buffer, 0, line_length);
             stockObject.fromText(line);
             output.collect(elementId, stockObject);
           }
@@ -409,12 +386,18 @@ public class Sampler {
           (offsets[record_i] -= files_start_offset[file_i]) < current_file_size) {
         long current_block_start_offset = offsets[record_i] -
             (offsets[record_i] % current_file_block_size);
+        long current_block_end_offset = Math.min(current_file_size,
+            current_block_start_offset + current_file_block_size);
+        int current_block_size =
+            (int) (current_block_end_offset - current_block_start_offset);
 
         // Calculate the start and end offset of record data within the block
         // Both offsets are calculated relative to this block
+        
+        // Initially, start and end are matched with block data boundaries
+        // i.e., all the block contains data
         int data_start_offset = 0;
-        int data_end_offset = (int) Math.min(current_file_block_size, 
-            current_file_size - current_block_start_offset);
+        int data_end_offset = current_block_size;
 
         // Seek to this block and check its type
         if (current_file_in.getPos() != current_block_start_offset)
@@ -459,26 +442,31 @@ public class Sampler {
                 l = m+1;
               }
             }
-            // Subtract 100 to ensure the mapped offset doesn't fall
-            // in the last line
-            data_end_offset = l - 100;
+            // Skip last line to ensure that the mapped offset falls BEFORE
+            // the start of the last line not IN the last line
+            do {
+              l--;
+            } while (block_data[l] != '\n' && block_data[l] != '\r');
+            data_end_offset = l;
             break;
           }
           check_offset *= 2;
         }
+
         
         long block_fill_size = data_end_offset - data_start_offset;
 
         // Consider all positions in this block
         while (record_i < count &&
-            offsets[record_i] < current_block_start_offset + current_file_block_size) {
+            offsets[record_i] < current_block_end_offset) {
           // Map file position to element index in this tree assuming fixed
           // size records
-          int element_offset_in_block = (int)
+          int element_offset_in_block = data_start_offset + (int)
               ((offsets[record_i] - current_block_start_offset) *
-                  block_fill_size / current_file_block_size);
+                  block_fill_size / current_block_size);
           
           int bol = RTree.skipToEOL(block_data, element_offset_in_block);
+          elementId.set(current_block_start_offset + bol);
           int eol = RTree.skipToEOL(block_data, bol);
           // Skip empty line
           if (eol - bol < 2) {
@@ -531,7 +519,7 @@ public class Sampler {
       record_count = sampleMapReduceWithRatio(fs, inputFiles, ratio, output, stockObject);
     } else {
       if (count < BIG_SAMPLE) {
-        record_count = sampleLocal(fs, inputFiles, count, output, stockObject);
+        record_count = sampleLocalByCount(fs, inputFiles, count, output, stockObject);
       } else {
         record_count = sampleLocalBig(fs, inputFiles, count, output, stockObject);
       }
