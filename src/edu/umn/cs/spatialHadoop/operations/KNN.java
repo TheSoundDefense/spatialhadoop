@@ -190,6 +190,11 @@ public class KNN {
   public static class Map2<S extends Shape> extends KNNMap<S>
     implements Mapper<CellInfo, RTree<S>, ByteWritable, TextWithDistance> {}
 
+  /**
+   * Keeps KNN objects ordered by their distance descending
+   * @author eldawy
+   *
+   */
   public static class KNNObjects extends PriorityQueue<TextWithDistance> {
 
     public KNNObjects(int k) {
@@ -198,7 +203,7 @@ public class KNN {
     
     @Override
     protected boolean lessThan(Object a, Object b) {
-      return ((TextWithDistance)a).distance < ((TextWithDistance)b).distance;
+      return ((TextWithDistance)a).distance >= ((TextWithDistance)b).distance;
     }
   }
   
@@ -276,6 +281,8 @@ public class KNN {
       job.setCombinerClass(KNNReduce.class);
       job.setInputFormat(ShapeInputFormat.class);
     }
+    in.close();
+    
     ClusterStatus clusterStatus = new JobClient(job).getClusterStatus();
     job.setNumMapTasks(clusterStatus.getMaxMapTasks() * 5);
     
@@ -357,16 +364,14 @@ public class KNN {
         FileStatus[] results = outFs.listStatus(outputPath);
         for (FileStatus result_file : results) {
           if (result_file.getLen() > 0 && result_file.getPath().getName().startsWith("part-")) {
-            Tail.tail(outFs, result_file.getPath(), 1, new Text2(), new OutputCollector<LongWritable, Text2>() {
-              @Override
-              public void collect(LongWritable key, Text2 line)
-                  throws IOException {
-                String str = line.toString();
-                String[] parts = str.split("\t", 2);
-                t.fromText(new Text(parts[1]));
-                distance_to_kth_neighbor.set(t.distance);
-              }
-            });
+            in = outFs.open(result_file.getPath());
+            LineReader reader = new LineReader(in);
+            Text first_line = new Text();
+            reader.readLine(first_line);
+            String[] parts = first_line.toString().split("\t", 2);
+            t.fromText(new Text(parts[1]));
+            distance_to_kth_neighbor.set(t.distance);
+            in.close();
           }
         }
         range_for_next_iteration = new Circle(queryPoint.x, queryPoint.y,

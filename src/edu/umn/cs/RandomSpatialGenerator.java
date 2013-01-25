@@ -86,14 +86,15 @@ public class RandomSpatialGenerator {
     if (lindex == null) {
       recordWriter = new GridRecordWriter(outFS, outFilePath, cellInfo,
           overwrite);
+      ((GridRecordWriter)recordWriter).setBlockSize(blocksize);
     } else if (lindex.equals("rtree")) {
       recordWriter = new RTreeGridRecordWriter(outFS, outFilePath, cellInfo,
           overwrite);
       recordWriter.setStockObject(stockShape);
+      ((RTreeGridRecordWriter)recordWriter).setBlockSize(blocksize);
     } else {
       throw new RuntimeException("Unsupported local index: " + lindex);
     }
-    ((GridRecordWriter)recordWriter).setBlockSize(blocksize);
 
     Point point = (Point) (stockShape instanceof Point ? stockShape : null);
     Rectangle rectangle = (Rectangle) (stockShape instanceof Rectangle ? stockShape : null);

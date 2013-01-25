@@ -14,6 +14,11 @@ import org.apache.hadoop.mapred.OutputCollector;
 
 import edu.umn.cs.CommandLineArguments;
 
+/**
+ * Reads the last n lines of a text file
+ * @author eldawy
+ *
+ */
 public class Tail {
 
   public static<T extends TextSerializable> int tail(FileSystem fs, Path file,
