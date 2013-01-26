@@ -56,6 +56,7 @@ public class Tail {
       in.seek(first_byte_to_read);
       int bytes_to_read = (int) (last_read_byte - first_byte_to_read);
       in.read(buffer, 0, bytes_to_read);
+      last_read_byte = first_byte_to_read;
       
       // Iterate over bytes in this buffer
       int i_last_byte_consumed_in_buffer = bytes_to_read;
@@ -63,11 +64,10 @@ public class Tail {
       while (i_last_byte_examined_in_buffer > 0 && lines_read < n) {
         byte byte_examined = buffer[--i_last_byte_examined_in_buffer];
         if (byte_examined == '\n' || byte_examined == '\r') {
-          // Found and end of line character
-          // Report this to output until it's empty
+          // Found an end of line character
+          // Report this to output unless it's empty
           long offset_of_this_eol = first_byte_to_read + i_last_byte_examined_in_buffer;
           if (offset_of_last_eol - offset_of_this_eol > 1) {
-            lines_read++;
             if (output != null) {
               read_line.clear();
               // +1 is to skip the EOL at the beginning
@@ -77,12 +77,13 @@ public class Tail {
               if (remainder_from_last_buffer.getLength() > 0) {
                 read_line.append(remainder_from_last_buffer.getBytes(), 0,
                     remainder_from_last_buffer.getLength());
-                remainder_from_last_buffer.clear();
               }
               line_offset.set(offset_of_this_eol + 1);
               stockObject.fromText(read_line);
               output.collect(line_offset, stockObject);
             }
+            lines_read++;
+            remainder_from_last_buffer.clear();
           }
           i_last_byte_consumed_in_buffer = i_last_byte_examined_in_buffer;
           offset_of_last_eol = offset_of_this_eol;
