@@ -13,6 +13,7 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapred.ClusterStatus;
 import org.apache.hadoop.mapred.Counters;
+import org.apache.hadoop.mapred.Counters.Counter;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobClient;
@@ -25,9 +26,9 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.RunningJob;
 import org.apache.hadoop.mapred.Task;
 import org.apache.hadoop.mapred.TextOutputFormat;
-import org.apache.hadoop.mapred.Counters.Counter;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.RTree;
+import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.SpatialAlgorithms;
 import org.apache.hadoop.spatial.SpatialSite;
@@ -63,6 +64,7 @@ public class RedistributeJoin {
         Reporter reporter) throws IOException {
       final PairWritable<Shape> output_value = new PairWritable<Shape>();
       int result_size;
+      final Rectangle mapperMBR = key.first.getIntersection(key.second);
       
       if (value.first instanceof RTree) {
         @SuppressWarnings("unchecked")
@@ -73,12 +75,15 @@ public class RedistributeJoin {
             new RTree.ResultCollector2<Shape, Shape>() {
           @Override
           public void add(Shape x, Shape y) {
-            output_value.first = x;
-            output_value.second = y;
-            try {
-              output.collect(key, output_value);
-            } catch (IOException e) {
-              e.printStackTrace();
+            Rectangle intersectionMBR = x.getMBR().getIntersection(y.getMBR());
+            if (mapperMBR.contains(intersectionMBR.x, intersectionMBR.y)) {
+              output_value.first = x;
+              output_value.second = y;
+              try {
+                output.collect(key, output_value);
+              } catch (IOException e) {
+                e.printStackTrace();
+              }
             }
           }
         });
@@ -91,12 +96,15 @@ public class RedistributeJoin {
             new SpatialAlgorithms.ResultCollector2<Shape, Shape>() {
           @Override
           public void add(Shape x, Shape y) {
-            output_value.first = x;
-            output_value.second = y;
-            try {
-              output.collect(key, output_value);
-            } catch (IOException e) {
-              e.printStackTrace();
+            Rectangle intersectionMBR = x.getMBR().getIntersection(y.getMBR());
+            if (mapperMBR.contains(intersectionMBR.x, intersectionMBR.y)) {
+              output_value.first = x;
+              output_value.second = y;
+              try {
+                output.collect(key, output_value);
+              } catch (IOException e) {
+                e.printStackTrace();
+              }
             }
           }
         });

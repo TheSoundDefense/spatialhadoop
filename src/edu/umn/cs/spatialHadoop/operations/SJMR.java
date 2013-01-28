@@ -156,6 +156,7 @@ public class SJMR {
     public void reduce(IntWritable cellId, Iterator<IndexedText> values,
         final OutputCollector<CellInfo, PairShape<S>> output, Reporter reporter)
         throws IOException {
+      // Extract CellInfo (MBR) for duplicate avoidance checking
       int i_cell = 0;
       while (i_cell < cellInfos.length && cellInfos[i_cell].cellId != cellId.get())
         i_cell++;
@@ -181,10 +182,13 @@ public class SJMR {
         @Override
         public void add(S x, S y) {
           try {
-            // Report to the reduce result collector
-            value.first = x;
-            value.second = y;
-            output.collect(cellInfo, value);
+            Rectangle intersectionMBR = x.getMBR().getIntersection(y.getMBR());
+            if (cellInfo.contains(intersectionMBR.x, intersectionMBR.y)) {
+              // Report to the reduce result collector
+              value.first = x;
+              value.second = y;
+              output.collect(cellInfo, value);
+            }
           } catch (IOException e) {
             e.printStackTrace();
           }
