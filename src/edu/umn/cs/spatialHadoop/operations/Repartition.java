@@ -333,7 +333,7 @@ public class Repartition {
     
     LOG.info("Reading a sample of "+(int)Math.round(sample_ratio*100) + "%");
     if (local) {
-      Sampler.sampleLocalWithRatio(fs, files, sample_ratio , new OutputCollector<LongWritable, S>(){
+      Sampler.sampleLocalWithRatio(fs, files, sample_ratio, System.currentTimeMillis(), new OutputCollector<LongWritable, S>(){
         @Override
         public void collect(LongWritable key, S value)
             throws IOException {
@@ -341,7 +341,7 @@ public class Repartition {
         }
       }, stockShape);
     } else {
-      Sampler.sampleMapReduceWithRatio(fs, files, sample_ratio , new OutputCollector<LongWritable, S>(){
+      Sampler.sampleMapReduceWithRatio(fs, files, sample_ratio, System.currentTimeMillis(), new OutputCollector<LongWritable, S>(){
         @Override
         public void collect(LongWritable key, S value)
             throws IOException {

@@ -4,6 +4,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.Random;
 import java.util.Vector;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -18,7 +19,6 @@ import org.apache.hadoop.io.ByteWritable;
 import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.io.Text2;
 import org.apache.hadoop.io.TextSerializable;
 import org.apache.hadoop.io.TextSerializerHelper;
 import org.apache.hadoop.io.Writable;
@@ -464,10 +464,6 @@ public class KNN {
     return resultCount;
   }
 
-  static class PointWithK extends Point {
-    public int k;
-  }
-
   public static void main(String[] args) throws IOException {
     CommandLineArguments cla = new CommandLineArguments(args);
     JobConf conf = new JobConf(FileMBR.class);
@@ -478,6 +474,8 @@ public class KNN {
     int count = cla.getCount();
     int concurrency = cla.getConcurrency();
     final Shape shape = cla.getShape(true);
+    final double closenessFactor = cla.getClosenessFactor();
+    long seed = cla.getSeed();
     if (k == 0) {
       LOG.warn("k = 0");
     }
@@ -492,32 +490,54 @@ public class KNN {
     } else {
       // Generate query at random points
       final Vector<Thread> threads = new Vector<Thread>();
-      final Vector<PointWithK> query_points = new Vector<PointWithK>();
-      Sampler.sampleLocal(fs, inputFile, count, new OutputCollector<LongWritable, Shape>(){
-        @Override
-        public void collect(final LongWritable key, final Shape value) throws IOException {
-          PointWithK query_point = new PointWithK();
-          query_point.k = k;
-          query_point.x = value.getMBR().x;
-          query_point.y = value.getMBR().y;
-          query_points.add(query_point);
-          threads.add(new Thread() {
-            @Override
-            public void run() {
-              try {
-                PointWithK query_point =
-                    query_points.elementAt(threads.indexOf(this));
-                long result_count = knnMapReduce(fs, inputFile,
-                        query_point, query_point.k, shape, null);
-                results.add(result_count);
-              } catch (IOException e) {
-                e.printStackTrace();
-              }
-            }
-          });
+      final Vector<Point> query_points = new Vector<Point>();
+      if (closenessFactor == -1.0) {
+        // Get query points from file
+        Sampler.sampleLocal(fs, inputFile, count, seed, new OutputCollector<LongWritable, Shape>(){
+          @Override
+          public void collect(final LongWritable key, final Shape value) throws IOException {
+            query_points.add(new Point(value.getMBR().x, value.getMBR().y));
+          }
+        }, shape);
+      } else {
+        // Get query points according to its closeness to grid intersections
+        FileStatus fileStatus = fs.getFileStatus(inputFile);
+        BlockLocation[] blockLocations = fs.getFileBlockLocations(fileStatus, 0, fileStatus.getLen());
+        Random random = new Random(seed);
+        for (int i = 0; i < count; i++) {
+          int i_block = random.nextInt(blockLocations.length);
+          int direction = random.nextInt(4);
+          // Get center point (x, y)
+          long cx = blockLocations[i_block].getCellInfo().getXMid();
+          long cy = blockLocations[i_block].getCellInfo().getYMid();
+          long cw = blockLocations[i_block].getCellInfo().width;
+          long ch = blockLocations[i_block].getCellInfo().height;
+          int signx = ((direction & 1) == 0)? 1 : -1;
+          int signy = ((direction & 2) == 1)? 1 : -1;
+          long x = (long) (cx + cw * closenessFactor / 2 * signx);
+          long y = (long) (cy + ch * closenessFactor / 2 * signy);
+          query_points.add(new Point(x, y));
         }
-      }, shape);
+      }
 
+      for (int i = 0; i < query_points.size(); i++) {
+        threads.add(new Thread() {
+          @Override
+          public void run() {
+            try {
+              Point query_point =
+                  query_points.elementAt(threads.indexOf(this));
+              long result_count = knnMapReduce(fs, inputFile,
+                  query_point, k, shape, null);
+              results.add(result_count);
+            } catch (IOException e) {
+              e.printStackTrace();
+            }
+          }
+        });
+      }
+
+      
       long t1 = System.currentTimeMillis();
       do {
         // Ensure that there is at least MaxConcurrentThreads running

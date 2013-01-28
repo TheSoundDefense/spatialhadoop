@@ -103,14 +103,17 @@ public class RangeQuery {
      * @param output
      * @param reporter
      */
-    public void map(CellInfo cellInfo, RTree<T> shapes,
+    public void map(final CellInfo cellInfo, RTree<T> shapes,
         final OutputCollector<NullWritable, T> output, Reporter reporter) {
       LOG.info("Searching in the range: "+cellInfo+" for the query: "+queryShape.getMBR());
       int count = shapes.search(queryShape.getMBR(), new RTree.ResultCollector<T>() {
         @Override
         public void add(T x) {
           try {
-            output.collect(dummy, x);
+            // Check for duplicate avoidance using reference point technique
+            Rectangle intersection = queryShape.getMBR().getIntersection(x.getMBR());
+            if (intersection.contains(cellInfo.x, cellInfo.y))
+              output.collect(dummy, x);
           } catch (IOException e) {
             e.printStackTrace();
           }
@@ -263,6 +266,7 @@ public class RangeQuery {
     int concurrency = cla.getConcurrency();
     final Shape stockShape = cla.getShape(true);
     boolean local = cla.isLocal();
+    long seed = cla.getSeed();
 
     final Vector<Long> results = new Vector<Long>();
     
@@ -273,7 +277,7 @@ public class RangeQuery {
               FileMBR.fileMBRMapReduce(fs, inputFile, stockShape));
       final Vector<Thread> threads = new Vector<Thread>();
       final Vector<Rectangle> query_rectangles = new Vector<Rectangle>();
-      Sampler.sampleLocal(fs, inputFile, count, new OutputCollector<LongWritable, Shape>(){
+      Sampler.sampleLocal(fs, inputFile, count, seed, new OutputCollector<LongWritable, Shape>(){
         @Override
         public void collect(final LongWritable key, final Shape value) throws IOException {
           Rectangle query_rectangle = new Rectangle();

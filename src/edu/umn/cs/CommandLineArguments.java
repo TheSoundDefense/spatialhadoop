@@ -223,7 +223,7 @@ public class CommandLineArguments {
       // file
       Path in_file = getPath();
       try {
-        Sampler.sampleLocal(in_file.getFileSystem(new Configuration()), in_file, 1, new OutputCollector<LongWritable, Text2>() {
+        Sampler.sampleLocal(in_file.getFileSystem(new Configuration()), in_file, 1, 0, new OutputCollector<LongWritable, Text2>() {
           @Override
           public void collect(LongWritable key, Text2 value) throws IOException {
             String val = value.toString();
@@ -301,5 +301,20 @@ public class CommandLineArguments {
    */
   public String getLIndex() {
     return get("lindex");
+  }
+
+  public long getSeed() {
+    String seed = get("seed");
+    return seed == null? System.currentTimeMillis() : Long.parseLong(seed);
+  }
+
+  public int getRectSize() {
+    String rectSize = get("rectsize");
+    return rectSize == null? 0 : Integer.parseInt(rectSize);
+  }
+
+  public double getClosenessFactor() {
+    String factor = get("closeness");
+    return factor == null? -1.0 : Double.parseDouble(factor);
   }
 }

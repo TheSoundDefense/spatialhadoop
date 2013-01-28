@@ -56,16 +56,15 @@ public class RandomSpatialGenerator {
    * @throws IOException
    */
   public static void generateGridFile(FileSystem outFS, Path outFilePath,
-      Shape stockShape, final long totalSize, final Rectangle mbr,
+      Shape stockShape, final long totalSize, final Rectangle mbr, int rectSize,
+      long seed,
       long blocksize, String gindex, String lindex, boolean overwrite) throws IOException {
     GridInfo gridInfo = new GridInfo(mbr.x, mbr.y, mbr.width, mbr.height);
     Configuration conf = outFS.getConf();
     final double IndexingOverhead =
         conf.getFloat(SpatialSite.INDEXING_OVERHEAD, 0.1f);
     // Serialize one shape and see how many characters it takes
-    final Random random = new Random();
-    final int MaxShapeWidth = 100;
-    final int MaxShapeHeight = 100;
+    final Random random = new Random(seed);
     final Text text = new Text();
     if (blocksize == 0)
       blocksize = outFS.getDefaultBlockSize();
@@ -102,6 +101,8 @@ public class RandomSpatialGenerator {
       throw new RuntimeException("Cannot generate shapes of type: "+stockShape.getClass());
 
     long generatedSize = 0;
+    if (rectSize == 0)
+      rectSize = 100;
     
     long t1 = System.currentTimeMillis();
     while (true) {
@@ -112,9 +113,9 @@ public class RandomSpatialGenerator {
       } else if (rectangle != null) {
         rectangle.x = Math.abs(random.nextLong()) % mbr.width + mbr.x;
         rectangle.y = Math.abs(random.nextLong()) % mbr.height + mbr.y;
-        rectangle.width = Math.min(Math.abs(random.nextLong()) % MaxShapeWidth,
+        rectangle.width = Math.min(Math.abs(random.nextLong()) % rectSize,
             mbr.width + mbr.x - rectangle.x);
-        rectangle.height = Math.min(Math.abs(random.nextLong()) % MaxShapeHeight,
+        rectangle.height = Math.min(Math.abs(random.nextLong()) % rectSize,
             mbr.height + mbr.y - rectangle.y);
       }
 
@@ -147,7 +148,8 @@ public class RandomSpatialGenerator {
    * @throws IOException 
    */
   public static void generateHeapFile(FileSystem outFS, Path outputFilePath,
-      Shape stockShape, long totalSize, Rectangle mbr, long blocksize, boolean overwrite) throws IOException {
+      Shape stockShape, long totalSize, Rectangle mbr, int rectSize, long seed,
+      long blocksize, boolean overwrite) throws IOException {
     OutputStream out = null;
     if (blocksize == 0)
       blocksize = outFS.getDefaultBlockSize();
@@ -158,13 +160,15 @@ public class RandomSpatialGenerator {
           outFS.getConf().getInt("io.file.buffer.size", 4096),
           outFS.getDefaultReplication(), blocksize));
     long generatedSize = 0;
-    Random random = new Random();
+    Random random = new Random(seed);
     Text text = new Text();
     Point point = (Point) (stockShape instanceof Point ? stockShape : null);
     Rectangle rectangle = (Rectangle) (stockShape instanceof Rectangle ? stockShape : null);
     if (point == null && rectangle == null)
       throw new RuntimeException("Cannot generate shapes of type: "+stockShape.getClass());
     
+    if (rectSize == 0)
+      rectSize = 100;
     long t1 = System.currentTimeMillis();
     while (true) {
       // Generate a random rectangle
@@ -174,9 +178,9 @@ public class RandomSpatialGenerator {
       } else if (rectangle != null) {
         rectangle.x = Math.abs(random.nextLong()) % mbr.width + mbr.x;
         rectangle.y = Math.abs(random.nextLong()) % mbr.height + mbr.y;
-        rectangle.width = Math.min(Math.abs(random.nextLong()) % 100,
+        rectangle.width = Math.min(Math.abs(random.nextLong()) % rectSize,
             mbr.width + mbr.x - rectangle.x);
-        rectangle.height = Math.min(Math.abs(random.nextLong()) % 100,
+        rectangle.height = Math.min(Math.abs(random.nextLong()) % rectSize,
             mbr.height + mbr.y - rectangle.y);
       }
       
@@ -214,6 +218,8 @@ public class RandomSpatialGenerator {
     Rectangle mbr = cla.getRectangle();
     Shape stockShape = cla.getShape(false);
     long blocksize = cla.getBlockSize();
+    int rectSize = cla.getRectSize();
+    long seed = cla.getSeed();
     if (stockShape == null)
       stockShape = new Rectangle();
     
@@ -231,9 +237,9 @@ public class RandomSpatialGenerator {
       System.out.println("In the range: " + mbr);
     }
     if (gindex == null && lindex == null)
-      generateHeapFile(fs, outputFile, stockShape, totalSize, mbr, blocksize, overwrite);
+      generateHeapFile(fs, outputFile, stockShape, totalSize, mbr, rectSize, seed, blocksize, overwrite);
     else
-      generateGridFile(fs, outputFile, stockShape, totalSize, mbr, blocksize, gindex, lindex, overwrite);
+      generateGridFile(fs, outputFile, stockShape, totalSize, mbr, rectSize, seed, blocksize, gindex, lindex, overwrite);
   }
 
 }

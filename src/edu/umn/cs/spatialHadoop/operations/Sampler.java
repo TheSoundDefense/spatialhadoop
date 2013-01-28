@@ -3,6 +3,7 @@ package edu.umn.cs.spatialHadoop.operations;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Random;
 
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
@@ -39,10 +40,12 @@ public class Sampler {
   /**Name of the configuration line for sample ratio*/
   private static final String SAMPLE_RATIO =
       "edu.umn.cs.spatialHadoop.operations.Sampler.SampleRatio";
-  /**
-   * The threshold in number of samples after which the BIG version is used
-   */
+  /**The threshold in number of samples after which the BIG version is used*/
   private static final int BIG_SAMPLE = 10000;
+  
+  /**Random seed to use by all mappers to ensure unique result per seed*/
+  private static final String RANDOM_SEED =
+      "edu.umn.cs.spatialHadoop.oeprations.Sampler.RandomSeed";
   
   public static class Map extends MapReduceBase implements
   Mapper<LongWritable, Text, NullWritable, Text> {
@@ -53,28 +56,32 @@ public class Sampler {
     /**A dummy key for all keys*/
     private final NullWritable dummyKey = NullWritable.get();
     
+    /**Random number generator to use*/
+    private Random random;
+    
     @Override
     public void configure(JobConf job) {
       sampleRatio = job.getFloat(SAMPLE_RATIO, 0.01f);
+      random = new Random(job.getLong(RANDOM_SEED, System.currentTimeMillis()));
     }
     
     public void map(LongWritable lineId, Text line,
         OutputCollector<NullWritable, Text> output, Reporter reporter)
             throws IOException {
-      if (Math.random() < sampleRatio)
+      if (random.nextFloat() < sampleRatio)
         output.collect(dummyKey, line);
     }
   }
 
   public static <T extends TextSerializable> int sampleLocalWithRatio(
-      FileSystem fs, Path[] files, double ratio,
+      FileSystem fs, Path[] files, double ratio, long seed,
       final OutputCollector<LongWritable, T> output, T stockObject) throws IOException {
     long total_size = 0;
     for (Path file : files) {
       total_size += fs.getFileStatus(file).getLen();
     }
-    return sampleLocalWithSize(fs, files, (long) (total_size * ratio), output,
-        stockObject);
+    return sampleLocalWithSize(fs, files, (long) (total_size * ratio), seed,
+        output, stockObject);
   }
 
   /**
@@ -88,7 +95,7 @@ public class Sampler {
    * @throws IOException
    */
   public static <T extends TextSerializable> int sampleMapReduceWithRatio(
-      FileSystem fs, Path[] files, double ratio,
+      FileSystem fs, Path[] files, double ratio, long seed,
       final OutputCollector<LongWritable, T> output, T stockObject) throws IOException {
     JobConf job = new JobConf(FileMBR.class);
     
@@ -104,6 +111,7 @@ public class Sampler {
     job.setMapOutputValueClass(Text.class);
     
     job.setMapperClass(Map.class);
+    job.setLong(RANDOM_SEED, seed);
     job.setFloat(SAMPLE_RATIO, (float) ratio);
 
     ClusterStatus clusterStatus = new JobClient(job).getClusterStatus();
@@ -160,7 +168,7 @@ public class Sampler {
    * @throws IOException
    */
   public static <T extends TextSerializable> int sampleLocalWithSize(
-      FileSystem fs, Path[] files, long total_size,
+      FileSystem fs, Path[] files, long total_size, long seed,
       final OutputCollector<LongWritable, T> output, T stockObject) throws IOException {
     int average_record_size = 1024; // A wild guess for record size
     final LongWritable current_sample_size = new LongWritable();
@@ -172,7 +180,7 @@ public class Sampler {
         count = 10;
       
       if (count < BIG_SAMPLE) {
-        sample_count += sampleLocalByCount(fs, files, count, new OutputCollector<LongWritable, T>() {
+        sample_count += sampleLocalByCount(fs, files, count, seed, new OutputCollector<LongWritable, T>() {
           @Override
           public void collect(LongWritable key, T value) throws IOException {
             text.clear();
@@ -182,8 +190,12 @@ public class Sampler {
               output.collect(key, value);
           }
         } , stockObject);
+        // Change the seed to get different sample next time.
+        // Still we need to ensure that repeating the program will generate
+        // the same value
+        seed += sample_count;
       } else {
-        sample_count += sampleLocalBig(fs, files, count, new OutputCollector<LongWritable, T>() {
+        sample_count += sampleLocalBig(fs, files, count, seed, new OutputCollector<LongWritable, T>() {
           @Override
           public void collect(LongWritable key, T value) throws IOException {
             text.clear();
@@ -193,6 +205,7 @@ public class Sampler {
               output.collect(key, value);
           }
         } , stockObject);
+        seed += sample_count;
       }
       // Update average_records_size
       average_record_size = (int) (current_sample_size.get() / sample_count);
@@ -200,9 +213,9 @@ public class Sampler {
     return sample_count;
   }
 
-  public static <T extends TextSerializable> int sampleLocal(FileSystem fs, Path file, int count,
+  public static <T extends TextSerializable> int sampleLocal(FileSystem fs, Path file, int count, long seed,
       OutputCollector<LongWritable, T> output, T stockObject) throws IOException {
-    return sampleLocalByCount(fs, new Path[] {file}, count, output, stockObject);
+    return sampleLocalByCount(fs, new Path[] {file}, count, seed, output, stockObject);
   }
   
   /**
@@ -215,7 +228,7 @@ public class Sampler {
    * @throws IOException 
    */
   public static <T extends TextSerializable> int sampleLocalByCount(
-      FileSystem fs, Path[] files, int count,
+      FileSystem fs, Path[] files, int count, long seed,
       OutputCollector<LongWritable, T> output, T stockObject)
       throws IOException {
     long[] files_start_offset = new long[files.length+1]; // Prefix sum of files sizes
@@ -228,9 +241,10 @@ public class Sampler {
     
     // Generate offsets to read from and make sure they are ordered to minimize
     // seeks between different HDFS blocks
+    Random random = new Random(seed);
     long[] offsets = new long[count];
     for (int i = 0; i < offsets.length; i++) {
-      offsets[i] = (long) (Math.random() * total_length);
+      offsets[i] = Math.abs(random.nextLong()) % total_length;
     }
     Arrays.sort(offsets);
 
@@ -344,7 +358,7 @@ public class Sampler {
    * @throws IOException 
    */
   public static <T extends TextSerializable> int sampleLocalBig(FileSystem fs,
-      Path[] files, int count, OutputCollector<LongWritable, T> output,
+      Path[] files, int count, long seed, OutputCollector<LongWritable, T> output,
       T stockObject) throws IOException {
     long[] files_start_offset = new long[files.length+1]; // Prefix sum of files sizes
     long total_length = 0;
@@ -357,8 +371,9 @@ public class Sampler {
     // Generate offsets to read from and make sure they are ordered to minimize
     // seeks between different HDFS blocks
     long[] offsets = new long[count];
+    Random random = new Random(seed);
     for (int i = 0; i < offsets.length; i++) {
-      offsets[i] = (long) (Math.random() * total_length);
+      offsets[i] = Math.abs(random.nextLong()) % total_length;
     }
     Arrays.sort(offsets);
 
@@ -499,6 +514,7 @@ public class Sampler {
     int count = cla.getCount();
     long size = cla.getSize();
     double ratio = cla.getSelectionRatio();
+    long seed = cla.getSeed();
     TextSerializable stockObject = cla.getShape(true);
     if (stockObject == null)
       stockObject = new Text2();
@@ -514,14 +530,14 @@ public class Sampler {
     
     long record_count;
     if (size != 0) {
-      record_count = sampleLocalWithSize(fs, inputFiles, size, output, stockObject);
+      record_count = sampleLocalWithSize(fs, inputFiles, size, seed, output, stockObject);
     } else if (ratio != -1.0) {
-      record_count = sampleMapReduceWithRatio(fs, inputFiles, ratio, output, stockObject);
+      record_count = sampleMapReduceWithRatio(fs, inputFiles, ratio, seed, output, stockObject);
     } else {
       if (count < BIG_SAMPLE) {
-        record_count = sampleLocalByCount(fs, inputFiles, count, output, stockObject);
+        record_count = sampleLocalByCount(fs, inputFiles, count, seed, output, stockObject);
       } else {
-        record_count = sampleLocalBig(fs, inputFiles, count, output, stockObject);
+        record_count = sampleLocalBig(fs, inputFiles, count, seed, output, stockObject);
       }
     }
     System.out.println("Sampled "+record_count+" records");
