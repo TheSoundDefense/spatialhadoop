@@ -890,6 +890,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
       queryRange.height = (long) (2 * query_radius);
       queryRange.x = qx - queryRange.width / 2;
       queryRange.y = qy - queryRange.height / 2;
+      // Retrieve all results in range
       search(queryRange, new ResultCollector<T>() {
         @Override
         public void add(T shape) {
@@ -898,6 +899,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
         }
       });
       if (shapes.size() < k) {
+        // Didn't find k elements in range, double the range to get more items
         if (shapes.size() == getElementCount()) {
           // Already returned all possible elements
           result_correct = true;
@@ -906,6 +908,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
           result_correct = false;
         }
       } else {
+        // Sort items by distance to get the kth neighbor
         IndexedSortable s = new IndexedSortable() {
           @Override
           public void swap(int i, int j) {
@@ -919,7 +922,11 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
           }
           @Override
           public int compare(int i, int j) {
-            return (int) (distances.elementAt(i) - distances.elementAt(j));
+            // Note. Equality is not important to check because items with the
+            // same distance can be ordered anyway. 
+            if (distances.elementAt(i) < distances.elementAt(j))
+              return -1;
+            return 1;
           }
         };
         IndexedSorter sorter = new QuickSort();
