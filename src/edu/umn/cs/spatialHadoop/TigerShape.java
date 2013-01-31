@@ -80,6 +80,16 @@ public class TigerShape extends Rectangle {
       return 1;
     return 0;
   }
+  
+  @Override
+  public boolean equals(Object obj) {
+    return id == ((TigerShape)obj).id;
+  }
+  
+  @Override
+  public int hashCode() {
+    return (int)id;
+  }
 
   @Override
   public TigerShape clone() {
