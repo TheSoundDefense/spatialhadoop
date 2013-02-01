@@ -32,7 +32,7 @@ public class FileSplitUtil {
   
   /**
    * Combines a number of file splits into one CombineFileSplit. If number of
-   * splits to be comined is one, it returns this split as is without creating
+   * splits to be combined is one, it returns this split as is without creating
    * a CombineFileSplit.
    * @param splits
    * @param startIndex
@@ -60,6 +60,32 @@ public class FileSplitUtil {
       String[] locations = prioritizeLocations(vlocations);
       return new CombineFileSplit(conf, paths, starts, lengths, locations);
     }
+  }
+  
+  /**
+   * Combines two file splits into a CombineFileSplit.
+   * @param conf
+   * @param split1
+   * @param split2
+   * @return
+   * @throws IOException 
+   */
+  public static InputSplit combineFileSplits(JobConf conf,
+      FileSplit split1, FileSplit split2) throws IOException {
+    Path[] paths = new Path[2];
+    long[] starts = new long[2];
+    long[] lengths = new long[2];
+    Vector<String> vlocations = new Vector<String>();
+    paths[0] = split1.getPath();
+    starts[0] = split1.getStart();
+    lengths[0] = split1.getLength();
+    vlocations.addAll(Arrays.asList(split1.getLocations()));
+    paths[1] = split2.getPath();
+    starts[1] = split2.getStart();
+    lengths[1] = split2.getLength();
+    vlocations.addAll(Arrays.asList(split2.getLocations()));
+    String[] locations = prioritizeLocations(vlocations);
+    return new CombineFileSplit(conf, paths, starts, lengths, locations);
   }
   
   /**

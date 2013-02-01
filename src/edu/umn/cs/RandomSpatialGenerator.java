@@ -22,6 +22,12 @@ import org.apache.hadoop.spatial.SpatialSite;
 import edu.umn.cs.spatialHadoop.mapReduce.GridRecordWriter;
 import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridRecordWriter;
 
+/**
+ * Generates a random file of rectangles or points based on some user
+ * parameters
+ * @author eldawy
+ *
+ */
 public class RandomSpatialGenerator {
   static byte[] NEW_LINE;
   

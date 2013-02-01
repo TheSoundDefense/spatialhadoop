@@ -9,6 +9,11 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.spatial.CellInfo;
 
+/**
+ * Reads spatial information associated with a file
+ * @author eldawy
+ *
+ */
 public class ReadFile {
 
   public static void main(String[] args) throws Exception {

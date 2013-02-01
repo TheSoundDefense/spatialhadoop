@@ -15,6 +15,7 @@ import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.spatial.SpatialAlgorithms;
 
+import edu.umn.cs.FileSplitUtil;
 import edu.umn.cs.spatialHadoop.TigerShape;
 
 
@@ -28,12 +29,13 @@ public abstract class PairInputFormat<K extends WritableComparable, V extends Wr
     extends FileInputFormat<PairWritableComparable<K>, PairWritable<V>> {
 
   @Override
-  public InputSplit[] getSplits(JobConf job, int numSplits) throws IOException {
+  public InputSplit[] getSplits(final JobConf job, int numSplits) throws IOException {
     // Get a list of all input files. There should be exactly two files.
     FileStatus[] inputFiles = listStatus(job);
 
     // Generate splits for all input paths
     final InputSplit[] splits = super.getSplits(job, numSplits);
+    System.out.println("Total splits: "+splits.length);
     
     // Holds a rectangle or more for each file split.
     // Most probably one rectangle for each split. The shape ID points to
@@ -96,10 +98,14 @@ public abstract class PairInputFormat<K extends WritableComparable, V extends Wr
           takenPairs.add(thisPair);
           // Each rectangle here represents a file split.
           // Rectangle.id represents the index of the split in the array
-          FileSplit fileSplit1 = (FileSplit)splits[(int)r.id];
-          FileSplit fileSplit2 = (FileSplit)splits[(int)s.id];
+          FileSplit split1 = (FileSplit)splits[(int)r.id];
+          FileSplit split2 = (FileSplit)splits[(int)s.id];
 
-          combinedSplits.add(new PairOfFileSplits(fileSplit1, fileSplit2));
+          try {
+            combinedSplits.add(FileSplitUtil.combineFileSplits(job, split1, split2));
+          } catch (IOException e) {
+            e.printStackTrace();
+          }
         }
       }
     };
@@ -115,12 +121,12 @@ public abstract class PairInputFormat<K extends WritableComparable, V extends Wr
         for (int file_j = file_i + 1; file_j < heapSplits.length; file_j++) {
           // First, join with other heap splits
           for (int split_j : heapSplits[file_j]) {
-            combinedSplits.add(new PairOfFileSplits((FileSplit)splits[split_i],
+            combinedSplits.add(FileSplitUtil.combineFileSplits(job, (FileSplit)splits[split_i],
                 (FileSplit)splits[split_j]));
           }
           // Second, join with spatial splits
           for (TigerShape split_j : spatialSplits[file_j]) {
-            combinedSplits.add(new PairOfFileSplits((FileSplit)splits[split_i],
+            combinedSplits.add(FileSplitUtil.combineFileSplits(job, (FileSplit)splits[split_i],
                 (FileSplit)splits[(int)split_j.id]));
           }
         }
