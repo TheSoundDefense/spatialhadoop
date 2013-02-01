@@ -480,8 +480,6 @@ public class Repartition {
     Path inputPath = cla.getPaths()[0];
     Path outputPath = cla.getPaths()[1];
     
-    Rectangle input_mbr = cla.getRectangle();
-
     String gindex = cla.getGIndex();
     String lindex = cla.getLIndex();
     
@@ -491,11 +489,17 @@ public class Repartition {
     Shape stockShape = cla.getShape(true);
     CellInfo[] cells = cla.getCells();
     
+    Rectangle input_mbr = cla.getRectangle();
+    FileSystem fs = inputPath.getFileSystem(new Configuration());
+    if (input_mbr == null && cells == null) {
+      input_mbr = FileMBR.fileMBRLocal(fs, inputPath, stockShape);
+    }
+    
+    long t1 = System.currentTimeMillis();
     if (cells != null) {
       if (blockSize == 0) {
         // Calculate block size based on overlap between given cells and
         // file mbr
-        FileSystem fs = inputPath.getFileSystem(new Configuration());
         if (input_mbr == null)
           input_mbr = local ? FileMBR.fileMBRLocal(fs, inputPath, stockShape) :
             FileMBR.fileMBRMapReduce(fs, inputPath, stockShape);
@@ -528,5 +532,7 @@ public class Repartition {
         repartitionMapReduce(inputPath, outputPath, stockShape,
             blockSize, input_mbr, gindex, lindex, overwrite);
     }
+    long t2 = System.currentTimeMillis();
+    System.out.println("Total indexing time in millis "+(t2-t1));
 	}
 }
