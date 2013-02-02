@@ -3,10 +3,13 @@ package edu.umn.cs.spatialHadoop.mapReduce;
 import java.io.IOException;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.io.ArrayWritable;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.WritableComparable;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.RecordReader;
+import org.apache.hadoop.mapred.lib.CombineFileSplit;
+import org.apache.hadoop.spatial.CellInfo;
 
 
 /**
@@ -24,11 +27,12 @@ public abstract class PairRecordReader<K extends WritableComparable, V extends W
   /**A flag that is set before the first record is read*/
   protected boolean firstTime = true;
   
+  
   /**The internal readers that actually do the parsing*/
-  protected Pair<RecordReader<K, V>> internalReaders;
+  protected RecordReader<K, V>[] internalReaders;
   
   /**The two splits parsed by this record reader*/
-  protected PairOfFileSplits splits;
+  protected CombineFileSplit split;
   
   /**Configuration of the current job*/
   protected Configuration conf;
@@ -39,59 +43,70 @@ public abstract class PairRecordReader<K extends WritableComparable, V extends W
    * @return
    */
   protected abstract RecordReader<K, V> createRecordReader(Configuration conf,
-      FileSplit split) throws IOException;
+      CombineFileSplit split, int index) throws IOException;
+  
+  @SuppressWarnings("unchecked")
+  public PairRecordReader(Configuration conf, CombineFileSplit split) throws IOException {
+    this.conf = conf;
+    this.split = split;
+    internalReaders = new RecordReader[(int) split.getLength()];
+    // Initialize all record readers
+    for (int i = 0; i < split.getLength(); i++) {
+      this.internalReaders[i] = createRecordReader(this.conf, this.split, i);
+    }
+  }
   
   @Override
   public boolean next(PairWritableComparable<K> key, PairWritable<V> value) throws IOException {
     if (firstTime) {
-      if (!internalReaders.first.next(key.first, value.first)) {
+      if (!internalReaders[0].next(key.first, value.first)) {
         return false;
       }
       firstTime = false;
     }
-    if (internalReaders.second.next(key.second, value.second)) {
+    if (internalReaders[1].next(key.second, value.second)) {
       return true;
     }
     // Reached the end of the second split. Reset the second split and advance
     // to the next item in the first split
-    if (!internalReaders.first.next(key.first, value.first)) {
+    if (!internalReaders[0].next(key.first, value.first)) {
       return false;
     }
-    internalReaders.second.close();
-    internalReaders.second = createRecordReader(conf, splits.second);
-    return internalReaders.second.next(key.second, value.second);
+    internalReaders[1].close();
+    internalReaders[1] = createRecordReader(conf, split, 1);
+    return internalReaders[1].next(key.second, value.second);
   }
 
   @Override
   public PairWritableComparable<K> createKey() {
     PairWritableComparable<K> key = new PairWritableComparable<K>();
-    key.first = internalReaders.first.createKey();
-    key.second = internalReaders.second.createKey();
+    key.first = internalReaders[0].createKey();
+    key.second = internalReaders[1].createKey();
     return key;
   }
 
   @Override
   public PairWritable<V> createValue() {
     PairWritable<V> value = new PairWritable<V>();
-    value.first = internalReaders.first.createValue();
-    value.second = internalReaders.second.createValue();
+    value.first = internalReaders[0].createValue();
+    value.second = internalReaders[1].createValue();
     return value;
   }
 
   @Override
   public long getPos() throws IOException {
-    return internalReaders.first.getPos() + internalReaders.second.getPos();
+    return internalReaders[0].getPos() + internalReaders[1].getPos();
   }
 
   @Override
   public void close() throws IOException {
-    internalReaders.first.close();
-    internalReaders.second.close();
+    internalReaders[0].close();
+    internalReaders[1].close();
   }
 
   @Override
   public float getProgress() throws IOException {
-    return (internalReaders.first.getProgress() +
-        internalReaders.second.getProgress()) / 2;
+    return (internalReaders[0].getProgress() +
+        internalReaders[1].getProgress()) / 2;
   }
 }
