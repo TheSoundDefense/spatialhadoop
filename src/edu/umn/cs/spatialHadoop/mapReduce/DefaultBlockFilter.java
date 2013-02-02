@@ -40,13 +40,13 @@ public class DefaultBlockFilter implements BlockFilter {
   }
 
   @Override
-  public <T extends BlockLocation> Collection<? extends Pair<T>> processPairs(
+  public <T extends BlockLocation> Collection<? extends PairWritable<T>> processPairs(
       T[] blks1, T[] blks2) {
-    Vector<Pair<T>> pairs_2b_processed = new Vector<Pair<T>>();
+    Vector<PairWritable<T>> pairs_2b_processed = new Vector<PairWritable<T>>();
     for (T blk1 : blks1) {
       for (T blk2 : blks2) {
         if (processPair(blk1, blk2)) {
-          pairs_2b_processed.add(new Pair<T>(blk1, blk2));
+          pairs_2b_processed.add(new PairWritable<T>(blk1, blk2));
         }
       }
       

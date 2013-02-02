@@ -45,6 +45,6 @@ public interface BlockFilter {
    * @param pairs
    * @return
    */
-  public <T extends BlockLocation> Collection<? extends Pair<T>>
+  public <T extends BlockLocation> Collection<? extends PairWritable<T>>
       processPairs(T[] blks1, T[] blks2);
 }
