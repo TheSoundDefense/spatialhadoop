@@ -4,7 +4,6 @@ import java.io.IOException;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.Writable;
-import org.apache.hadoop.io.WritableComparable;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.lib.CombineFileSplit;
 
@@ -18,7 +17,7 @@ import org.apache.hadoop.mapred.lib.CombineFileSplit;
  * @param <K>
  * @param <V>
  */
-public abstract class BinaryShapeRecordReader<K extends WritableComparable, V extends Writable>
+public abstract class BinaryRecordReader<K extends Writable, V extends Writable>
     implements RecordReader<PairWritable<K>, PairWritable<V>> {
   
   /**A flag that is set before the first record is read*/
@@ -43,7 +42,7 @@ public abstract class BinaryShapeRecordReader<K extends WritableComparable, V ex
       CombineFileSplit split, int index) throws IOException;
   
   @SuppressWarnings("unchecked")
-  public BinaryShapeRecordReader(Configuration conf, CombineFileSplit split) throws IOException {
+  public BinaryRecordReader(Configuration conf, CombineFileSplit split) throws IOException {
     this.conf = conf;
     this.split = split;
     internalReaders = new RecordReader[(int) split.getLength()];

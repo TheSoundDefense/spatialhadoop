@@ -36,8 +36,8 @@ import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.CommandLineArguments;
-import edu.umn.cs.spatialHadoop.mapReduce.BinaryShapeRecordReader;
-import edu.umn.cs.spatialHadoop.mapReduce.BinarySpatialInputFormat;
+import edu.umn.cs.spatialHadoop.mapReduce.BinaryRecordReader;
+import edu.umn.cs.spatialHadoop.mapReduce.BinaryInputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.PairWritable;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeArrayRecordReader;
 
@@ -113,7 +113,7 @@ public class RedistributeJoin {
    * @author eldawy
    *
    */
-  public static class DJRecordReaderArray extends BinaryShapeRecordReader<CellInfo, ArrayWritable> {
+  public static class DJRecordReaderArray extends BinaryRecordReader<CellInfo, ArrayWritable> {
     public DJRecordReaderArray(Configuration conf, CombineFileSplit fileSplits) throws IOException {
       super(conf, fileSplits);
     }
@@ -134,7 +134,7 @@ public class RedistributeJoin {
    * @author eldawy
    *
    */
-  public static class DJInputFormatArray extends BinarySpatialInputFormat<CellInfo, ArrayWritable> {
+  public static class DJInputFormatArray extends BinaryInputFormat<CellInfo, ArrayWritable> {
     
     @Override
     public InputSplit[] getSplits(JobConf job, int numSplits)

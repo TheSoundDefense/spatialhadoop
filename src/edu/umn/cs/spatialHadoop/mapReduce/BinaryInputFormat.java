@@ -8,7 +8,6 @@ import java.util.Vector;
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.io.Writable;
-import org.apache.hadoop.io.WritableComparable;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.InputSplit;
@@ -25,7 +24,7 @@ import edu.umn.cs.spatialHadoop.TigerShape;
  * @author eldawy
  *
  */
-public abstract class BinarySpatialInputFormat<K extends WritableComparable, V extends Writable>
+public abstract class BinaryInputFormat<K extends Writable, V extends Writable>
     extends FileInputFormat<PairWritable<K>, PairWritable<V>> {
 
   @Override
