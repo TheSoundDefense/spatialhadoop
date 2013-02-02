@@ -44,7 +44,6 @@ import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.CommandLineArguments;
 import edu.umn.cs.spatialHadoop.mapReduce.GridOutputFormat;
-import edu.umn.cs.spatialHadoop.mapReduce.PairShape;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeLineInputFormat;
 
 /**
@@ -134,7 +133,7 @@ public class SJMR {
   }
   
   public static class SJMRReduce<S extends Shape> extends MapReduceBase implements
-  Reducer<IntWritable, IndexedText, CellInfo, PairShape<S>> {
+  Reducer<IntWritable, IndexedText, S, S> {
     /**Number of files in the input*/
     private int inputFileCount;
     
@@ -154,7 +153,7 @@ public class SJMR {
 
     @Override
     public void reduce(IntWritable cellId, Iterator<IndexedText> values,
-        final OutputCollector<CellInfo, PairShape<S>> output, Reporter reporter)
+        final OutputCollector<S, S> output, Reporter reporter)
         throws IOException {
       // Extract CellInfo (MBR) for duplicate avoidance checking
       int i_cell = 0;
@@ -176,7 +175,6 @@ public class SJMR {
         shapeLists[t.index].add(s);
       }
       
-      final PairShape<S> value = new PairShape<S>();
       // Perform spatial join between the two lists
       SpatialAlgorithms.SpatialJoin_planeSweep(shapeLists[0], shapeLists[1], new SpatialAlgorithms.ResultCollector2<S, S>() {
         @Override
@@ -185,9 +183,7 @@ public class SJMR {
             Rectangle intersectionMBR = x.getMBR().getIntersection(y.getMBR());
             if (cellInfo.contains(intersectionMBR.x, intersectionMBR.y)) {
               // Report to the reduce result collector
-              value.first = x;
-              value.second = y;
-              output.collect(cellInfo, value);
+              output.collect(x, y);
             }
           } catch (IOException e) {
             e.printStackTrace();
@@ -198,8 +194,7 @@ public class SJMR {
   }
 
   public static<S extends Shape> long sjmr(FileSystem fs, Path[] files,
-      GridInfo gridInfo, S stockShape, OutputCollector<PairShape<CellInfo>,
-      PairShape<? extends Shape>> output) throws IOException {
+      GridInfo gridInfo, S stockShape, OutputCollector<S, S> output) throws IOException {
     JobConf job = new JobConf(SJMR.class);
     
     Path outputPath;
@@ -279,23 +274,21 @@ public class SJMR {
     final long resultCount = outputRecordCounter.getValue();
 
     // Read job result
+    @SuppressWarnings("unchecked")
+	S s1 = stockShape, s2 = (S) stockShape.clone();
     if (output != null) {
       FileStatus[] results = outFs.listStatus(outputPath);
       for (FileStatus fileStatus : results) {
         if (fileStatus.getLen() > 0 && fileStatus.getPath().getName().startsWith("part-")) {
           // Report every single result as a pair of shapes
-          PairShape<CellInfo> cells =
-              new PairShape<CellInfo>(new CellInfo(), new CellInfo());
-          PairShape<? extends Shape> shapes =
-              new PairShape<S>(stockShape, (S) stockShape.clone());
           LineReader lineReader = new LineReader(outFs.open(fileStatus.getPath()));
           Text text = new Text();
           while (lineReader.readLine(text) > 0) {
             String str = text.toString();
             String[] parts = str.split("\t", 2);
-            cells.fromText(new Text(parts[0]));
-            shapes.fromText(new Text(parts[1]));
-            output.collect(cells, shapes);
+            s1.fromText(new Text(parts[0]));
+            s2.fromText(new Text(parts[1]));
+            output.collect(s1, s2);
           }
           lineReader.close();
         }

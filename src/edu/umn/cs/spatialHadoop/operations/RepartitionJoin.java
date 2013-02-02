@@ -19,7 +19,6 @@ import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.SpatialAlgorithms;
 
 import edu.umn.cs.CommandLineArguments;
-import edu.umn.cs.spatialHadoop.mapReduce.PairShape;
 
 /**
  * Performs a repartition join algorithm.
@@ -33,7 +32,7 @@ public class RepartitionJoin {
   
   public static long repartitionJoin(FileSystem fs, Path[] files,
       Shape stockShape,
-      OutputCollector<PairShape<CellInfo>, PairShape<? extends Shape>> output) throws IOException {
+      OutputCollector<Shape, Shape> output) throws IOException {
     long t1, t2;
     t1 = System.currentTimeMillis();
     // Determine which file to repartition (smaller file)

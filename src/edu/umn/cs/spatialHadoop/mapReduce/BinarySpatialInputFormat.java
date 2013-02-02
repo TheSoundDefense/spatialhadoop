@@ -25,8 +25,8 @@ import edu.umn.cs.spatialHadoop.TigerShape;
  * @author eldawy
  *
  */
-public abstract class PairInputFormat<K extends WritableComparable, V extends Writable>
-    extends FileInputFormat<PairWritableComparable<K>, PairWritable<V>> {
+public abstract class BinarySpatialInputFormat<K extends WritableComparable, V extends Writable>
+    extends FileInputFormat<PairWritable<K>, PairWritable<V>> {
 
   @Override
   public InputSplit[] getSplits(final JobConf job, int numSplits) throws IOException {

@@ -36,11 +36,9 @@ import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.CommandLineArguments;
-import edu.umn.cs.spatialHadoop.mapReduce.PairInputFormat;
-import edu.umn.cs.spatialHadoop.mapReduce.PairRecordReader;
-import edu.umn.cs.spatialHadoop.mapReduce.PairShape;
+import edu.umn.cs.spatialHadoop.mapReduce.BinaryShapeRecordReader;
+import edu.umn.cs.spatialHadoop.mapReduce.BinarySpatialInputFormat;
 import edu.umn.cs.spatialHadoop.mapReduce.PairWritable;
-import edu.umn.cs.spatialHadoop.mapReduce.PairWritableComparable;
 import edu.umn.cs.spatialHadoop.mapReduce.ShapeArrayRecordReader;
 
 /**
@@ -53,14 +51,12 @@ public class RedistributeJoin {
   private static final Log LOG = LogFactory.getLog(RedistributeJoin.class);
 
   public static class RedistributeJoinMap extends MapReduceBase
-  implements Mapper<PairWritableComparable<CellInfo>, PairWritable<? extends Writable>, PairWritableComparable<CellInfo>, PairWritable<? extends Shape>> 
-  {
+  implements Mapper<PairWritable<CellInfo>, PairWritable<? extends Writable>, Shape, Shape> {
     public void map(
-        final PairWritableComparable<CellInfo> key,
+        final PairWritable<CellInfo> key,
         final PairWritable<? extends Writable> value,
-        final OutputCollector<PairWritableComparable<CellInfo>, PairWritable<? extends Shape>> output,
+        final OutputCollector<Shape, Shape> output,
         Reporter reporter) throws IOException {
-      final PairWritable<Shape> output_value = new PairWritable<Shape>();
       int result_size;
       final Rectangle mapperMBR = key.first.getIntersection(key.second);
       
@@ -74,11 +70,10 @@ public class RedistributeJoin {
           @Override
           public void add(Shape x, Shape y) {
             Rectangle intersectionMBR = x.getMBR().getIntersection(y.getMBR());
+            // Employ reference point duplicate avoidance technique 
             if (mapperMBR.contains(intersectionMBR.x, intersectionMBR.y)) {
-              output_value.first = x;
-              output_value.second = y;
               try {
-                output.collect(key, output_value);
+                output.collect(x, y);
               } catch (IOException e) {
                 e.printStackTrace();
               }
@@ -95,11 +90,10 @@ public class RedistributeJoin {
           @Override
           public void add(Shape x, Shape y) {
             Rectangle intersectionMBR = x.getMBR().getIntersection(y.getMBR());
+            // Employ reference point duplicate avoidance technique 
             if (mapperMBR.contains(intersectionMBR.x, intersectionMBR.y)) {
-              output_value.first = x;
-              output_value.second = y;
               try {
-                output.collect(key, output_value);
+                output.collect(x, y);
               } catch (IOException e) {
                 e.printStackTrace();
               }
@@ -119,7 +113,7 @@ public class RedistributeJoin {
    * @author eldawy
    *
    */
-  public static class DJRecordReaderArray extends PairRecordReader<CellInfo, ArrayWritable> {
+  public static class DJRecordReaderArray extends BinaryShapeRecordReader<CellInfo, ArrayWritable> {
     public DJRecordReaderArray(Configuration conf, CombineFileSplit fileSplits) throws IOException {
       super(conf, fileSplits);
     }
@@ -140,7 +134,7 @@ public class RedistributeJoin {
    * @author eldawy
    *
    */
-  public static class DJInputFormatArray extends PairInputFormat<CellInfo, ArrayWritable> {
+  public static class DJInputFormatArray extends BinarySpatialInputFormat<CellInfo, ArrayWritable> {
     
     @Override
     public InputSplit[] getSplits(JobConf job, int numSplits)
@@ -151,7 +145,7 @@ public class RedistributeJoin {
     }
     
     @Override
-    public RecordReader<PairWritableComparable<CellInfo>, PairWritable<ArrayWritable>> getRecordReader(
+    public RecordReader<PairWritable<CellInfo>, PairWritable<ArrayWritable>> getRecordReader(
         InputSplit split, JobConf job, Reporter reporter) throws IOException {
       return new DJRecordReaderArray(job, (CombineFileSplit)split);
     }
@@ -168,7 +162,7 @@ public class RedistributeJoin {
    */
   public static <S extends Shape> long redistributeJoin(FileSystem fs, Path[] files,
       S stockShape,
-      OutputCollector<PairShape<CellInfo>, PairShape<? extends Shape>> output) throws IOException {
+      OutputCollector<S, S> output) throws IOException {
     JobConf job = new JobConf(RedistributeJoin.class);
     
     Path outputPath;
@@ -182,8 +176,8 @@ public class RedistributeJoin {
     job.setJobName("RedistributeJoin");
     ClusterStatus clusterStatus = new JobClient(job).getClusterStatus();
     job.setMapperClass(RedistributeJoinMap.class);
-    job.setMapOutputKeyClass(PairWritableComparable.class);
-    job.setMapOutputValueClass(PairWritable.class);
+    job.setMapOutputKeyClass(stockShape.getClass());
+    job.setMapOutputValueClass(stockShape.getClass());
     job.setBoolean(SpatialSite.AutoCombineSplits, true);
     job.setNumMapTasks(10 * Math.max(1, clusterStatus.getMaxMapTasks()));
     job.setNumReduceTasks(0); // No reduce needed for this task
@@ -206,24 +200,23 @@ public class RedistributeJoin {
     Counter outputRecordCounter = counters.findCounter(Task.Counter.MAP_OUTPUT_RECORDS);
     final long resultCount = outputRecordCounter.getValue();
 
+    S s1 = stockShape;
+    @SuppressWarnings("unchecked")
+	S s2 = (S) stockShape.clone();
     // Read job result
     FileStatus[] results = outFs.listStatus(outputPath);
     for (FileStatus fileStatus : results) {
       if (fileStatus.getLen() > 0 && fileStatus.getPath().getName().startsWith("part-")) {
         if (output != null) {
           // Report every single result as a pair of shapes
-          PairShape<CellInfo> cells =
-              new PairShape<CellInfo>(new CellInfo(), new CellInfo());
-          PairShape<? extends Shape> shapes =
-              new PairShape<S>(stockShape, stockShape);
           LineReader lineReader = new LineReader(outFs.open(fileStatus.getPath()));
           Text text = new Text();
           while (lineReader.readLine(text) > 0) {
             String str = text.toString();
             String[] parts = str.split("\t", 2);
-            cells.fromText(new Text(parts[0]));
-            shapes.fromText(new Text(parts[1]));
-            output.collect(cells, shapes);
+            s1.fromText(new Text(parts[0]));
+            s2.fromText(new Text(parts[1]));
+            output.collect(s1, s2);
           }
           lineReader.close();
         }

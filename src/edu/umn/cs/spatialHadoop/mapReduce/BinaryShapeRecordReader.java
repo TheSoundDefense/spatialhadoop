@@ -3,13 +3,10 @@ package edu.umn.cs.spatialHadoop.mapReduce;
 import java.io.IOException;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.io.ArrayWritable;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.WritableComparable;
-import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.lib.CombineFileSplit;
-import org.apache.hadoop.spatial.CellInfo;
 
 
 /**
@@ -21,8 +18,8 @@ import org.apache.hadoop.spatial.CellInfo;
  * @param <K>
  * @param <V>
  */
-public abstract class PairRecordReader<K extends WritableComparable, V extends Writable>
-    implements RecordReader<PairWritableComparable<K>, PairWritable<V>> {
+public abstract class BinaryShapeRecordReader<K extends WritableComparable, V extends Writable>
+    implements RecordReader<PairWritable<K>, PairWritable<V>> {
   
   /**A flag that is set before the first record is read*/
   protected boolean firstTime = true;
@@ -46,18 +43,18 @@ public abstract class PairRecordReader<K extends WritableComparable, V extends W
       CombineFileSplit split, int index) throws IOException;
   
   @SuppressWarnings("unchecked")
-  public PairRecordReader(Configuration conf, CombineFileSplit split) throws IOException {
+  public BinaryShapeRecordReader(Configuration conf, CombineFileSplit split) throws IOException {
     this.conf = conf;
     this.split = split;
     internalReaders = new RecordReader[(int) split.getLength()];
     // Initialize all record readers
-    for (int i = 0; i < split.getLength(); i++) {
+    for (int i = 0; i < split.getNumPaths(); i++) {
       this.internalReaders[i] = createRecordReader(this.conf, this.split, i);
     }
   }
   
   @Override
-  public boolean next(PairWritableComparable<K> key, PairWritable<V> value) throws IOException {
+  public boolean next(PairWritable<K> key, PairWritable<V> value) throws IOException {
     if (firstTime) {
       if (!internalReaders[0].next(key.first, value.first)) {
         return false;
@@ -78,8 +75,8 @@ public abstract class PairRecordReader<K extends WritableComparable, V extends W
   }
 
   @Override
-  public PairWritableComparable<K> createKey() {
-    PairWritableComparable<K> key = new PairWritableComparable<K>();
+  public PairWritable<K> createKey() {
+    PairWritable<K> key = new PairWritable<K>();
     key.first = internalReaders[0].createKey();
     key.second = internalReaders[1].createKey();
     return key;
