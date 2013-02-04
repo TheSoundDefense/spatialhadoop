@@ -18,6 +18,8 @@ import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.lib.CombineFileRecordReader;
 import org.apache.hadoop.mapred.lib.CombineFileSplit;
+import org.apache.hadoop.spatial.ResultCollector;
+import org.apache.hadoop.spatial.SimpleSpatialIndex;
 import org.apache.hadoop.spatial.SpatialSite;
 
 /**
@@ -86,15 +88,29 @@ public abstract class SpatialInputFormat<K, V> extends FileInputFormat<K, V> {
         FileSystem fs = file.getFileSystem(job);
         long length = fs.getFileStatus(file).getLen();
 
-        BlockLocation[] blks =
-          fs.getFileBlockLocations(fs.getFileStatus(file), 0l, length);
+        SimpleSpatialIndex<BlockLocation> gIndex = null;
+        if (blockFilter != null)
+          gIndex = fs.getGlobalIndex(fs.getFileStatus(file));
 
-        if (blockFilter != null) {
-          Collection<BlockLocation> blocks_2b_processed = blockFilter.processBlocks(blks);
-          blks = blocks_2b_processed.toArray(new BlockLocation[blocks_2b_processed.size()]);
-        }            
+        final Collection<BlockLocation> blocks_2b_processed = new Vector<BlockLocation>();
+        if (gIndex != null) {
+          // Select blocks to be processed by applying the block filter
+          blockFilter.selectBlocks(gIndex, new ResultCollector<BlockLocation>() {
+              @Override
+              public void collect(BlockLocation r) {
+                blocks_2b_processed.add(r);
+              }
+            }
+          );
+        } else {
+          // Either no global index (heap file) or no block filter configured
+          // Process all blocks
+          for (BlockLocation blk : fs.getFileBlockLocations(fs.getFileStatus(file), 0, length)) {
+            blocks_2b_processed.add(blk);
+          }
+        }
 
-        for (BlockLocation blockLocation : blks) {
+        for (BlockLocation blockLocation : blocks_2b_processed) {
           splits_2b_processed.add(new FileSplit(file,
               blockLocation.getOffset(), blockLocation.getLength(),
               blockLocation.getHosts()));
@@ -109,6 +125,7 @@ public abstract class SpatialInputFormat<K, V> extends FileInputFormat<K, V> {
         return splits_2b_processed.toArray(
             new InputSplit[splits_2b_processed.size()]);
 
+      // Combine these splits to form exactly n splits as advised by user
       return FileSplitUtil.autoCombineSplits(job, splits_2b_processed, numSplits);
     } catch (InstantiationException e) {
       return super.getSplits(job, numSplits);

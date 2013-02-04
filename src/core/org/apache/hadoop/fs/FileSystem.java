@@ -45,6 +45,7 @@ import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.spatial.CellInfo;
+import org.apache.hadoop.spatial.SimpleSpatialIndex;
 
 /****************************************************************
  * An abstract base class for a fairly generic filesystem.  It
@@ -410,6 +411,22 @@ public abstract class FileSystem extends Configured implements Closeable {
     String[] name = { "localhost:50010" };
     String[] host = { "localhost" };
     return new BlockLocation[] { new BlockLocation(name, host, 0, file.getLen()) };
+  }
+  
+  /**
+   * Returns the global created on this file. If the file is not globally
+   * indexed, a <code>null</code> is returned
+   * @param file
+   * @return - A global index or <code>null</code>
+   * @throws IOException
+   */
+  public SimpleSpatialIndex<BlockLocation> getGlobalIndex(FileStatus file)
+      throws IOException {
+    BlockLocation[] blocks = getFileBlockLocations(file, 0, file.getLen());
+    SimpleSpatialIndex<BlockLocation> gIndex =
+        new SimpleSpatialIndex<BlockLocation>();
+    gIndex.bulkLoad(blocks);
+    return gIndex;
   }
   
   /**

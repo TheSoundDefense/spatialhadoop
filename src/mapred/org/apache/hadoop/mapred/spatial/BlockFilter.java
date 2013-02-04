@@ -1,9 +1,10 @@
 package org.apache.hadoop.mapred.spatial;
 
-import java.util.Collection;
-
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.spatial.ResultCollector;
+import org.apache.hadoop.spatial.ResultCollector2;
+import org.apache.hadoop.spatial.SimpleSpatialIndex;
 
 /**
  * An interface for filtering blocks before running map tasks.
@@ -19,32 +20,21 @@ public interface BlockFilter {
   public void configure(JobConf job);
 
   /**
-   * Returns true if the given block should be processed.
-   * @param blk
-   * @return
+   * Selects the blocks that need to be processed b a MapReduce job.
+   * @param gIndex
+   * @param output
    */
-  public boolean processBlock(BlockLocation blk);
+  public void selectBlocks(SimpleSpatialIndex<BlockLocation> gIndex,
+      ResultCollector<BlockLocation> output);
   
   /**
-   * Given a set of blocks, return only those blocks which should be processed.
-   * @param blks
-   * @return
+   * Selects block pairs that need to be processed together by a binary
+   * MapReduce job. A binary MapReduce job is a job that deals with two input
+   * files that need to be processed together (e.g., spatial join).
+   * @param gIndex1
+   * @param gIndex2
    */
-  public <T extends BlockLocation> Collection<T> processBlocks(T[] blks);
-  
-  /**
-   * Returns true if the given pair of blocks should be combined together.
-   * @param pair
-   * @return
-   */
-  public boolean processPair(BlockLocation blk1, BlockLocation blk2);
-  
-  /**
-   * Given two lists of blocks for two files, return all pairs that should
-   * be combined together and processed by one map function.
-   * @param pairs
-   * @return
-   */
-  public <T extends BlockLocation> Collection<? extends PairWritable<T>>
-      processPairs(T[] blks1, T[] blks2);
+  public void selectBlockPairs(SimpleSpatialIndex<BlockLocation> gIndex1,
+      SimpleSpatialIndex<BlockLocation> gIndex2,
+      ResultCollector2<BlockLocation, BlockLocation> output);
 }

@@ -679,17 +679,6 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
   }
 
   /**
-   * Used to collect all results from a range or point query.
-   * 
-   * @author eldawy
-   * 
-   * @param <T>
-   */
-  public static interface ResultCollector<T> {
-    void add(T x);
-  }
-  
-  /**
    * Given a block size, record size and a required tree degree, this function
    * calculates the maximum number of records that can be stored in this
    * block taking into consideration the overhead needed by node structure.
@@ -832,7 +821,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
           if (stockObject.isIntersected(query_shape)) {
             resultSize++;
             if (output != null)
-              output.add(stockObject);
+              output.collect(stockObject);
           }
           firstOffset = eol;
         }
@@ -893,7 +882,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
       // Retrieve all results in range
       search(queryRange, new ResultCollector<T>() {
         @Override
-        public void add(T shape) {
+        public void collect(T shape) {
           distances.add((long) shape.distanceTo(qx, qy));
           shapes.add(shape);
         }
@@ -943,23 +932,12 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
     int result_size = Math.min(k,  shapes.size());
     if (output != null) {
       for (int i = 0; i < result_size; i++) {
-        output.add(shapes.elementAt(i), distances.elementAt(i));
+        output.collect(shapes.elementAt(i), distances.elementAt(i));
       }
     }
     return result_size;
   }
 
-  /**
-   * Used to collect the results of a spatial join.
-   * @author eldawy
-   *
-   * @param <T1>
-   * @param <T2>
-   */
-  public static interface ResultCollector2<T1, T2> {
-    void add(T1 x, T2 y);
-  }
-  
   public static<S1 extends Shape, S2 extends Shape> int spatialJoin(
       final RTree<S1> R,
       final RTree<S2> S,
@@ -971,16 +949,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
     List<S2> ss = new Vector<S2>();
     for (S2 s : S)
       ss.add((S2) s.clone());
-    if (output == null) {
-      return SpatialAlgorithms.SpatialJoin_planeSweep(rs, ss, null);
-    } else {
-      return SpatialAlgorithms.SpatialJoin_planeSweep(rs, ss, new SpatialAlgorithms.ResultCollector2<S1, S2>() {
-        @Override
-        public void add(S1 r, S2 s) {
-          output.add(r, s);
-        }
-      });
-    }
+    return SpatialAlgorithms.SpatialJoin_planeSweep(rs, ss, output);
   }
   
   /**

@@ -21,13 +21,15 @@ import org.apache.hadoop.io.*;
 
 import java.io.*;
 import org.apache.hadoop.spatial.CellInfo;
+import org.apache.hadoop.spatial.Rectangle;
+import org.apache.hadoop.spatial.Shape;
 
 /*
  * A BlockLocation lists hosts, offset and length
  * of block. 
  * 
  */
-public class BlockLocation implements Writable {
+public class BlockLocation implements Writable, Shape {
 
   static {               // register a ctor
     WritableFactories.setFactory
@@ -274,5 +276,43 @@ public class BlockLocation implements Writable {
 
   public CellInfo getCellInfo() {
     return cellInfo;
+  }
+
+  @Override
+  public Text toText(Text text) {
+    throw new RuntimeException("Not implemented");
+  }
+
+  @Override
+  public void fromText(Text text) {
+    throw new RuntimeException("Not implemented");
+  }
+
+  @Override
+  public Rectangle getMBR() {
+    return cellInfo == null ? null : cellInfo.getMBR();
+  }
+
+  @Override
+  public double distanceTo(long x, long y) {
+    return cellInfo == null ? -1 : cellInfo.distanceTo(x, y);
+  }
+
+  @Override
+  public boolean isIntersected(Shape s) {
+    // NB: A heap block intersect all other blocks
+    return cellInfo == null || cellInfo.isIntersected(s);
+  }
+  
+  @Override
+  public Shape clone() {
+    BlockLocation c = new BlockLocation();
+    c.hosts = this.hosts == null? null : this.hosts.clone();
+    c.names = this.names == null? null : this.names.clone();
+    c.topologyPaths = this.topologyPaths == null ? null : this.topologyPaths.clone();
+    c.offset = this.offset;
+    c.length = this.length;
+    c.cellInfo = this.cellInfo == null? null : this.cellInfo.clone();
+    return c;
   }
 }

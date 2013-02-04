@@ -3,7 +3,9 @@ package org.apache.hadoop.mapred.spatial;
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.spatial.ResultCollector;
 import org.apache.hadoop.spatial.Shape;
+import org.apache.hadoop.spatial.SimpleSpatialIndex;
 
 
 public class RangeFilter extends DefaultBlockFilter {
@@ -17,7 +19,7 @@ public class RangeFilter extends DefaultBlockFilter {
       "edu.umn.cs.spatialHadoop.mapReduce.RangeFilter.QueryShape";
 
   /**A shape that is used to filter input*/
-  private Shape queryShape;
+  private Shape queryRange;
   
   /**
    * Sets the query range in the given job.
@@ -36,8 +38,8 @@ public class RangeFilter extends DefaultBlockFilter {
       String queryShapeClassName = job.get(QUERY_SHAPE_CLASS);
       Class<? extends Shape> queryShapeClass =
           Class.forName(queryShapeClassName).asSubclass(Shape.class);
-      queryShape = queryShapeClass.newInstance();
-      queryShape.fromText(new Text(job.get(QUERY_SHAPE)));
+      queryRange = queryShapeClass.newInstance();
+      queryRange.fromText(new Text(job.get(QUERY_SHAPE)));
     } catch (ClassNotFoundException e) {
       e.printStackTrace();
     } catch (InstantiationException e) {
@@ -48,7 +50,8 @@ public class RangeFilter extends DefaultBlockFilter {
   }
   
   @Override
-  public boolean processBlock(BlockLocation blk) {
-    return blk.getCellInfo() == null || queryShape.isIntersected(blk.getCellInfo());
+  public void selectBlocks(SimpleSpatialIndex<BlockLocation> gIndex,
+      ResultCollector<BlockLocation> output) {
+    gIndex.rangeQuery(queryRange, output);
   }
 }

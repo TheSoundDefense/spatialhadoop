@@ -61,17 +61,6 @@ public class SpatialAlgorithms {
   public static final Log LOG = LogFactory.getLog(SpatialAlgorithms.class);
   
   /**
-   * Used to collect the results of a spatial join.
-   * @author eldawy
-   *
-   * @param <T1>
-   * @param <T2>
-   */
-  public static interface ResultCollector2<T1, T2> {
-    void add(T1 x, T2 y);
-  }
-
-  /**
    * This method is deprectated. Use the array version.
    * @param R
    * @param S
@@ -109,7 +98,7 @@ public class SpatialAlgorithms {
             && ((s = S.get(jj)).getMBR().getX1() <= r.getMBR().getX2())) {
           if (r.isIntersected(s)) {
             if (output != null)
-              output.add(r, s);
+              output.collect(r, s);
             count++;
           }
           jj++;
@@ -123,7 +112,7 @@ public class SpatialAlgorithms {
             && ((r = R.get(ii)).getMBR().getX1() <= s.getMBR().getX2())) {
           if (r.isIntersected(s)) {
             if (output != null)
-              output.add(r, s);
+              output.collect(r, s);
             count++;
           }
           ii++;
@@ -163,7 +152,7 @@ public class SpatialAlgorithms {
             && ((s = S[jj]).getMBR().getX1() <= r.getMBR().getX2())) {
           if (r.isIntersected(s)) {
             if (output != null)
-              output.add(r, s);
+              output.collect(r, s);
             count++;
           }
           jj++;
@@ -177,7 +166,7 @@ public class SpatialAlgorithms {
             && ((r = R[ii]).getMBR().getX1() <= s.getMBR().getX2())) {
           if (r.isIntersected(s)) {
             if (output != null)
-              output.add(r, s);
+              output.collect(r, s);
             count++;
           }
           ii++;
