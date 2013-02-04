@@ -24,19 +24,20 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.RunningJob;
 import org.apache.hadoop.mapred.Task;
 import org.apache.hadoop.mapred.TextOutputFormat;
+import org.apache.hadoop.mapred.spatial.BlockFilter;
+import org.apache.hadoop.mapred.spatial.RTreeInputFormat;
+import org.apache.hadoop.mapred.spatial.RangeFilter;
+import org.apache.hadoop.mapred.spatial.ShapeInputFormat;
+import org.apache.hadoop.mapred.spatial.ShapeRecordReader;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Rectangle;
+import org.apache.hadoop.spatial.ResultCollector;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.CommandLineArguments;
-import edu.umn.cs.spatialHadoop.mapReduce.BlockFilter;
-import edu.umn.cs.spatialHadoop.mapReduce.RTreeInputFormat;
-import edu.umn.cs.spatialHadoop.mapReduce.RangeFilter;
-import edu.umn.cs.spatialHadoop.mapReduce.ShapeInputFormat;
-import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
 
 /**
  * Performs a range query over a spatial file.
@@ -106,9 +107,9 @@ public class RangeQuery {
     public void map(final CellInfo cellInfo, RTree<T> shapes,
         final OutputCollector<NullWritable, T> output, Reporter reporter) {
       LOG.info("Searching in the range: "+cellInfo+" for the query: "+queryShape.getMBR());
-      int count = shapes.search(queryShape.getMBR(), new RTree.ResultCollector<T>() {
+      int count = shapes.search(queryShape.getMBR(), new ResultCollector<T>() {
         @Override
-        public void add(T x) {
+        public void collect(T x) {
           try {
             // Check for duplicate avoidance using reference point technique
             Rectangle intersection = queryShape.getMBR().getIntersection(x.getMBR());

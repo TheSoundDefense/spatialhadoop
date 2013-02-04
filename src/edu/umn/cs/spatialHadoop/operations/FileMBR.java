@@ -18,15 +18,15 @@ import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.mapred.TextOutputFormat;
+import org.apache.hadoop.mapred.spatial.ShapeInputFormat;
+import org.apache.hadoop.mapred.spatial.ShapeRecordReader;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.CommandLineArguments;
-import edu.umn.cs.spatialHadoop.mapReduce.STextOutputFormat;
-import edu.umn.cs.spatialHadoop.mapReduce.ShapeInputFormat;
-import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
 
 /**
  * Finds the minimal bounding rectangle for a file.
@@ -91,7 +91,6 @@ public class FileMBR {
       long y1 = Long.MAX_VALUE;
       long x2 = Long.MIN_VALUE;
       long y2 = Long.MIN_VALUE;
-      Rectangle mbr;
       for (BlockLocation blockLocation : fileBlockLocations) {
         Rectangle rect = blockLocation.getCellInfo();
         if (blockLocation.getCellInfo() == null) {
@@ -126,10 +125,10 @@ public class FileMBR {
     
     job.setInputFormat(ShapeInputFormat.class);
     job.set(SpatialSite.SHAPE_CLASS, stockShape.getClass().getName());
-    job.setOutputFormat(STextOutputFormat.class);
+    job.setOutputFormat(TextOutputFormat.class);
     
     ShapeInputFormat.setInputPaths(job, file);
-    STextOutputFormat.setOutputPath(job, outputPath);
+    TextOutputFormat.setOutputPath(job, outputPath);
     
     // Submit the job
     JobClient.runJob(job);
@@ -174,7 +173,6 @@ public class FileMBR {
       long y1 = Long.MAX_VALUE;
       long x2 = Long.MIN_VALUE;
       long y2 = Long.MIN_VALUE;
-      Rectangle mbr;
       for (BlockLocation blockLocation : fileBlockLocations) {
         Rectangle rect = blockLocation.getCellInfo();
         if (blockLocation.getCellInfo() == null) {

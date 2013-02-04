@@ -34,17 +34,18 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.RunningJob;
 import org.apache.hadoop.mapred.Task;
 import org.apache.hadoop.mapred.TextOutputFormat;
+import org.apache.hadoop.mapred.spatial.GridOutputFormat;
+import org.apache.hadoop.mapred.spatial.ShapeLineInputFormat;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Rectangle;
+import org.apache.hadoop.spatial.ResultCollector2;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.SpatialAlgorithms;
 import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.CommandLineArguments;
-import edu.umn.cs.spatialHadoop.mapReduce.GridOutputFormat;
-import edu.umn.cs.spatialHadoop.mapReduce.ShapeLineInputFormat;
 
 /**
  * An implementation of Spatial Join MapReduce as it appears in
@@ -176,9 +177,9 @@ public class SJMR {
       }
       
       // Perform spatial join between the two lists
-      SpatialAlgorithms.SpatialJoin_planeSweep(shapeLists[0], shapeLists[1], new SpatialAlgorithms.ResultCollector2<S, S>() {
+      SpatialAlgorithms.SpatialJoin_planeSweep(shapeLists[0], shapeLists[1], new ResultCollector2<S, S>() {
         @Override
-        public void add(S x, S y) {
+        public void collect(S x, S y) {
           try {
             Rectangle intersectionMBR = x.getMBR().getIntersection(y.getMBR());
             if (cellInfo.contains(intersectionMBR.x, intersectionMBR.y)) {

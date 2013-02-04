@@ -15,6 +15,7 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.Rectangle;
+import org.apache.hadoop.spatial.ResultCollector2;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.SpatialAlgorithms;
 
@@ -78,9 +79,9 @@ public class RepartitionJoin {
     cellSet.clear();
     final DoubleWritable matched_area = new DoubleWritable(0);
     SpatialAlgorithms.SpatialJoin_planeSweep(largerFileCells, smallerFileCells,
-        new SpatialAlgorithms.ResultCollector2<CellInfo, CellInfo>() {
+        new ResultCollector2<CellInfo, CellInfo>() {
           @Override
-          public void add(CellInfo x, CellInfo y) {
+          public void collect(CellInfo x, CellInfo y) {
             // Always use the cell of the larger file
             cellSet.add(x);
             Rectangle intersection = x.getIntersection(y);

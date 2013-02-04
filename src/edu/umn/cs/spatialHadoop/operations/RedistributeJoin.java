@@ -5,6 +5,7 @@ import java.io.IOException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -27,19 +28,21 @@ import org.apache.hadoop.mapred.RunningJob;
 import org.apache.hadoop.mapred.Task;
 import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.mapred.lib.CombineFileSplit;
+import org.apache.hadoop.mapred.spatial.BinaryRecordReader;
+import org.apache.hadoop.mapred.spatial.BinarySpatialInputFormat;
+import org.apache.hadoop.mapred.spatial.DefaultBlockFilter;
+import org.apache.hadoop.mapred.spatial.PairWritable;
+import org.apache.hadoop.mapred.spatial.ShapeArrayRecordReader;
 import org.apache.hadoop.spatial.CellInfo;
-import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Rectangle;
+import org.apache.hadoop.spatial.ResultCollector2;
 import org.apache.hadoop.spatial.Shape;
+import org.apache.hadoop.spatial.SimpleSpatialIndex;
 import org.apache.hadoop.spatial.SpatialAlgorithms;
 import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.CommandLineArguments;
-import edu.umn.cs.spatialHadoop.mapReduce.BinaryRecordReader;
-import edu.umn.cs.spatialHadoop.mapReduce.BinaryInputFormat;
-import edu.umn.cs.spatialHadoop.mapReduce.PairWritable;
-import edu.umn.cs.spatialHadoop.mapReduce.ShapeArrayRecordReader;
 
 /**
  * Performs a spatial join between two or more files using the redistribute-join
@@ -50,6 +53,16 @@ import edu.umn.cs.spatialHadoop.mapReduce.ShapeArrayRecordReader;
 public class RedistributeJoin {
   private static final Log LOG = LogFactory.getLog(RedistributeJoin.class);
 
+  public static class SpatialJoinFilter extends DefaultBlockFilter {
+    @Override
+    public void selectBlockPairs(SimpleSpatialIndex<BlockLocation> gIndex1,
+        SimpleSpatialIndex<BlockLocation> gIndex2,
+        ResultCollector2<BlockLocation, BlockLocation> output) {
+      // Do a spatial join between the two global indexes
+      SimpleSpatialIndex.spatialJoin(gIndex1, gIndex2, output);
+    }
+  }
+  
   public static class RedistributeJoinMap extends MapReduceBase
   implements Mapper<PairWritable<CellInfo>, PairWritable<? extends Writable>, Shape, Shape> {
     public void map(
@@ -59,51 +72,26 @@ public class RedistributeJoin {
         Reporter reporter) throws IOException {
       int result_size;
       final Rectangle mapperMBR = key.first.getIntersection(key.second);
-      
-      if (value.first instanceof RTree) {
-        @SuppressWarnings("unchecked")
-        RTree<Shape> r1 = (RTree<Shape>) value.first;
-        @SuppressWarnings("unchecked")
-        RTree<Shape> r2 = (RTree<Shape>) value.second;
-        result_size = RTree.spatialJoin(r1, r2,
-            new RTree.ResultCollector2<Shape, Shape>() {
-          @Override
-          public void add(Shape x, Shape y) {
-            Rectangle intersectionMBR = x.getMBR().getIntersection(y.getMBR());
-            // Employ reference point duplicate avoidance technique 
-            if (mapperMBR.contains(intersectionMBR.x, intersectionMBR.y)) {
-              try {
-                output.collect(x, y);
-              } catch (IOException e) {
-                e.printStackTrace();
+
+      // Join two arrays
+      ArrayWritable ar1 = (ArrayWritable) value.first;
+      ArrayWritable ar2 = (ArrayWritable) value.second;
+      result_size = SpatialAlgorithms.SpatialJoin_planeSweep(
+          (Shape[])ar1.get(), (Shape[])ar2.get(),
+          new ResultCollector2<Shape, Shape>() {
+            @Override
+            public void collect(Shape x, Shape y) {
+              Rectangle intersectionMBR = x.getMBR().getIntersection(y.getMBR());
+              // Employ reference point duplicate avoidance technique 
+              if (mapperMBR.contains(intersectionMBR.x, intersectionMBR.y)) {
+                try {
+                  output.collect(x, y);
+                } catch (IOException e) {
+                  e.printStackTrace();
+                }
               }
             }
-          }
-        });
-      } else if (value.first instanceof ArrayWritable){
-        // Join two arrays
-        ArrayWritable ar1 = (ArrayWritable) value.first;
-        ArrayWritable ar2 = (ArrayWritable) value.second;
-        result_size = SpatialAlgorithms.SpatialJoin_planeSweep(
-            (Shape[])ar1.get(), (Shape[])ar2.get(),
-            new SpatialAlgorithms.ResultCollector2<Shape, Shape>() {
-          @Override
-          public void add(Shape x, Shape y) {
-            Rectangle intersectionMBR = x.getMBR().getIntersection(y.getMBR());
-            // Employ reference point duplicate avoidance technique 
-            if (mapperMBR.contains(intersectionMBR.x, intersectionMBR.y)) {
-              try {
-                output.collect(x, y);
-              } catch (IOException e) {
-                e.printStackTrace();
-              }
-            }
-          }
-        });
-      } else {
-        throw new RuntimeException("Cannot join the values of type "+
-            value.first.getClass());
-      }
+          });
       LOG.info("Found: "+result_size+" pairs");
     }
   }
@@ -134,7 +122,7 @@ public class RedistributeJoin {
    * @author eldawy
    *
    */
-  public static class DJInputFormatArray extends BinaryInputFormat<CellInfo, ArrayWritable> {
+  public static class DJInputFormatArray extends BinarySpatialInputFormat<CellInfo, ArrayWritable> {
     
     @Override
     public InputSplit[] getSplits(JobConf job, int numSplits)

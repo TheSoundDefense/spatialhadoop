@@ -35,21 +35,22 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.RunningJob;
 import org.apache.hadoop.mapred.Task;
 import org.apache.hadoop.mapred.TextOutputFormat;
+import org.apache.hadoop.mapred.spatial.BlockFilter;
+import org.apache.hadoop.mapred.spatial.RTreeInputFormat;
+import org.apache.hadoop.mapred.spatial.RangeFilter;
+import org.apache.hadoop.mapred.spatial.ShapeInputFormat;
+import org.apache.hadoop.mapred.spatial.ShapeRecordReader;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.Circle;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.RTree;
+import org.apache.hadoop.spatial.ResultCollector2;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.LineReader;
 import org.apache.hadoop.util.PriorityQueue;
 
 import edu.umn.cs.CommandLineArguments;
-import edu.umn.cs.spatialHadoop.mapReduce.BlockFilter;
-import edu.umn.cs.spatialHadoop.mapReduce.RTreeInputFormat;
-import edu.umn.cs.spatialHadoop.mapReduce.RangeFilter;
-import edu.umn.cs.spatialHadoop.mapReduce.ShapeInputFormat;
-import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
 
 /**
  * Performs k Nearest Neighbor (kNN) query over a spatial file.
@@ -168,9 +169,9 @@ public class KNN {
     public void map(CellInfo cellInfo, RTree<S> shapes,
         final OutputCollector<ByteWritable, TextWithDistance> output,
         Reporter reporter) throws IOException {
-      shapes.knn(queryPoint.x, queryPoint.y, k, new RTree.ResultCollector2<S, Long>() {
+      shapes.knn(queryPoint.x, queryPoint.y, k, new ResultCollector2<S, Long>() {
         @Override
-        public void add(S shape, Long distance) {
+        public void collect(S shape, Long distance) {
           try {
             outputValue.distance = distance;
             outputValue.text.clear();

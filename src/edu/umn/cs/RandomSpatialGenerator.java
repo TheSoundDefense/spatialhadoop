@@ -11,6 +11,8 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.mapred.spatial.GridRecordWriter;
+import org.apache.hadoop.mapred.spatial.RTreeGridRecordWriter;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Point;
@@ -19,8 +21,6 @@ import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.ShapeRecordWriter;
 import org.apache.hadoop.spatial.SpatialSite;
 
-import edu.umn.cs.spatialHadoop.mapReduce.GridRecordWriter;
-import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridRecordWriter;
 
 /**
  * Generates a random file of rectangles or points based on some user

@@ -23,6 +23,12 @@ import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.mapred.spatial.GridOutputFormat;
+import org.apache.hadoop.mapred.spatial.GridRecordWriter;
+import org.apache.hadoop.mapred.spatial.RTreeGridOutputFormat;
+import org.apache.hadoop.mapred.spatial.RTreeGridRecordWriter;
+import org.apache.hadoop.mapred.spatial.ShapeInputFormat;
+import org.apache.hadoop.mapred.spatial.ShapeRecordReader;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Point;
@@ -32,13 +38,8 @@ import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.ShapeRecordWriter;
 import org.apache.hadoop.spatial.SpatialSite;
 
+
 import edu.umn.cs.CommandLineArguments;
-import edu.umn.cs.spatialHadoop.mapReduce.GridOutputFormat;
-import edu.umn.cs.spatialHadoop.mapReduce.GridRecordWriter;
-import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridOutputFormat;
-import edu.umn.cs.spatialHadoop.mapReduce.RTreeGridRecordWriter;
-import edu.umn.cs.spatialHadoop.mapReduce.ShapeInputFormat;
-import edu.umn.cs.spatialHadoop.mapReduce.ShapeRecordReader;
 
 /**
  * Repartitions a file according to a different grid through a MapReduce job
