@@ -7,8 +7,8 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.ByteWritable;
 import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.ClusterStatus;
 import org.apache.hadoop.mapred.JobClient;
@@ -20,6 +20,7 @@ import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TextInputFormat;
 import org.apache.hadoop.mapred.TextOutputFormat;
+import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.util.LineReader;
 
 import edu.umn.cs.CommandLineArguments;
@@ -35,30 +36,30 @@ import edu.umn.cs.Estimator;
  *
  */
 public class RecordCount {
-  private static final ByteWritable ONEB = new ByteWritable((byte)1);
+  private static final NullWritable Dummy = NullWritable.get();
   private static final LongWritable ONEL = new LongWritable(1);
 
   public static class Map extends MapReduceBase implements
-      Mapper<LongWritable, Text, ByteWritable, LongWritable> {
-    public void map(LongWritable lineId, Text line,
-        OutputCollector<ByteWritable, LongWritable> output, Reporter reporter)
+      Mapper<CellInfo, Text, NullWritable, LongWritable> {
+    public void map(CellInfo lineId, Text line,
+        OutputCollector<NullWritable, LongWritable> output, Reporter reporter)
         throws IOException {
-      output.collect(ONEB, ONEL);
+      output.collect(Dummy, ONEL);
     }
   }
   
   public static class Reduce extends MapReduceBase implements
-  Reducer<ByteWritable, LongWritable, ByteWritable, LongWritable> {
+  Reducer<NullWritable, LongWritable, NullWritable, LongWritable> {
     @Override
-    public void reduce(ByteWritable id, Iterator<LongWritable> values,
-        OutputCollector<ByteWritable, LongWritable> output, Reporter reporter)
+    public void reduce(NullWritable dummy, Iterator<LongWritable> values,
+        OutputCollector<NullWritable, LongWritable> output, Reporter reporter)
             throws IOException {
       long total_lines = 0;
       while (values.hasNext()) {
         LongWritable next = values.next();
         total_lines += next.get();
       }
-      output.collect(ONEB, new LongWritable(total_lines));
+      output.collect(dummy, new LongWritable(total_lines));
     }
   }
   
@@ -79,7 +80,7 @@ public class RecordCount {
     outFs.delete(outputPath, true);
     
     job.setJobName("LineCount");
-    job.setMapOutputKeyClass(ByteWritable.class);
+    job.setMapOutputKeyClass(NullWritable.class);
     job.setMapOutputValueClass(LongWritable.class);
     
     job.setMapperClass(Map.class);
@@ -107,9 +108,7 @@ public class RecordCount {
         LineReader lineReader = new LineReader(outFs.open(fileStatus.getPath()));
         Text text = new Text();
         if (lineReader.readLine(text) > 0) {
-          String str = text.toString();
-          String[] parts = str.split("\t");
-          lineCount = Long.parseLong(parts[1]);
+          lineCount = Long.parseLong(text.toString());
         }
         lineReader.close();
       }

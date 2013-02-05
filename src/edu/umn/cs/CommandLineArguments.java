@@ -12,14 +12,13 @@ import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Text2;
-import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Rectangle;
+import org.apache.hadoop.spatial.ResultCollector;
 import org.apache.hadoop.spatial.Shape;
 
 import edu.umn.cs.spatialHadoop.TigerShape;
@@ -118,6 +117,14 @@ public class CommandLineArguments {
   
   public boolean isLocal() {
     return is("local");
+  }
+  
+  /**
+   * Whether the user asked for an explicit repartition step or not
+   * @return
+   */
+  public String getRepartition() {
+    return get("repartition");
   }
   
   protected boolean is(String flag) {
@@ -223,9 +230,9 @@ public class CommandLineArguments {
       // file
       Path in_file = getPath();
       try {
-        Sampler.sampleLocal(in_file.getFileSystem(new Configuration()), in_file, 1, 0, new OutputCollector<LongWritable, Text2>() {
+        Sampler.sampleLocal(in_file.getFileSystem(new Configuration()), in_file, 1, 0, new ResultCollector<Text2>() {
           @Override
-          public void collect(LongWritable key, Text2 value) throws IOException {
+          public void collect(Text2 value) {
             String val = value.toString();
             String[] parts = val.split(",");
             if (parts.length == 2) {

@@ -10,7 +10,7 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Text2;
 import org.apache.hadoop.io.TextSerializable;
 import org.apache.hadoop.mapred.JobConf;
-import org.apache.hadoop.mapred.OutputCollector;
+import org.apache.hadoop.spatial.ResultCollector;
 
 import edu.umn.cs.CommandLineArguments;
 
@@ -37,7 +37,7 @@ public class Tail {
    * @throws IOException
    */
   public static<T extends TextSerializable> long tail(FSDataInputStream in,
-      int n, T stockObject, OutputCollector<LongWritable, T> output)
+      int n, T stockObject, ResultCollector<T> output)
           throws IOException {
     int lines_read = 0;
     long end = in.getPos();
@@ -80,7 +80,7 @@ public class Tail {
               }
               line_offset.set(offset_of_this_eol + 1);
               stockObject.fromText(read_line);
-              output.collect(line_offset, stockObject);
+              output.collect(stockObject);
             }
             lines_read++;
             remainder_from_last_buffer.clear();
@@ -113,7 +113,7 @@ public class Tail {
         read_line = remainder_from_last_buffer;
         line_offset.set(0);
         stockObject.fromText(read_line);
-        output.collect(line_offset, stockObject);
+        output.collect(stockObject);
       }
       offset_of_last_eol = -1;
     }
@@ -133,7 +133,7 @@ public class Tail {
    * @throws IOException
    */
   public static<T extends TextSerializable> long tail(FileSystem fs, Path file,
-      int n, T stockObject, OutputCollector<LongWritable, T> output)
+      int n, T stockObject, ResultCollector<T> output)
           throws IOException {
     FSDataInputStream in = null;
     try {
@@ -157,12 +157,11 @@ public class Tail {
     if (stockObject == null)
       stockObject = new Text2();
 
-    tail(fs, inputFile, count, stockObject, new OutputCollector<LongWritable, TextSerializable>() {
+    tail(fs, inputFile, count, stockObject, new ResultCollector<TextSerializable>() {
 
       @Override
-      public void collect(LongWritable key, TextSerializable value)
-          throws IOException {
-        System.out.println(key+": " +value);
+      public void collect(TextSerializable value) {
+        System.out.println(value);
       }
     });
   }

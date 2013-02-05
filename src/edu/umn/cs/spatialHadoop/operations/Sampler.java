@@ -24,7 +24,9 @@ import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.mapred.spatial.ShapeLineInputFormat;
+import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.RTree;
+import org.apache.hadoop.spatial.ResultCollector;
 import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.LineReader;
 
@@ -49,7 +51,7 @@ public class Sampler {
       "edu.umn.cs.spatialHadoop.oeprations.Sampler.RandomSeed";
   
   public static class Map extends MapReduceBase implements
-  Mapper<LongWritable, Text, NullWritable, Text> {
+  Mapper<CellInfo, Text, NullWritable, Text> {
 
     /**Ratio of lines to sample*/
     private double sampleRatio;
@@ -66,7 +68,7 @@ public class Sampler {
       random = new Random(job.getLong(RANDOM_SEED, System.currentTimeMillis()));
     }
     
-    public void map(LongWritable lineId, Text line,
+    public void map(CellInfo cell, Text line,
         OutputCollector<NullWritable, Text> output, Reporter reporter)
             throws IOException {
       if (random.nextFloat() < sampleRatio)
@@ -76,7 +78,7 @@ public class Sampler {
 
   public static <T extends TextSerializable> int sampleLocalWithRatio(
       FileSystem fs, Path[] files, double ratio, long seed,
-      final OutputCollector<LongWritable, T> output, T stockObject) throws IOException {
+      final ResultCollector<T> output, T stockObject) throws IOException {
     long total_size = 0;
     for (Path file : files) {
       total_size += fs.getFileStatus(file).getLen();
@@ -97,7 +99,7 @@ public class Sampler {
    */
   public static <T extends TextSerializable> int sampleMapReduceWithRatio(
       FileSystem fs, Path[] files, double ratio, long seed,
-      final OutputCollector<LongWritable, T> output, T stockObject) throws IOException {
+      final ResultCollector<T> output, T stockObject) throws IOException {
     JobConf job = new JobConf(FileMBR.class);
     
     Path outputPath;
@@ -131,7 +133,6 @@ public class Sampler {
     // Read job result
     int result_size = 0;
     if (output != null) {
-      LongWritable line_offset = new LongWritable();
       Text line = new Text();
       FileStatus[] results = outFs.listStatus(outputPath);
       
@@ -141,7 +142,7 @@ public class Sampler {
           try {
             while (lineReader.readLine(line) > 0) {
               stockObject.fromText(line);
-              output.collect(line_offset, stockObject);
+              output.collect(stockObject);
               result_size++;
             }
           } catch (RuntimeException e) {
@@ -170,7 +171,7 @@ public class Sampler {
    */
   public static <T extends TextSerializable> int sampleLocalWithSize(
       FileSystem fs, Path[] files, long total_size, long seed,
-      final OutputCollector<LongWritable, T> output, T stockObject) throws IOException {
+      final ResultCollector<T> output, T stockObject) throws IOException {
     int average_record_size = 1024; // A wild guess for record size
     final LongWritable current_sample_size = new LongWritable();
     final Text text = new Text();
@@ -181,14 +182,14 @@ public class Sampler {
         count = 10;
       
       if (count < BIG_SAMPLE) {
-        sample_count += sampleLocalByCount(fs, files, count, seed, new OutputCollector<LongWritable, T>() {
+        sample_count += sampleLocalByCount(fs, files, count, seed, new ResultCollector<T>() {
           @Override
-          public void collect(LongWritable key, T value) throws IOException {
+          public void collect(T value) {
             text.clear();
             value.toText(text);
             current_sample_size.set(current_sample_size.get() + text.getLength());
             if (output != null)
-              output.collect(key, value);
+              output.collect(value);
           }
         } , stockObject);
         // Change the seed to get different sample next time.
@@ -196,14 +197,14 @@ public class Sampler {
         // the same value
         seed += sample_count;
       } else {
-        sample_count += sampleLocalBig(fs, files, count, seed, new OutputCollector<LongWritable, T>() {
+        sample_count += sampleLocalBig(fs, files, count, seed, new ResultCollector<T>() {
           @Override
-          public void collect(LongWritable key, T value) throws IOException {
+          public void collect(T value) {
             text.clear();
             value.toText(text);
             current_sample_size.set(current_sample_size.get() + text.getLength());
             if (output != null)
-              output.collect(key, value);
+              output.collect(value);
           }
         } , stockObject);
         seed += sample_count;
@@ -215,7 +216,7 @@ public class Sampler {
   }
 
   public static <T extends TextSerializable> int sampleLocal(FileSystem fs, Path file, int count, long seed,
-      OutputCollector<LongWritable, T> output, T stockObject) throws IOException {
+      ResultCollector<T> output, T stockObject) throws IOException {
     return sampleLocalByCount(fs, new Path[] {file}, count, seed, output, stockObject);
   }
   
@@ -230,7 +231,7 @@ public class Sampler {
    */
   public static <T extends TextSerializable> int sampleLocalByCount(
       FileSystem fs, Path[] files, int count, long seed,
-      OutputCollector<LongWritable, T> output, T stockObject)
+      ResultCollector<T> output, T stockObject)
       throws IOException {
     long[] files_start_offset = new long[files.length+1]; // Prefix sum of files sizes
     long total_length = 0;
@@ -249,7 +250,6 @@ public class Sampler {
     }
     Arrays.sort(offsets);
 
-    LongWritable elementId = new LongWritable(); // Key for returned elements
     int record_i = 0; // Number of records read so far
     int records_returned = 0;
     
@@ -329,17 +329,16 @@ public class Sampler {
               (offsets[record_i] - current_block_start_offset) *
               block_fill_size / current_block_size;
           current_file_in.seek(data_start_offset + element_offset_in_block);
+          LineReader reader = new LineReader(current_file_in, 1024);
           // Read the first line after that offset
           Text line = new Text();
-          LineReader reader = new LineReader(current_file_in, 1024);
-          int skipped_bytes = reader.readLine(line, 0); // Skip first line
-          elementId.set(current_block_start_offset + element_offset_in_block + skipped_bytes);
+          reader.readLine(line); // Skip the rest of the current line
           reader.readLine(line); // Read next line
 
           // Report this element to output
           if (output != null) {
             stockObject.fromText(line);
-            output.collect(elementId, stockObject);
+            output.collect(stockObject);
           }
           record_i++;
           records_returned++;
@@ -359,7 +358,7 @@ public class Sampler {
    * @throws IOException 
    */
   public static <T extends TextSerializable> int sampleLocalBig(FileSystem fs,
-      Path[] files, int count, long seed, OutputCollector<LongWritable, T> output,
+      Path[] files, int count, long seed, ResultCollector<T> output,
       T stockObject) throws IOException {
     long[] files_start_offset = new long[files.length+1]; // Prefix sum of files sizes
     long total_length = 0;
@@ -378,7 +377,6 @@ public class Sampler {
     }
     Arrays.sort(offsets);
 
-    LongWritable elementId = new LongWritable(); // Key for returned elements
     int record_i = 0; // Number of records read so far
     int records_returned = 0;
     // A temporary text to store one line
@@ -482,7 +480,6 @@ public class Sampler {
                   block_fill_size / current_block_size);
           
           int bol = RTree.skipToEOL(block_data, element_offset_in_block);
-          elementId.set(current_block_start_offset + bol);
           int eol = RTree.skipToEOL(block_data, bol);
           // Skip empty line
           if (eol - bol < 2) {
@@ -495,7 +492,7 @@ public class Sampler {
           // Report this element to output
           if (output != null) {
             stockObject.fromText(line);
-            output.collect(elementId, stockObject);
+            output.collect(stockObject);
           }
           record_i++;
           records_returned++;
@@ -520,12 +517,11 @@ public class Sampler {
     if (stockObject == null)
       stockObject = new Text2();
     
-    OutputCollector<LongWritable, TextSerializable> output =
-    new OutputCollector<LongWritable, TextSerializable>() {
+    ResultCollector<TextSerializable> output =
+    new ResultCollector<TextSerializable>() {
       @Override
-      public void collect(LongWritable key, TextSerializable value)
-          throws IOException {
-        System.out.println(key+": "+value);
+      public void collect(TextSerializable value) {
+        System.out.println(value);
       }
     };
     

@@ -15,9 +15,8 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.ByteWritable;
 import org.apache.hadoop.io.DoubleWritable;
-import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.TextSerializable;
 import org.apache.hadoop.io.TextSerializerHelper;
@@ -44,6 +43,7 @@ import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.Circle;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.RTree;
+import org.apache.hadoop.spatial.ResultCollector;
 import org.apache.hadoop.spatial.ResultCollector2;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.SpatialSite;
@@ -123,9 +123,7 @@ public class KNN {
    *
    */
   public static class KNNMap<S extends Shape> extends MapReduceBase {
-    /**A dummy intermediate value used instead of recreating it again and gain*/
-    private static final ByteWritable ONE = new ByteWritable((byte)1);
-
+    private static final NullWritable Dummy = NullWritable.get();
     /**A temporary object to be used for output*/
     private final TextWithDistance outputValue = new TextWithDistance();
     
@@ -149,13 +147,13 @@ public class KNN {
      * @param reporter
      * @throws IOException
      */
-    public void map(LongWritable id, S shape,
-        OutputCollector<ByteWritable, TextWithDistance> output,
+    public void map(CellInfo cell, S shape,
+        OutputCollector<NullWritable, TextWithDistance> output,
         Reporter reporter) throws IOException {
       outputValue.distance = (long)shape.distanceTo(queryPoint.x, queryPoint.y);
       outputValue.text.clear();
       shape.toText(outputValue.text);
-      output.collect(ONE, outputValue);
+      output.collect(Dummy, outputValue);
     }
 
     /**
@@ -167,7 +165,7 @@ public class KNN {
      * @throws IOException
      */
     public void map(CellInfo cellInfo, RTree<S> shapes,
-        final OutputCollector<ByteWritable, TextWithDistance> output,
+        final OutputCollector<NullWritable, TextWithDistance> output,
         Reporter reporter) throws IOException {
       shapes.knn(queryPoint.x, queryPoint.y, k, new ResultCollector2<S, Long>() {
         @Override
@@ -176,7 +174,7 @@ public class KNN {
             outputValue.distance = distance;
             outputValue.text.clear();
             shape.toText(outputValue.text);
-            output.collect(ONE, outputValue);
+            output.collect(Dummy, outputValue);
           } catch (IOException e) {
             e.printStackTrace();
           }
@@ -186,10 +184,10 @@ public class KNN {
   }
   
   public static class Map1<S extends Shape> extends KNNMap<S>
-    implements Mapper<LongWritable, S, ByteWritable, TextWithDistance> {}
+    implements Mapper<CellInfo, S, NullWritable, TextWithDistance> {}
 
   public static class Map2<S extends Shape> extends KNNMap<S>
-    implements Mapper<CellInfo, RTree<S>, ByteWritable, TextWithDistance> {}
+    implements Mapper<CellInfo, RTree<S>, NullWritable, TextWithDistance> {}
 
   /**
    * Keeps KNN objects ordered by their distance descending
@@ -215,10 +213,7 @@ public class KNN {
    *
    */
   public static class KNNReduce<S extends Shape> extends MapReduceBase implements
-  Reducer<ByteWritable, TextWithDistance, ByteWritable, TextWithDistance> {
-    /**A dummy intermediate value used instead of recreating it again and gain*/
-    private static final ByteWritable ONE = new ByteWritable((byte)1);
-
+  Reducer<NullWritable, TextWithDistance, NullWritable, TextWithDistance> {
     /**User query*/
     private Point queryPoint;
     private int k;
@@ -232,8 +227,8 @@ public class KNN {
     }
 
     @Override
-    public void reduce(ByteWritable dummy, Iterator<TextWithDistance> values,
-        OutputCollector<ByteWritable, TextWithDistance> output, Reporter reporter)
+    public void reduce(NullWritable dummy, Iterator<TextWithDistance> values,
+        OutputCollector<NullWritable, TextWithDistance> output, Reporter reporter)
             throws IOException {
       if (k == 0)
         return;
@@ -245,7 +240,7 @@ public class KNN {
       
       while (knn.size() > 0) {
         TextWithDistance t = knn.pop();
-        output.collect(ONE, t);
+        output.collect(dummy, t);
       }
     }
   }
@@ -287,7 +282,7 @@ public class KNN {
     ClusterStatus clusterStatus = new JobClient(job).getClusterStatus();
     job.setNumMapTasks(clusterStatus.getMaxMapTasks() * 5);
     
-    job.setMapOutputKeyClass(ByteWritable.class);
+    job.setMapOutputKeyClass(NullWritable.class);
     job.setMapOutputValueClass(TextWithDistance.class);
     job.set(QUERY_POINT, queryPoint.toText(new Text()).toString());
     job.setInt(K, k);
@@ -369,8 +364,7 @@ public class KNN {
             LineReader reader = new LineReader(in);
             Text first_line = new Text();
             reader.readLine(first_line);
-            String[] parts = first_line.toString().split("\t", 2);
-            t.fromText(new Text(parts[1]));
+            t.fromText(first_line);
             distance_to_kth_neighbor.set(t.distance);
             in.close();
           }
@@ -403,9 +397,7 @@ public class KNN {
           Text line = new Text();
           line.clear();
           while (lineReader.readLine(line) > 0) {
-            String str = line.toString();
-            String[] parts = str.split("\t", 2);
-            t.fromText(new Text(parts[1]));
+            t.fromText(line);
             shape.fromText(t.text);
             output.collect(t.distance, shape);
           }
@@ -428,7 +420,7 @@ public class KNN {
     ShapeRecordReader<S> shapeReader =
         new ShapeRecordReader<S>(fs.open(file), 0, file_size);
 
-    LongWritable key = shapeReader.createKey();
+    CellInfo key = shapeReader.createKey();
     
     TextWithDistance[] knn = new TextWithDistance[k];
 
@@ -487,16 +479,16 @@ public class KNN {
       // User provided a query, use it
       long resultCount = 
           knnMapReduce(fs, inputFile, queryPoint, k, shape, null);
-      System.out.println("Results "+resultCount);
+      System.out.println("Result size: "+resultCount);
     } else {
       // Generate query at random points
       final Vector<Thread> threads = new Vector<Thread>();
       final Vector<Point> query_points = new Vector<Point>();
       if (closenessFactor == -1.0) {
         // Get query points from file
-        Sampler.sampleLocal(fs, inputFile, count, seed, new OutputCollector<LongWritable, Shape>(){
+        Sampler.sampleLocal(fs, inputFile, count, seed, new ResultCollector<Shape>(){
           @Override
-          public void collect(final LongWritable key, final Shape value) throws IOException {
+          public void collect(final Shape value) {
             query_points.add(new Point(value.getMBR().x, value.getMBR().y));
           }
         }, shape);
@@ -567,7 +559,7 @@ public class KNN {
       } while (!threads.isEmpty());
       long t2 = System.currentTimeMillis();
       System.out.println("Time for "+count+" jobs is "+(t2-t1)+" millis");
-      System.out.println("Results: "+results);
+      System.out.println("Result size: "+results);
     }
     System.out.println("Total iterations: "+TotalIterations);
   }

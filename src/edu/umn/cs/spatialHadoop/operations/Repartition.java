@@ -12,7 +12,7 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.ClusterStatus;
 import org.apache.hadoop.mapred.FileOutputFormat;
@@ -34,10 +34,10 @@ import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Rectangle;
+import org.apache.hadoop.spatial.ResultCollector;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.ShapeRecordWriter;
 import org.apache.hadoop.spatial.SpatialSite;
-
 
 import edu.umn.cs.CommandLineArguments;
 
@@ -55,7 +55,7 @@ public class Repartition {
    *
    */
   public static class RepartitionMap<T extends Shape> extends MapReduceBase
-      implements Mapper<LongWritable, T, IntWritable, Text> {
+      implements Mapper<CellInfo, T, IntWritable, Text> {
     /**List of cells used by the mapper*/
     private CellInfo[] cellInfos;
     
@@ -81,7 +81,7 @@ public class Repartition {
      * @throws IOException
      */
     public void map(
-        LongWritable dummy,
+        CellInfo dummy,
         T shape,
         OutputCollector<IntWritable, Text> output,
         Reporter reporter) throws IOException {
@@ -235,8 +235,6 @@ public class Repartition {
     job.setBoolean(SpatialSite.AutoCombineSplits, true);
     job.setNumMapTasks(10 * Math.max(1, clusterStatus.getMaxMapTasks()));
   
-//    job.setCombinerClass(Combine.class);
-    
     job.setReducerClass(Reduce.class);
     job.setNumReduceTasks(Math.max(1, clusterStatus.getMaxReduceTasks()));
   
@@ -314,18 +312,16 @@ public class Repartition {
     
     LOG.info("Reading a sample of "+(int)Math.round(sample_ratio*100) + "%");
     if (local) {
-      Sampler.sampleLocalWithRatio(fs, files, sample_ratio, System.currentTimeMillis(), new OutputCollector<LongWritable, S>(){
+      Sampler.sampleLocalWithRatio(fs, files, sample_ratio, System.currentTimeMillis(), new ResultCollector<S>(){
         @Override
-        public void collect(LongWritable key, S value)
-            throws IOException {
+        public void collect(S value) {
           sample.add(new Point(value.getMBR().getX1(), value.getMBR().getY1()));
         }
       }, stockShape);
     } else {
-      Sampler.sampleMapReduceWithRatio(fs, files, sample_ratio, System.currentTimeMillis(), new OutputCollector<LongWritable, S>(){
+      Sampler.sampleMapReduceWithRatio(fs, files, sample_ratio, System.currentTimeMillis(), new ResultCollector<S>(){
         @Override
-        public void collect(LongWritable key, S value)
-            throws IOException {
+        public void collect(S value) {
           sample.add(new Point(value.getMBR().getX1(), value.getMBR().getY1()));
         }
       }, stockShape);
@@ -434,10 +430,12 @@ public class Repartition {
     long length = inFileStatus.getLen();
     FSDataInputStream datain = inFs.open(in);
     ShapeRecordReader<S> reader = new ShapeRecordReader<S>(datain, 0, length);
-    LongWritable k = reader.createKey();
+    CellInfo c = reader.createKey();
     
-    while (reader.next(k, stockShape)) {
-      writer.write(k, stockShape);
+    NullWritable dummy = NullWritable.get();
+    
+    while (reader.next(c, stockShape)) {
+      writer.write(dummy, stockShape);
     }
     writer.close(null);
   }

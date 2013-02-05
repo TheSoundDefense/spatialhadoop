@@ -16,7 +16,6 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapred.ClusterStatus;
@@ -90,7 +89,7 @@ public class SJMR {
    */
   public static class SJMRMap extends MapReduceBase
   implements
-  Mapper<LongWritable, Text, IntWritable, IndexedText> {
+  Mapper<CellInfo, Text, IntWritable, IndexedText> {
     /**List of cells used by the mapper*/
     private Shape shape;
     private IndexedText outputValue = new IndexedText();
@@ -111,7 +110,7 @@ public class SJMR {
     }
 
     @Override
-    public void map(LongWritable dummy, Text value,
+    public void map(CellInfo dummy, Text value,
         OutputCollector<IntWritable, IndexedText> output,
         Reporter reporter) throws IOException {
       Text tempText = new Text(value);
@@ -306,7 +305,7 @@ public class SJMR {
   public static void main(String[] args) throws IOException {
     CommandLineArguments cla = new CommandLineArguments(args);
     Path[] inputPaths = cla.getPaths();
-    JobConf conf = new JobConf(RedistributeJoin.class);
+    JobConf conf = new JobConf(DistributedJoin.class);
     FileSystem fs = inputPaths[0].getFileSystem(conf);
     GridInfo gridInfo = cla.getGridInfo();
     Shape stockShape = cla.getShape(true);

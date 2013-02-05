@@ -9,7 +9,6 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.ClusterStatus;
@@ -89,11 +88,22 @@ public class RangeQuery {
     /**
      * Map function for non-indexed blocks
      */
-    public void map(LongWritable shapeId, T shape,
+    public void map(CellInfo cellInfo, T shape,
         OutputCollector<NullWritable, T> output, Reporter reporter)
             throws IOException {
       if (shape.isIntersected(queryShape)) {
-        output.collect(dummy, shape);
+        boolean report_result = false;
+        if (cellInfo.cellId == -1) {
+          // A heap block, report right away
+          report_result = true;
+        } else {
+          // Check for duplicate avoidance using reference point technique
+          Rectangle intersection =
+              queryShape.getMBR().getIntersection(shape.getMBR());
+          report_result = cellInfo.contains(intersection.x, intersection.y);
+        }
+        if (report_result)
+          output.collect(dummy, shape);
       }
     }
     
@@ -106,27 +116,33 @@ public class RangeQuery {
      */
     public void map(final CellInfo cellInfo, RTree<T> shapes,
         final OutputCollector<NullWritable, T> output, Reporter reporter) {
-      LOG.info("Searching in the range: "+cellInfo+" for the query: "+queryShape.getMBR());
-      int count = shapes.search(queryShape.getMBR(), new ResultCollector<T>() {
+      shapes.search(queryShape.getMBR(), new ResultCollector<T>() {
         @Override
-        public void collect(T x) {
+        public void collect(T shape) {
           try {
-            // Check for duplicate avoidance using reference point technique
-            Rectangle intersection = queryShape.getMBR().getIntersection(x.getMBR());
-            if (intersection.contains(cellInfo.x, cellInfo.y))
-              output.collect(dummy, x);
+            boolean report_result = false;
+            if (cellInfo.cellId == -1) {
+              // A heap block, report right away
+              report_result = true;
+            } else {
+              // Check for duplicate avoidance using reference point technique
+              Rectangle intersection =
+                  queryShape.getMBR().getIntersection(shape.getMBR());
+              report_result = cellInfo.contains(intersection.x, intersection.y);
+            }
+            if (report_result)
+              output.collect(dummy, shape);
           } catch (IOException e) {
             e.printStackTrace();
           }
         }
       });
-      LOG.info("count: "+count);
     }
   }
   
   /** Mapper for non-indexed blocks */
   public static class Map1<T extends Shape> extends RangeQueryMap<T> implements
-      Mapper<LongWritable, T, NullWritable, T> { }
+      Mapper<CellInfo, T, NullWritable, T> { }
 
   /** Mapper for RTree indexed blocks */
   public static class Map2<T extends Shape> extends RangeQueryMap<T> implements
@@ -143,7 +159,7 @@ public class RangeQuery {
    * @throws IOException
    */
   public static long rangeQueryMapReduce(FileSystem fs, Path file,
-      Shape queryShape, Shape shape, OutputCollector<LongWritable, Shape> output)
+      Shape queryShape, Shape shape, ResultCollector<Shape> output)
       throws IOException {
     JobConf job = new JobConf(FileMBR.class);
     
@@ -153,7 +169,6 @@ public class RangeQuery {
       outputPath = new Path("/"+file.getName()+
           ".rangequery_"+(int)(Math.random() * 1000000));
     } while (outFs.exists(outputPath));
-    outFs.deleteOnExit(outputPath);
     
     job.setJobName("RangeQuery");
     ClusterStatus clusterStatus = new JobClient(job).getClusterStatus();
@@ -212,13 +227,13 @@ public class RangeQuery {
           line.clear();
           while (lineReader.readLine(line) > 0) {
             shape.fromText(line);
-            output.collect(null, shape);
+            output.collect(shape);
           }
           lineReader.close();
         }
       }
     }
-    outFs.delete(outputPath, true);
+    //outFs.delete(outputPath, true);
     
     return resultCount;
   }
@@ -235,20 +250,31 @@ public class RangeQuery {
    * @throws IOException
    */
   public static<S extends Shape> long rangeQueryLocal(FileSystem fs, Path file,
-      Shape queryRange, S shape, OutputCollector<LongWritable, S> output)
+      Shape queryRange, S shape, ResultCollector<S> output)
       throws IOException {
     long file_size = fs.getFileStatus(file).getLen();
     ShapeRecordReader<S> shapeReader =
         new ShapeRecordReader<S>(fs.open(file), 0, file_size);
 
     long resultCount = 0;
-    LongWritable key = shapeReader.createKey();
+    CellInfo cell = shapeReader.createKey();
 
-    while (shapeReader.next(key, shape)) {
+    while (shapeReader.next(cell, shape)) {
       if (shape.isIntersected(queryRange)) {
-        resultCount++;
-        if (output != null) {
-          output.collect(key, shape);
+        boolean report_result;
+        if (cell.cellId == -1) {
+          report_result = true;
+        } else {
+          // Check for duplicate avoidance
+          Rectangle intersection_mbr =
+              queryRange.getMBR().getIntersection(shape.getMBR());
+          report_result = cell.contains(intersection_mbr.x, intersection_mbr.y);
+        }
+        if (report_result) {
+          resultCount++;
+          if (output != null) {
+            output.collect(shape);
+          }
         }
       }
     }
@@ -278,9 +304,9 @@ public class RangeQuery {
               FileMBR.fileMBRMapReduce(fs, inputFile, stockShape));
       final Vector<Thread> threads = new Vector<Thread>();
       final Vector<Rectangle> query_rectangles = new Vector<Rectangle>();
-      Sampler.sampleLocal(fs, inputFile, count, seed, new OutputCollector<LongWritable, Shape>(){
+      Sampler.sampleLocal(fs, inputFile, count, seed, new ResultCollector<Shape>(){
         @Override
-        public void collect(final LongWritable key, final Shape value) throws IOException {
+        public void collect(final Shape value) {
           Rectangle query_rectangle = new Rectangle();
           query_rectangle.width = (long) (queryMBR.width * ratio);
           query_rectangle.height = (long) (queryMBR.height * ratio);
@@ -332,11 +358,11 @@ public class RangeQuery {
       } while (!threads.isEmpty());
       long t2 = System.currentTimeMillis();
       System.out.println("Time for "+count+" jobs is "+(t2-t1)+" millis");
-      System.out.println("Results: "+results);
+      System.out.println("Result size: "+results);
     } else {
       long resultCount = 
           rangeQueryMapReduce(fs, inputFile, queryRange, stockShape, null);
-      System.out.println("Found "+resultCount+" results");
+      System.out.println("Result size: "+resultCount);
     }
     
   }

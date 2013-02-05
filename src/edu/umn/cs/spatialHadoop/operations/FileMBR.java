@@ -7,8 +7,7 @@ import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.ByteWritable;
-import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.ClusterStatus;
 import org.apache.hadoop.mapred.JobClient;
@@ -21,6 +20,7 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.mapred.spatial.ShapeInputFormat;
 import org.apache.hadoop.mapred.spatial.ShapeRecordReader;
+import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.SpatialSite;
@@ -34,25 +34,25 @@ import edu.umn.cs.CommandLineArguments;
  *
  */
 public class FileMBR {
-  private static final ByteWritable ONEB = new ByteWritable((byte)1);
+  private static final NullWritable Dummy = NullWritable.get();
   private static final Rectangle MBR = new Rectangle();
 
   public static class Map extends MapReduceBase implements
-      Mapper<LongWritable, Shape, ByteWritable, Rectangle> {
-    public void map(LongWritable shapeId, Shape shape,
-        OutputCollector<ByteWritable, Rectangle> output, Reporter reporter)
+      Mapper<CellInfo, Shape, NullWritable, Rectangle> {
+    public void map(CellInfo dummy, Shape shape,
+        OutputCollector<NullWritable, Rectangle> output, Reporter reporter)
         throws IOException {
       Rectangle mbr = shape.getMBR();
       MBR.set(mbr.x, mbr.y, mbr.width, mbr.height);
-      output.collect(ONEB, MBR);
+      output.collect(Dummy, MBR);
     }
   }
   
   public static class Reduce extends MapReduceBase implements
-  Reducer<ByteWritable, Rectangle, ByteWritable, Rectangle> {
+  Reducer<NullWritable, Rectangle, NullWritable, Rectangle> {
     @Override
-    public void reduce(ByteWritable dummy, Iterator<Rectangle> values,
-        OutputCollector<ByteWritable, Rectangle> output, Reporter reporter)
+    public void reduce(NullWritable dummy, Iterator<Rectangle> values,
+        OutputCollector<NullWritable, Rectangle> output, Reporter reporter)
             throws IOException {
       long x1 = Long.MAX_VALUE;
       long y1 = Long.MAX_VALUE;
@@ -67,7 +67,7 @@ public class FileMBR {
         if (rect.getY2() > y2) y2 = rect.getY2();
       }
       
-      output.collect(ONEB, new Rectangle(x1, y1, x2 - x1, y2 - y1));
+      output.collect(dummy, new Rectangle(x1, y1, x2 - x1, y2 - y1));
     }
   }
   
@@ -114,7 +114,7 @@ public class FileMBR {
     outFs.delete(outputPath, true);
     
     job.setJobName("FileMBR");
-    job.setMapOutputKeyClass(ByteWritable.class);
+    job.setMapOutputKeyClass(NullWritable.class);
     job.setMapOutputValueClass(Rectangle.class);
 
     job.setMapperClass(Map.class);
@@ -141,9 +141,7 @@ public class FileMBR {
         LineReader lineReader = new LineReader(outFs.open(fileStatus.getPath()));
         Text text = new Text();
         if (lineReader.readLine(text) > 0) {
-          String str = text.toString();
-          String[] parts = str.split("\t");
-          mbr.fromText(new Text(parts[1]));
+          mbr.fromText(text);
         }
         lineReader.close();
       }
@@ -198,7 +196,7 @@ public class FileMBR {
     long x2 = Long.MIN_VALUE;
     long y2 = Long.MIN_VALUE;
     
-    LongWritable key = shapeReader.createKey();
+    CellInfo key = shapeReader.createKey();
 
     while (shapeReader.next(key, stockShape)) {
       Rectangle rect = stockShape.getMBR();

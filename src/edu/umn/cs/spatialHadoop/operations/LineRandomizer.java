@@ -8,7 +8,6 @@ import java.util.Vector;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.ClusterStatus;
@@ -21,6 +20,7 @@ import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TextInputFormat;
 import org.apache.hadoop.mapred.TextOutputFormat;
+import org.apache.hadoop.spatial.CellInfo;
 
 import edu.umn.cs.CommandLineArguments;
 
@@ -39,7 +39,7 @@ public class LineRandomizer {
       "edu.umn.cs.spatialHadoop.operations.LineRandomizer";
   
   public static class Map extends MapReduceBase implements
-      Mapper<LongWritable, Text, IntWritable, Text> {
+      Mapper<CellInfo, Text, IntWritable, Text> {
     /**Total number of partitions to generate*/
     private int totalNumberOfPartitions;
     
@@ -52,7 +52,7 @@ public class LineRandomizer {
       totalNumberOfPartitions = job.getInt(NumOfPartitions, 1);
     }
     
-    public void map(LongWritable lineId, Text line,
+    public void map(CellInfo cell, Text line,
         OutputCollector<IntWritable, Text> output, Reporter reporter)
         throws IOException {
       tempKey.set((int) (Math.random() * totalNumberOfPartitions));
