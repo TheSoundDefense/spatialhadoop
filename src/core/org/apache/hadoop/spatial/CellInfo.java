@@ -51,6 +51,15 @@ public class CellInfo extends Rectangle implements WritableComparable<CellInfo> 
     this(id, cellInfo.x, cellInfo.y, cellInfo.width, cellInfo.height);
   }
   
+  public void set(CellInfo c) {
+    if (c == null) {
+      this.cellId = -1; // Invalid number
+    } else {
+      super.set(c); // Set rectangle
+      this.cellId = c.cellId; // Set cellId
+    }
+  }
+  
   @Override
   public String toString() {
     return "Cell #"+cellId+" "+super.toString();

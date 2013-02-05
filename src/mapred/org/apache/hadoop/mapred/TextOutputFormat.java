@@ -28,6 +28,7 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.TextSerializable;
 import org.apache.hadoop.io.compress.CompressionCodec;
 import org.apache.hadoop.io.compress.GzipCodec;
 import org.apache.hadoop.util.*;
@@ -73,6 +74,11 @@ public class TextOutputFormat<K, V> extends FileOutputFormat<K, V> {
     private void writeObject(Object o) throws IOException {
       if (o instanceof Text) {
         Text to = (Text) o;
+        out.write(to.getBytes(), 0, to.getLength());
+      } else if (o instanceof TextSerializable) {
+        // Serialize object to text
+        Text to = new Text();
+        ((TextSerializable) o).toText(to);
         out.write(to.getBytes(), 0, to.getLength());
       } else {
         out.write(o.toString().getBytes(utf8));

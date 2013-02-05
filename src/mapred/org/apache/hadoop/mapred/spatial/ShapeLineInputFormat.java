@@ -8,6 +8,7 @@ import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.spatial.CellInfo;
 
 
 /**
@@ -17,13 +18,13 @@ import org.apache.hadoop.mapred.Reporter;
  *
  * @param <S>
  */
-public class ShapeLineInputFormat extends SpatialInputFormat<LongWritable, Text> {
+public class ShapeLineInputFormat extends SpatialInputFormat<CellInfo, Text> {
   
   @Override
-  public RecordReader<LongWritable, Text> getRecordReader(InputSplit split,
+  public RecordReader<CellInfo, Text> getRecordReader(InputSplit split,
       JobConf job, Reporter reporter) throws IOException {
     reporter.setStatus(split.toString());
-    this.rrClass = (Class<? extends RecordReader<LongWritable, Text>>) ShapeLineRecordReader.class;
+    this.rrClass = (Class<? extends RecordReader<CellInfo, Text>>) ShapeLineRecordReader.class;
     return super.getRecordReader(split, job, reporter);
   }
 }

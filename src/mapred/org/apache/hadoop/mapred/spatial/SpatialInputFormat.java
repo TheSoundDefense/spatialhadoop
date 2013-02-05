@@ -30,6 +30,10 @@ import org.apache.hadoop.spatial.SpatialSite;
  */
 public abstract class SpatialInputFormat<K, V> extends FileInputFormat<K, V> {
 
+  /**
+   * We need to use this way of constructing readers to be able to pass it to
+   * CmobineFileRecordReader
+   **/
   @SuppressWarnings("rawtypes")
   static final Class [] constructorSignature = new Class [] 
       { Configuration.class, 
@@ -65,7 +69,7 @@ public abstract class SpatialInputFormat<K, V> extends FileInputFormat<K, V> {
       } catch (InvocationTargetException e) {
         e.printStackTrace();
       }
-      return null;
+      throw new RuntimeException("Cannot generate a record reader");
     } else {
       throw new RuntimeException("Cannot handle splits of type "+split.getClass());
     }

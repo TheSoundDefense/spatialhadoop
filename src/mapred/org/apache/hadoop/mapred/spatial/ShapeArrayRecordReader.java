@@ -6,9 +6,6 @@ import java.io.InputStream;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.BlockLocation;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.ArrayWritable;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.Reporter;
@@ -30,25 +27,15 @@ public class ShapeArrayRecordReader extends SpatialRecordReader<CellInfo, ArrayW
   /**Shape used to deserialize shapes from disk*/
   private Class<? extends Shape> shapeClass;
   
-  /**File system from where the file is read*/
-  private FileSystem fs;
-  
-  /**Path of the file read*/
-  private Path path;
-  
   public ShapeArrayRecordReader(CombineFileSplit split, Configuration conf,
       Reporter reporter, Integer index) throws IOException {
     super(split, conf, reporter, index);
-    path = split.getPath(index);
-    fs = path.getFileSystem(conf);
     shapeClass = getShapeClass(conf);
   }
   
   public ShapeArrayRecordReader(Configuration job, FileSplit split)
       throws IOException {
     super(job, split);
-    path = split.getPath();
-    fs = path.getFileSystem(job);
     shapeClass = getShapeClass(job);
   }
 
@@ -60,13 +47,9 @@ public class ShapeArrayRecordReader extends SpatialRecordReader<CellInfo, ArrayW
   @Override
   public boolean next(CellInfo key, ArrayWritable shapes) throws IOException {
     // Get cellInfo for the current position in file
-    BlockLocation[] fileBlockLocations =
-        fs.getFileBlockLocations(fs.getFileStatus(path), getPos(), 1);
-    if (fileBlockLocations.length == 0)
-      return false;
-    if (fileBlockLocations[0].getCellInfo() != null)
-      key.set(fileBlockLocations[0].getCellInfo());
-    return nextShapes(shapes);
+    boolean element_read = nextShapes(shapes);
+    key.set(cellInfo); // Set the cellInfo for the last block read
+    return element_read;
   }
 
   @Override

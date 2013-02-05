@@ -2,7 +2,7 @@ package org.apache.hadoop.spatial;
 
 import java.io.IOException;
 
-import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.util.Progressable;
 
@@ -13,7 +13,7 @@ public interface ShapeRecordWriter<S extends Shape> {
    * @param shape
    * @throws IOException
    */
-  public void write(LongWritable dummyId, S shape) throws IOException;
+  public void write(NullWritable dummy, S shape) throws IOException;
   
   /**
    * Writes the given shape to the file to all cells it overlaps with.

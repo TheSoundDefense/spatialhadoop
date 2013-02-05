@@ -59,13 +59,9 @@ public class RTreeRecordReader<S extends Shape> extends SpatialRecordReader<Cell
 
   @Override
   public boolean next(CellInfo key, RTree<S> rtree) throws IOException {
-    // Get cellInfo for the current position in file
-    BlockLocation[] fileBlockLocations =
-        fs.getFileBlockLocations(fs.getFileStatus(path), getPos(), 1);
-    if (fileBlockLocations.length == 0)
-      return false;
-    key.set(fileBlockLocations[0].getCellInfo());
-    return nextRTree(rtree);
+    boolean read_line = nextRTree(rtree);
+    key.set(cellInfo);
+    return read_line;
   }
 
   @Override

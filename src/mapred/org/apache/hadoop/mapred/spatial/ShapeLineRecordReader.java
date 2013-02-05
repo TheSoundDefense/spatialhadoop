@@ -9,6 +9,7 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.lib.CombineFileSplit;
+import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.Shape;
 
 /**
@@ -17,7 +18,7 @@ import org.apache.hadoop.spatial.Shape;
  *
  */
 public class ShapeLineRecordReader
-    extends SpatialRecordReader<LongWritable, Text> {
+    extends SpatialRecordReader<CellInfo, Text> {
 
   public ShapeLineRecordReader(Configuration job, FileSplit split)
       throws IOException {
@@ -35,14 +36,15 @@ public class ShapeLineRecordReader
   }
 
   @Override
-  public boolean next(LongWritable key, Text shapeLine) throws IOException {
-    key.set(getPos());
-    return nextLine(shapeLine);
+  public boolean next(CellInfo key, Text shapeLine) throws IOException {
+    boolean read_line = nextLine(shapeLine, true);
+    key.set(cellInfo);
+    return read_line;
   }
 
   @Override
-  public LongWritable createKey() {
-    return new LongWritable();
+  public CellInfo createKey() {
+    return new CellInfo();
   }
 
   @Override

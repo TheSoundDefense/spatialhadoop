@@ -6,10 +6,10 @@ import java.io.InputStream;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.lib.CombineFileSplit;
+import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.Point;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.SpatialSite;
@@ -20,7 +20,7 @@ import org.apache.hadoop.spatial.SpatialSite;
  *
  */
 public class ShapeRecordReader<S extends Shape>
-    extends SpatialRecordReader<LongWritable, S> {
+    extends SpatialRecordReader<CellInfo, S> {
   
   @SuppressWarnings("unused")
   private static final Log LOG = LogFactory.getLog(ShapeRecordReader.class);
@@ -46,14 +46,15 @@ public class ShapeRecordReader<S extends Shape>
   }
 
   @Override
-  public boolean next(LongWritable key, S shape) throws IOException {
-    key.set(getPos());
-    return nextShape(shape);
+  public boolean next(CellInfo key, S shape) throws IOException {
+    boolean read_line = nextShape(shape, true);
+    key.set(cellInfo);
+    return read_line;
   }
 
   @Override
-  public LongWritable createKey() {
-    return new LongWritable();
+  public CellInfo createKey() {
+    return new CellInfo();
   }
 
   @Override

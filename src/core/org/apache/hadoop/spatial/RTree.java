@@ -8,6 +8,7 @@ import java.io.DataOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -425,25 +426,28 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
   
   /**
    * Reads and skips the header of the tree returning the total number of
-   * elements stored in the tree. This is used as a preparatory function to
+   * bytes skipped from the stream. This is used as a preparatory function to
    * read all elements in the tree without the index part.
    * @param in
-   * @return
+   * @return - Total number of bytes read and skipped
    * @throws IOException
    */
-  public static int skipHeader(DataInput in) throws IOException {
-    /*int treeSize = */in.readInt();
-    int height = in.readInt();
+  public static int skipHeader(InputStream in) throws IOException {
+    DataInput dataIn = in instanceof DataInput ? (DataInput) in
+        : new DataInputStream(in);
+    int skippedBytes = 0;
+    /*int treeSize = */dataIn.readInt(); skippedBytes += 4;
+    int height = dataIn.readInt(); skippedBytes += 4;
     if (height == 0) {
       // Empty tree. No results
-      return 0;
+      return skippedBytes;
     }
-    int degree = in.readInt();
+    int degree = dataIn.readInt(); skippedBytes += 4;
     int nodeCount = (int) ((Math.pow(degree, height) - 1) / (degree - 1));
-    int elementCount = in.readInt();
+    /*int elementCount = */dataIn.readInt(); skippedBytes += 4;
     // Skip all nodes
-    in.skipBytes(nodeCount * NodeSize);
-    return elementCount;
+    dataIn.skipBytes(nodeCount * NodeSize); skippedBytes += nodeCount * NodeSize;
+    return skippedBytes;
   }
   
   /**

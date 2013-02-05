@@ -11,7 +11,7 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.util.Progressable;
 
@@ -99,7 +99,7 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
   }
 
   @Override
-  public synchronized void write(LongWritable dummyId, S shape) throws IOException {
+  public synchronized void write(NullWritable dummy, S shape) throws IOException {
     text.clear();
     if (shape != null)
       shape.toText(text);

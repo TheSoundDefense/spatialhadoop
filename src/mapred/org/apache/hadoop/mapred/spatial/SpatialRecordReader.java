@@ -1,5 +1,7 @@
 package org.apache.hadoop.mapred.spatial;
 
+import java.io.DataInput;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
@@ -8,9 +10,11 @@ import java.util.Vector;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.Seekable;
 import org.apache.hadoop.io.ArrayWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.compress.CompressionCodec;
@@ -19,6 +23,7 @@ import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.lib.CombineFileSplit;
+import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.RTree;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.SpatialSite;
@@ -33,143 +38,105 @@ import org.apache.hadoop.util.LineReader;
  */
 public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
   private static final Log LOG = LogFactory.getLog(SpatialRecordReader.class);
-
-  private CompressionCodecFactory compressionCodecs = null;
-  /**Flag set to true if the file is indexed as an RTree*/
-  protected boolean isRTree;
+  
+  enum BlockType { HEAP, RTREE};
+  
+  /** First offset that is read from the input */
   protected long start;
-  protected long pos;
+  /** Last offset to stop at */
   protected long end;
-  /**Input stream that reads from file*/
-  private FSDataInputStream in;
-  /**Reads lines from text files*/
+  /** Position of the next byte to read/prase from the input */
+  protected long pos;
+  /** Input stream that reads from file */
+  private InputStream in;
+  /** Reads lines from text files */
   protected LineReader lineReader;
-  /**A temporary text to read lines from lineReader*/
+  /** A temporary text to read lines from lineReader */
   protected Text tempLine = new Text();
-  protected byte[] signature;
+  /** Some bytes that were read from the stream but not parsed yet */
+  protected byte[] buffer;
 
-  /**Block size for the read file. Used with RTrees*/
+  /** File system of the file being parsed */
+  private FileSystem fs;
+
+  /** The path of the parsed file */
+  private Path path;
+
+  /** Block size for the read file. Used with RTrees */
   protected long blockSize;
 
+  /** A cached value for the current cellInfo */
+  protected CellInfo cellInfo;
+
+  /**The type of the currently parsed block*/
+  protected BlockType blockType;
+  
+  /**
+   * Initialize from an input split
+   * @param split
+   * @param conf
+   * @param reporter
+   * @param index
+   * @throws IOException
+   */
   public SpatialRecordReader(CombineFileSplit split, Configuration conf,
       Reporter reporter, Integer index) throws IOException {
     this(conf, split.getStartOffsets()[index], split.getLength(index),
         split.getPath(index));
   }
   
+  /**
+   * Initialize from a FileSplit
+   * @param job
+   * @param split
+   * @throws IOException
+   */
   public SpatialRecordReader(Configuration job, FileSplit split) throws IOException {
     this(job, split.getStart(), split.getLength(), split.getPath());
   }
 
+  /**
+   * Initialize from a path and range
+   * @param job
+   * @param s
+   * @param l
+   * @param p
+   * @throws IOException
+   */
   public SpatialRecordReader(Configuration job, long s, long l, Path p) throws IOException {
-    start = s;
-    end = start + l;
-    compressionCodecs = new CompressionCodecFactory(job);
-    final CompressionCodec codec = compressionCodecs.getCodec(p);
+    this.start = s;
+    this.end = s + l;
+    this.path = p;
+    this.fs = this.path.getFileSystem(job);
+    this.in = fs.open(this.path);
+    this.blockSize = fs.getFileStatus(this.path).getBlockSize();
+    
+    final CompressionCodec codec = new CompressionCodecFactory(job).getCodec(this.path);
 
-    // open the file and seek to the start of the split
-    FileSystem fs = p.getFileSystem(job);
-    in = fs.open(p);
-    signature = new byte[8];
-
-    InputStream is = in;
     if (codec != null) {
-      // Compressed
-      is = codec.createInputStream(in);
+      // Decompress the stream
+      in = codec.createInputStream(in);
+      // Read till the end of the stream
       end = Long.MAX_VALUE;
     } else {
-      in.seek(start);
+      ((FSDataInputStream)in).seek(start);
     }
-
-    blockSize = fs.getFileStatus(p).getBlockSize();
-
-    is.read(signature);
-    isRTree = Arrays.equals(signature, SpatialSite.RTreeFileMarkerB);
-    LOG.info("isRTree: "+isRTree+" at position "+start);
-    if (isRTree) {
-      // Block size is crucial for reading RTrees
-      LOG.info("RTree block size "+blockSize);
-      // File is an RTree
-      if (!(is instanceof FSDataInputStream)) {
-        in = new FSDataInputStream(is);
-      }
-    } else {
-      boolean skipFirstLine = false;
-      if (start != 0) {
-        skipFirstLine = true;
-      }
-      // File is text file
-      lineReader = new LineReader(is);
-      
-      if (skipFirstLine) {
-        boolean no_new_line_in_signature = true;
-        for (int i = 0; i < signature.length; i++) {
-          if (signature[i] == '\n' || signature[i] == '\r') {
-            // Skip i bytes only
-            byte[] tmp = new byte[signature.length - i - 1];
-            System.arraycopy(signature, i+1, tmp, 0, tmp.length);
-            signature = tmp;
-            no_new_line_in_signature = false;
-            start += i + 1;
-            break;
-          }
-        }
-        if (no_new_line_in_signature) {
-          start += signature.length;
-          // Didn't find the new line. Skip it from the reader
-          start += lineReader.readLine(tempLine, 0, (int)(end - start));
-          signature = null;
-        }
-      }
-    }
-    this.pos = start;
   }
   
-  public SpatialRecordReader(InputStream is, long offset, long endOffset) throws IOException {
-    start = offset;
-    end = endOffset;
-    
-    signature = new byte[8];
-    is.read(signature);
-    isRTree = Arrays.equals(signature, SpatialSite.RTreeFileMarkerB);
-    LOG.info("isRTree: "+isRTree+" at "+start);
-    
-    blockSize = FileSystem.get(new Configuration()).getDefaultBlockSize();
-
-    in = is instanceof FSDataInputStream?
-        (FSDataInputStream)is : new FSDataInputStream(is);
-    if (isRTree) {
-      LOG.info("RTree size info guessed to "+blockSize);
-    } else {
-      boolean skipFirstLine = false;
-      if (start != 0) {
-        skipFirstLine = true;
-      }
-      // File is text file
-      lineReader = new LineReader(is);
-      
-      if (skipFirstLine) {
-        boolean no_new_line_in_signature = true;
-        for (int i = 0; i < signature.length; i++) {
-          if (signature[i] == '\n' || signature[i] == '\r') {
-            // Skip i bytes only
-            byte[] tmp = new byte[signature.length - i - 1];
-            System.arraycopy(signature, i+1, tmp, 0, tmp.length);
-            signature = tmp;
-            no_new_line_in_signature = false;
-            start += i + 1;
-            break;
-          }
-        }
-        if (no_new_line_in_signature) {
-          start += signature.length;
-          // Didn't find the new line. Skip it from the reader
-          start += lineReader.readLine(tempLine, 0, (int)(end - start));
-          signature = null;
-        }
-      }
-    }
-    this.pos = start;
+  /**
+   * Construct from an input stream already set to the first byte
+   * to read.
+   * @param in
+   * @param offset
+   * @param endOffset
+   * @throws IOException
+   */
+  public SpatialRecordReader(InputStream in, long offset, long endOffset)
+      throws IOException {
+    this.in = in;
+    this.start = offset;
+    this.end = endOffset;
+    this.pos = offset;
   }
 
   @Override
@@ -198,71 +165,138 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
   }
   
   /**
+   * @throws IOException
+   */
+  protected boolean moveToNextBlock() throws IOException {
+    long new_pos = getPos();
+    if (blockSize != 0 && getPos() % blockSize > 0) {
+      // Currently in the middle of a block, move to the beginning of next block
+      new_pos = getPos() + blockSize - (getPos() % blockSize);
+    }
+    if (new_pos >= end)
+      return false;
+    // Seek to the start of the needed block
+    if (in instanceof Seekable) {
+      ((Seekable)in).seek(new_pos);
+    } else {
+      in.skip(new_pos - pos);
+    }
+    pos = new_pos;
+    
+    // Read the first part of the block to determine its type
+    buffer = new byte[8];
+    in.read(buffer);
+    if (Arrays.equals(buffer, SpatialSite.RTreeFileMarkerB)) {
+      LOG.info("Block is RTree indexed at position "+start);
+      blockType = BlockType.RTREE;
+      pos += 8;
+    } else {
+      blockType = BlockType.HEAP;
+      // The read buffer might contain some data that must be read
+      // File is text file
+      lineReader = new LineReader(in);
+  
+      // Skip the first line unless we are reading the first block in file
+      boolean skipFirstLine = getPos() != 0;
+      if (skipFirstLine) {
+        // Search for the first occurrence of a new line
+        int eol = RTree.skipToEOL(buffer, 0);
+        // NB: It might happen that the buffer is exactly a line
+        // In this case, eol will be equal to buffer.length, yet, we do not
+        // need to skip any more lines from the stream. buffer can be safely
+        // set to null as it does not contain any valuable data
+        boolean no_eol_in_buffer = eol < buffer.length &&
+            buffer[buffer.length - 1] != '\n';
+        if (eol < buffer.length) {
+          // Found an EOL in the buffer and there are some remaining bytes
+          byte[] tmp = new byte[buffer.length - eol];
+          System.arraycopy(buffer, eol, tmp, 0, tmp.length);
+          buffer = tmp;
+          // Advance current position to skip the first partial line
+          this.pos += eol;
+        } else {
+          // Did not find an EOL in the buffer or found it at the very end
+          pos += buffer.length;
+          // Buffer does not contain any useful data
+          buffer = null;
+        }
+        
+        if (no_eol_in_buffer) {
+          // Didn't find an EOL in the buffer, need to skip it from the stream
+          pos += lineReader.readLine(tempLine, 0, (int)(end - pos));
+        }
+      }
+    }
+    
+    // Get the cell info for this block
+    if (path != null) {
+      BlockLocation[] blockLocations =
+          fs.getFileBlockLocations(fs.getFileStatus(path), pos, 1);
+      cellInfo = blockLocations[0].getCellInfo();
+    }
+    
+    return true;
+  }
+
+  /**
    * Reads the next line from input and return true if a line was read.
    * If no more lines are available in this split, a false is returned.
    * @param value
    * @return
    * @throws IOException
    */
-  protected boolean nextLine(Text value) throws IOException {
+  protected boolean nextLine(Text value, boolean moveAcrossBlocks) throws IOException {
+    if (blockType == null)
+      moveToNextBlock();
     while (getPos() <= end) {
-      // Attempt to read a line
-      int b = lineReader.readLine(value);
+      value.clear();
+      if (buffer != null) {
+        // Read the first line encountered in buffer
+        int eol = RTree.skipToEOL(buffer, 0);
+        value.append(buffer, 0, eol);
+        if (eol < buffer.length) {
+          // There are still some bytes remaining in buffer
+          byte[] tmp = new byte[buffer.length - eol];
+          System.arraycopy(buffer, eol, tmp, 0, tmp.length);
+        } else {
+          buffer = null;
+        }
+        // Check if a complete line has been read from the buffer
+        byte last_byte = value.getBytes()[value.getLength()-1];
+        if (last_byte == '\n' || last_byte == '\r')
+          return true;
+      }
+      
+      // Read the first line from stream
+      Text temp = new Text();
+      int b = lineReader.readLine(temp);
       pos += b;
-
-      if (b <= 1) {
-        // An empty line indicates an end of block (for Grid files and R-trees)
-        // Advance to next block
-        if (moveToNextBlock()) {
-          // Skip R-tree header
-          if (isRTree) {
-            RTree.skipHeader(in);
-            pos = in.getPos();
-          }
-          // Reinitialize the lineReader at the new position.
-          // lineReader should not be closed because it will close the underlying
-          // input stream (in)
-          lineReader = new LineReader(in);
-        }
-      } else {
-        // Some bytes were read to check the signature but they are actually
-        // part of the first line
-        if (signature != null) {
-          Text tmp = new Text();
-          // Append bytes left in the signature
-          tmp.append(signature, 0, signature.length);
-          // Append the line read from lineReader
-          tmp.append(value.getBytes(), 0, value.getLength());
-          // Copy the concatenated line to the return value
-          value.clear();
-          value.append(tmp.getBytes(), 0, tmp.getLength());
-          pos += signature.length;
-          signature = null;
-        }
+      
+      // Append the part read from stream to the part extracted from buffer
+      value.append(temp.getBytes(), 0, temp.getLength());
+      
+      if (value.getLength() > 1) {
+        // Read a non-empty line. Note that end-of-line character is included
         return true;
       }
+      // Line read is empty or contains only the new line character
+      if (!moveAcrossBlocks)
+        return false;
+      
+      // Reached end of block, move to next block and check for end of file
+      if (!moveToNextBlock())
+        return false;
+      
+      // Skip the header of the tree as we are concerned in data lines
+      if (blockType == BlockType.RTREE)
+        pos += RTree.skipHeader(in);
+      // Reinitialize record reader at the new position
+      lineReader = new LineReader(in);
     }
+    // Reached end of file
     return false;
   }
 
-  /**
-   * @throws IOException
-   */
-  protected boolean moveToNextBlock() throws IOException {
-    // P.S. getPos() % blockSize cannot be equal to zero because there
-    // are no empty blocks
-    pos = getPos() + blockSize - (getPos() % blockSize);
-    if (pos >= end)
-      return false;
-    in.seek(pos);
-    if (isRTree) {
-      // Skip the R-tree signature
-      in.readLong();
-      pos += 8;
-    }
-    return true;
-  }
-  
   /**
    * Reads next shape from input and returns true. If no more shapes are left
    * in the split, a false is returned.
@@ -270,68 +304,48 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
    * @return
    * @throws IOException 
    */
-  protected boolean nextShape(Shape s) throws IOException {
-    if (!nextLine(tempLine))
+  protected boolean nextShape(Shape s, boolean moveAcrossBlocks) throws IOException {
+    if (!nextLine(tempLine, moveAcrossBlocks))
       return false;
     s.fromText(tempLine);
     return true;
   }
   
   /**
-   * Reads all shapes left in this split in one shot.
+   * Reads all shapes left in the current block in one shot.
    * @param shapes
    * @return
    * @throws IOException
    */
   protected boolean nextShapes(ArrayWritable shapes) throws IOException {
-    if (isRTree) {
-      try {
-        // No more RTrees in file
-        if (getPos() >= end)
-          return false;
-        // Check RTree signature
-        if (signature == null) {
-          in.seek(pos);
-          // Read and skip signature
-          if (in.readLong() != SpatialSite.RTreeFileMarker) {
-            throw new RuntimeException("RTree not found at "+getPos());
-          }
-        }
-        Shape stockObject = (Shape) shapes.getValueClass().newInstance();
-        // Signature was already read in initialization.
-        signature = null;
-        int elementCount = RTree.skipHeader(in);
-        Shape[] arshapes = new Shape[elementCount];
-        while (elementCount-- > 0) {
-          stockObject.readFields(in);
-          arshapes[elementCount] = stockObject.clone();
-        }
-        // Skip the rest of this block as only one RTree is stored per block
-        pos = in.getPos() + (blockSize - in.getPos() % blockSize)%blockSize;
-        shapes.set(arshapes);
-        return arshapes.length != 0;
-      } catch (InstantiationException e) {
-        e.printStackTrace();
-      } catch (IllegalAccessException e) {
-        e.printStackTrace();
-      }
+    // We always read the whole block in one shot
+    if (getPos() >= end || !moveToNextBlock())
       return false;
-    } else {
-      try {
-        Shape stockObject = (Shape) shapes.getValueClass().newInstance();
-        Vector<Shape> vshapes = new Vector<Shape>();
-        while (nextShape(stockObject)) {
-          vshapes.add(stockObject.clone());
-        }
-        shapes.set(vshapes.toArray(new Shape[vshapes.size()]));
-        return vshapes.size() != 0;
-      } catch (InstantiationException e) {
-        e.printStackTrace();
-      } catch (IllegalAccessException e) {
-        e.printStackTrace();
+    
+    try {
+      Shape stockObject = (Shape) shapes.getValueClass().newInstance();
+      // Reached the end of this split
+      if (getPos() >= end)
+        return false;
+      
+      // Prepare a vector that will hold all objects in this 
+      Vector<Shape> vshapes = new Vector<Shape>();
+      
+      // Read all shapes in this block
+      while (nextShape(stockObject, false)) {
+        vshapes.add(stockObject.clone());
       }
-      return false;
+
+      // Store them in the return value
+      shapes.set(vshapes.toArray(new Shape[vshapes.size()]));
+      
+      return vshapes.size() > 0;
+    } catch (InstantiationException e1) {
+      e1.printStackTrace();
+    } catch (IllegalAccessException e1) {
+      e1.printStackTrace();
     }
+    return false;
   }
   
   /**
@@ -341,25 +355,17 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
    * @throws IOException
    */
   protected boolean nextRTree(RTree<? extends Shape> rtree) throws IOException {
-    if (isRTree) {
-      if (pos >= end)
-        return false;
-      if (signature == null) {
-        in.seek(pos);
-        // Read and skip signature
-        if (in.readLong() != SpatialSite.RTreeFileMarker) {
-          throw new RuntimeException("RTree not found");
-        }
-      }
+    if (getPos() >= end || !moveToNextBlock())
+      return false;
+    if (blockType == BlockType.RTREE) {
       // Signature was already read in initialization.
-      signature = null;
-      rtree.readFields(in);
-      // Skip the rest of this block as only one RTree is stored per block
-      pos = in.getPos() + (blockSize - in.getPos() % blockSize)%blockSize;
+      buffer = null;
+      DataInput dataIn = in instanceof DataInput?
+          (DataInput) in : new DataInputStream(in);
+      rtree.readFields(dataIn);
       return true;
     } else {
       throw new RuntimeException("Not implemented");
     }
   }
-
 }

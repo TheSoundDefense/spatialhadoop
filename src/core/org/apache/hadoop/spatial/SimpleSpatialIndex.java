@@ -104,4 +104,12 @@ public class SimpleSpatialIndex<S extends Shape> implements Writable,
   public Iterator<S> iterator() {
     return new SimpleIterator();
   }
+  
+  /**
+   * Number of objects stored in the index
+   * @return
+   */
+  public int size() {
+    return shapes.length;
+  }
 }

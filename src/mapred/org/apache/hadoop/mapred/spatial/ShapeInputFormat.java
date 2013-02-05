@@ -2,11 +2,11 @@ package org.apache.hadoop.mapred.spatial;
 
 import java.io.IOException;
 
-import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.Shape;
 
 
@@ -17,10 +17,10 @@ import org.apache.hadoop.spatial.Shape;
  *
  * @param <S>
  */
-public class ShapeInputFormat<S extends Shape> extends SpatialInputFormat<LongWritable, S> {
+public class ShapeInputFormat<S extends Shape> extends SpatialInputFormat<CellInfo, S> {
   
   @Override
-  public RecordReader<LongWritable, S> getRecordReader(InputSplit split,
+  public RecordReader<CellInfo, S> getRecordReader(InputSplit split,
       JobConf job, Reporter reporter) throws IOException {
     reporter.setStatus(split.toString());
     this.rrClass = ShapeRecordReader.class;
