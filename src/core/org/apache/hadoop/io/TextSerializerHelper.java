@@ -16,23 +16,28 @@ public final class TextSerializerHelper {
   };
   
   final static boolean[] HexadecimalChars;
+  final static boolean[] DecimalChars;
   
   /**64 bytes to append to a string if necessary*/
   final static byte[] ToAppend = new byte[64];
   
   static {
     HexadecimalChars = new boolean[256];
+    DecimalChars = new boolean[256];
     for (char i = 'a'; i <= 'f'; i++)
       HexadecimalChars[i] = true;
     for (char i = 'A'; i <= 'F'; i++)
       HexadecimalChars[i] = true;
-    for (char i = '0'; i <= '9'; i++)
+    for (char i = '0'; i <= '9'; i++) {
+      DecimalChars[i] = true;
       HexadecimalChars[i] = true;
+    }
     HexadecimalChars['-'] = true;
+    DecimalChars['-'] = true;
     
     Arrays.fill(ToAppend, (byte)' ');
   }
-
+  
   /**
    * Appends hex representation of the given number to the given string.
    * If append is set to true, a comma is also appended to the text.
@@ -40,7 +45,7 @@ public final class TextSerializerHelper {
    * @param t
    * @param appendComma
    */
-  public static void serializeLong(long i, Text t, char toAppend) {
+  public static void serializeHexLong(long i, Text t, char toAppend) {
     // Calculate number of bytes needed to serialize the given long
     int bytes_needed = 0;
     long temp;
@@ -94,7 +99,7 @@ public final class TextSerializerHelper {
    * @param len
    * @return
    */
-  public static long deserializeLong(byte[] buf, int offset, int len) {
+  public static long deserializeHexLong(byte[] buf, int offset, int len) {
     boolean negative = false;
     if (buf[offset] == '-') {
       negative = true;
@@ -121,13 +126,13 @@ public final class TextSerializerHelper {
    * @param separator
    * @return
    */
-  public static long consumeLong(Text text, char separator) {
+  public static long consumeHexLong(Text text, char separator) {
     int i = 0;
     byte[] bytes = text.getBytes();
     // Skip until the separator or end of text
     while (i < text.getLength() && HexadecimalChars[bytes[i]])
       i++;
-    long l = deserializeLong(bytes, 0, i);
+    long l = deserializeHexLong(bytes, 0, i);
     // If the first char after the long is the separator, skip it
     if (i < text.getLength() && bytes[i] == separator)
       i++;
@@ -175,4 +180,153 @@ public final class TextSerializerHelper {
       t.append(new byte[] {(byte)toAppend}, 0, 1);
     }
   }
+  
+  public static void serializeLong(long i, Text t, char toAppend) {
+    // Calculate number of bytes needed to serialize the given long
+    int bytes_needed = 0;
+    long temp;
+    if (i < 0) {
+      bytes_needed++; // An additional
+      temp = -i;
+    } else {
+      temp = i;
+    }
+    do {
+      bytes_needed += 1;
+      temp /= 10;
+    } while (temp != 0);
+    
+    if (toAppend != '\0')
+      bytes_needed++;
+
+    // Reserve the bytes needed in the text
+    t.append(ToAppend, 0, bytes_needed);
+    // Extract the underlying buffer array and fill it directly
+    byte[] buffer = t.getBytes();
+    // Position of the next character to write in the text
+    int position = t.getLength() - 1;
+    
+    if (toAppend != '\0')
+      buffer[position--] = (byte) toAppend;
+    
+    // Negative sign is prepended separately for negative numbers
+    boolean negative = false;
+    if (i < 0) {
+      i = -i;
+      negative = true;
+    }
+    do {
+      int digit = (int) (i % 10);
+      buffer[position--] = digits[digit];
+      i /= 10;
+    } while (i != 0);
+    if (negative)
+      buffer[position--] = '-';
+  }
+  
+  public static long deserializeLong(byte[] buf, int offset, int len) {
+    boolean negative = false;
+    if (buf[offset] == '-') {
+      negative = true;
+      offset++;
+      len--;
+    }
+    long i = 0;
+    while (len-- > 0) {
+      i *= 10;
+      i += buf[offset++] - '0';
+    }
+    return negative ? -i : i;
+  }
+  
+  public static long consumeLong(Text text, char separator) {
+    int i = 0;
+    byte[] bytes = text.getBytes();
+    // Skip until the separator or end of text
+    while (i < text.getLength() && DecimalChars[bytes[i]])
+      i++;
+    long l = deserializeLong(bytes, 0, i);
+    // If the first char after the long is the separator, skip it
+    if (i < text.getLength() && bytes[i] == separator)
+      i++;
+    // Shift bytes after the long
+    System.arraycopy(bytes, i, bytes, 0, text.getLength() - i);
+    text.set(bytes, 0, text.getLength() - i);
+    return l;
+  }
+  
+  public static void serializeInt(int i, Text t, char toAppend) {
+    // Calculate number of bytes needed to serialize the given long
+    int bytes_needed = 0;
+    int temp;
+    if (i < 0) {
+      bytes_needed++; // An additional
+      temp = -i;
+    } else {
+      temp = i;
+    }
+    do {
+      bytes_needed += 1;
+      temp /= 10;
+    } while (temp != 0);
+    
+    if (toAppend != '\0')
+      bytes_needed++;
+
+    // Reserve the bytes needed in the text
+    t.append(ToAppend, 0, bytes_needed);
+    // Extract the underlying buffer array and fill it directly
+    byte[] buffer = t.getBytes();
+    // Position of the next character to write in the text
+    int position = t.getLength() - 1;
+    
+    if (toAppend != '\0')
+      buffer[position--] = (byte) toAppend;
+    
+    // Negative sign is prepended separately for negative numbers
+    boolean negative = false;
+    if (i < 0) {
+      i = -i;
+      negative = true;
+    }
+    do {
+      int digit = i % 10;
+      buffer[position--] = digits[digit];
+      i /= 10;
+    } while (i != 0);
+    if (negative)
+      buffer[position--] = '-';
+  }
+  
+  public static int deserializeInt(byte[] buf, int offset, int len) {
+    boolean negative = false;
+    if (buf[offset] == '-') {
+      negative = true;
+      offset++;
+      len--;
+    }
+    int i = 0;
+    while (len-- > 0) {
+      i *= 10;
+      i += buf[offset++] - '0';
+    }
+    return negative ? -i : i;
+  }
+  
+  public static int consumeInt(Text text, char separator) {
+    int i = 0;
+    byte[] bytes = text.getBytes();
+    // Skip until the separator or end of text
+    while (i < text.getLength() && DecimalChars[bytes[i]])
+      i++;
+    int l = deserializeInt(bytes, 0, i);
+    // If the first char after the long is the separator, skip it
+    if (i < text.getLength() && bytes[i] == separator)
+      i++;
+    // Shift bytes after the long
+    System.arraycopy(bytes, i, bytes, 0, text.getLength() - i);
+    text.set(bytes, 0, text.getLength() - i);
+    return l;
+  }
+  
 }

@@ -4,16 +4,12 @@ import java.io.ByteArrayInputStream;
 import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.DataOutput;
-import java.io.DataOutputStream;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Array;
 import java.util.Iterator;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Queue;
-import java.util.Random;
 import java.util.Stack;
 import java.util.Vector;
 
@@ -21,7 +17,6 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.io.Text2;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.util.IndexedSortable;
 import org.apache.hadoop.util.IndexedSorter;
@@ -524,7 +519,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
   public void setStockObject(T stockObject) {
     this.stockObject = stockObject;
   }
-
+  
   /**
    * Create rectangles that together pack all points in sample such that
    * each rectangle contains roughly the same number of points. In other words
@@ -947,12 +942,16 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
       final RTree<S2> S,
       final ResultCollector2<S1, S2> output)
       throws IOException {
-    List<S1> rs = new Vector<S1>();
-    for (S1 r : R)
-      rs.add((S1) r.clone());
-    List<S2> ss = new Vector<S2>();
-    for (S2 s : S)
-      ss.add((S2) s.clone());
+    S1[] rs = (S1[]) Array.newInstance(R.stockObject.getClass(), R.getElementCount());
+    int i = 0;
+    for (S1 r : R) {
+      rs[i++] = r;
+    }
+    S2[] ss = (S2[]) Array.newInstance(S.stockObject.getClass(), S.getElementCount());
+    i = 0;
+    for (S2 s : S) {
+      ss[i++] = s;
+    }
     return SpatialAlgorithms.SpatialJoin_planeSweep(rs, ss, output);
   }
   
@@ -975,109 +974,4 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
     return storage_overhead;
   }
   
-  public static RTree<Rectangle> buildRTree(Rectangle mbr, int size,
-      int degree) throws IOException {
-    final byte[] NEW_LINE = "\n".getBytes();
-    Rectangle randomShape = new Rectangle();
-    RTree<Rectangle> r = new RTree<Rectangle>();
-    r.setStockObject(randomShape);
-    
-    Text2 elements = new Text2();
-    
-    int storage_overhead = 0;
-    
-    Random random = new Random();
-    final int MaxShapeWidth = 100;
-    final int MaxShapeHeight = 100;
-    int element_count = 0;
-    while (elements.getLength() + storage_overhead < size) {
-      randomShape.x = Math.abs(random.nextLong()) % (mbr.width - MaxShapeWidth) + mbr.x;
-      randomShape.y = Math.abs(random.nextLong()) % (mbr.height - MaxShapeHeight) + mbr.y;
-      randomShape.width = Math.abs(random.nextLong()) % MaxShapeWidth;
-      randomShape.height = Math.abs(random.nextLong()) % MaxShapeHeight;
-      
-      randomShape.toText(elements);
-      elements.append(NEW_LINE, 0, NEW_LINE.length);
-      element_count++;
-      
-      // Update storage overhead
-      int height = Math.max(1, 
-          (int) Math.ceil(Math.log(element_count)/Math.log(degree)));
-      int leafNodeCount = (int) Math.pow(degree, height - 1);
-      if (element_count <  2 * leafNodeCount && height > 1) {
-        height--;
-        leafNodeCount = (int) Math.pow(degree, height - 1);
-      }
-      int nodeCount = (int) ((Math.pow(degree, height) - 1) / (degree - 1));
-      storage_overhead = 4 + TreeHeaderSize + nodeCount * NodeSize;
-    }
-    // Remove the last element to keep tree size below threshold
-    int eof = elements.getLength() - 1;
-    while (elements.getBytes()[eof] == '\n' || elements.getBytes()[eof] == '\r')
-      eof--;
-    while (elements.getBytes()[eof] != '\n' && elements.getBytes()[eof] != '\r')
-      eof--;
-    elements.shrink(eof+1);
-    element_count--;
-    
-    LOG.info("Expected size = "+ storage_overhead + "+" + elements.getLength());
-    
-    LOG.info("Generated "+element_count+" elements");
-    
-    DataOutputStream diskOut = new DataOutputStream(new FileOutputStream("temp.rtree"));
-    r.bulkLoadWrite(elements.getBytes(), 0, elements.getLength(), degree, diskOut, true);
-    diskOut.close();
-    
-    // Read again from disk
-    r = new RTree<Rectangle>();
-    r.setStockObject(randomShape);
-    DataInputStream diskIn = new DataInputStream(new FileInputStream("temp.rtree"));
-    r.readFields(diskIn);
-    diskIn.close();
-    
-    return r;
-  }
-  
-  public static void main(String[] args) throws IOException {
-    long t1, t2;
-    Rectangle mbr = new Rectangle(0,0,0x1000000,0x1000000);
-    // Size of the resulting tree in bytes
-    int size = 64 * 1024 * 1024;
-    int degree = 9;
-    t1 = System.currentTimeMillis();
-    RTree<Rectangle> R = buildRTree(mbr, size, degree);
-    //RTree<Rectangle> S = buildRTree(mbr, size, degree);
-    t2 = System.currentTimeMillis();
-    System.out.println("Generated rtrees in "+(t2-t1)+" millis");
-    int result_size;
-/*    
-    t1 = System.currentTimeMillis();
-    int selection = spatialJoin(R, S, null);
-    t2 = System.currentTimeMillis();
-    System.out.println("Finished query in "+(t2-t1)+" millis");
-    System.out.println("selection "+selection);
-*/   
-    
-    // Test range query
-    Rectangle queryRange = new Rectangle();
-    queryRange.x = (long) (Math.random() * mbr.width) + mbr.x;
-    queryRange.y = (long) (Math.random() * mbr.height) + mbr.y;
-    queryRange.width = (long) (mbr.width * 0.5);
-    queryRange.height = (long) (mbr.height * 0.5);
-    t1 = System.currentTimeMillis();
-    result_size = R.search(queryRange, null);
-    t2 = System.currentTimeMillis();
-    System.out.println("Finished range query in "+(t2-t1)+" millis");
-    System.out.println("Found "+result_size+" results");
-    
-/*
-    long qx = (long) (Math.random() * mbr.width) + mbr.x;
-    long qy = (long) (Math.random() * mbr.height) + mbr.y;
-    int k = 100;
-    t1 = System.currentTimeMillis();
-    int count = R.knn(qx, qy, k, null);
-    t2 = System.currentTimeMillis();
-    System.out.println("Finished KNN with "+count+" results in "+(t2-t1)+" millis");
-*/
-    }
 }

@@ -125,15 +125,8 @@ public class Point implements Shape {
   
   @Override
   public void fromText(Text text) {
-    final byte[] buffer = text.getBytes();
-    int comma = 0;
-    int start = comma;
-    while (comma < text.getLength() && buffer[comma] != ',')
-      comma++;
-    x = TextSerializerHelper.deserializeLong(buffer, start, (comma++ - start));
-    start = comma;
-    while (comma < text.getLength() && buffer[comma] != ',')
-      comma++;
-    y = TextSerializerHelper.deserializeLong(buffer, start, (comma++ - start));
+    x = TextSerializerHelper.consumeLong(text, ',');
+    y = TextSerializerHelper.consumeLong(text, '\0');
   }
+
 }

@@ -134,42 +134,4 @@ public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> 
     super.closeCell(cellFilePath, cellStream);
   }
   
-/*  
-  public static void main(String[] args) throws IOException {
-    Configuration conf = new Configuration();
-    FileSystem fs = FileSystem.getLocal(conf);
-    Path outFile = new Path("test.rtree");
-    GridInfo gridInfo = new GridInfo(0, 0, 1000000, 100000);
-    gridInfo.columns = 1;
-    gridInfo.rows = 1;
-    CellInfo[] cells = gridInfo.getAllCells();
-    RTreeGridRecordWriter<Rectangle> recordWriter = new RTreeGridRecordWriter<Rectangle>(fs, outFile,
-        cells, true);
-    recordWriter.setStockObject(new Rectangle());
-    long recordCount = 1000000;
-    Random random = new Random();
-    System.out.println("Creating "+recordCount+" records");
-    long t1 = System.currentTimeMillis();
-    Rectangle s = new Rectangle();
-    for (CellInfo cellInfo : cells) {
-      Rectangle mbr = cellInfo;
-      for (int i = 0; i < recordCount; i++) {
-        // Generate a random rectangle
-        s.x = Math.abs(random.nextLong() % mbr.width) + mbr.x;
-        s.y = Math.abs(random.nextLong() % mbr.height) + mbr.y;
-        s.width = Math.min(Math.abs(random.nextLong() % 100) + 1,
-            mbr.width + mbr.x - s.x);
-        s.height = Math.min(Math.abs(random.nextLong() % 100) + 1,
-            mbr.height + mbr.y - s.y);
-        
-        recordWriter.write(cellInfo, s);
-      }
-      recordWriter.write(cellInfo, null);
-    }
-    recordWriter.close(null);
-    long t2 = System.currentTimeMillis();
-    System.out.println("Finished in "+(t2-t1)+" millis");
-    //System.out.println("Final size: "+fs.getFileStatus(outFile).getLen());
-  }
-*/
 }

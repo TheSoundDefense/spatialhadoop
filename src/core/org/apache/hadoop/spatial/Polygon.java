@@ -24,6 +24,20 @@ public class Polygon extends java.awt.Polygon implements Shape {
   public Polygon(int[] xpoints, int[] ypoints, int npoints) {
     super(xpoints, ypoints, npoints);
   }
+  
+  /**
+   * Set the points in the rectangle to the given array
+   * @param xpoints
+   * @param ypoints
+   * @param npoints
+   */
+  public void set(int[] xpoints, int[] ypoints, int npoints) {
+    this.npoints = npoints;
+    this.xpoints = new int[npoints];
+    this.ypoints = new int[npoints];
+    System.arraycopy(xpoints, 0, this.xpoints, 0, npoints);
+    System.arraycopy(ypoints, 0, this.ypoints, 0, npoints);
+  }
 
   @Override
   public void write(DataOutput out) throws IOException {
@@ -48,10 +62,10 @@ public class Polygon extends java.awt.Polygon implements Shape {
 
   @Override
   public Text toText(Text text) {
-    TextSerializerHelper.serializeLong(npoints, text, ',');
+    TextSerializerHelper.serializeInt(npoints, text, ',');
     for (int i = 0; i < npoints; i++) {
-      TextSerializerHelper.serializeLong(xpoints[i], text, ',');
-      TextSerializerHelper.serializeLong(ypoints[i], text,
+      TextSerializerHelper.serializeInt(xpoints[i], text, ',');
+      TextSerializerHelper.serializeInt(ypoints[i], text,
           i == npoints - 1 ? '\0' : ',');
     }
     return text;
@@ -59,13 +73,13 @@ public class Polygon extends java.awt.Polygon implements Shape {
 
   @Override
   public void fromText(Text text) {
-    this.npoints = (int) TextSerializerHelper.consumeLong(text, ',');
+    this.npoints = TextSerializerHelper.consumeInt(text, ',');
     this.xpoints = new int[npoints];
     this.ypoints = new int[npoints];
     
     for (int i = 0; i < npoints; i++) {
-      this.xpoints[i] = (int) TextSerializerHelper.consumeLong(text, ',');
-      this.ypoints[i] = (int) TextSerializerHelper.consumeLong(text,
+      this.xpoints[i] = TextSerializerHelper.consumeInt(text, ',');
+      this.ypoints[i] = TextSerializerHelper.consumeInt(text,
           i == npoints - 1 ? '\0' : ',');
     }
   }
