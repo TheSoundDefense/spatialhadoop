@@ -257,7 +257,7 @@ public class KNN {
    */
   public static<S extends Shape> long knnMapReduce(FileSystem fs, Path file,
       Point queryPoint, int k, S shape,
-      OutputCollector<Double, S> output)
+      OutputCollector<Double, S> output, Text outputPathText)
       throws IOException {
     JobConf job = new JobConf(FileMBR.class);
     
@@ -315,6 +315,8 @@ public class KNN {
       outputPath = new Path("/"+file.getName()+
           ".knn_"+(int)(Math.random() * 1000000));
     } while (outFs.exists(outputPath));
+    if (outputPathText != null)
+      outputPathText.set(outputPath.toString());
 
     do {
       // Delete results of last iteration if not first iteration
@@ -406,7 +408,8 @@ public class KNN {
       }
     }
 
-    outFs.delete(outputPath, true);
+    if (outputPathText == null)
+      outFs.delete(outputPath, true);
     TotalIterations.addAndGet(iterations);
     
     return resultCount;
@@ -478,7 +481,7 @@ public class KNN {
     if (queryPoint != null) {
       // User provided a query, use it
       long resultCount = 
-          knnMapReduce(fs, inputFile, queryPoint, k, shape, null);
+          knnMapReduce(fs, inputFile, queryPoint, k, shape, null, null);
       System.out.println("Result size: "+resultCount);
     } else {
       // Generate query at random points
@@ -521,7 +524,7 @@ public class KNN {
               Point query_point =
                   query_points.elementAt(threads.indexOf(this));
               long result_count = knnMapReduce(fs, inputFile,
-                  query_point, k, shape, null);
+                  query_point, k, shape, null, null);
               results.add(result_count);
             } catch (IOException e) {
               e.printStackTrace();

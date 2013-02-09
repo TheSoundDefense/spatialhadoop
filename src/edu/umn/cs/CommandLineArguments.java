@@ -17,6 +17,7 @@ import org.apache.hadoop.io.Text2;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Point;
+import org.apache.hadoop.spatial.Polygon;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.ResultCollector;
 import org.apache.hadoop.spatial.Shape;
@@ -59,7 +60,8 @@ public class CommandLineArguments {
   }
   
   public Path getPath() {
-    return getPaths()[0];
+    Path[] paths = getPaths();
+    return paths.length > 1? paths[0] : null;
   }
   
   public GridInfo getGridInfo() {
@@ -256,9 +258,21 @@ public class CommandLineArguments {
       stockShape = new Point();
     } else if (shapeType.toString().startsWith("tiger")) {
       stockShape = new TigerShape();
+    } else if (shapeType.toString().startsWith("poly")) {
+      stockShape = new Polygon();
     } else {
-      LOG.warn("unknown shape type: "+shapeType);
+      // Use the shapeType as a class name and try to instantiate it dynamically
+      try {
+        Class<? extends Shape> shapeClass =
+            Class.forName(shapeType.toString()).asSubclass(Shape.class);
+        stockShape = shapeClass.newInstance();
+      } catch (ClassNotFoundException e) {
+      } catch (InstantiationException e) {
+      } catch (IllegalAccessException e) {
+      }
     }
+    if (stockShape == null)
+      LOG.warn("unknown shape type: "+shapeType);
     
     return stockShape;
   }
@@ -296,7 +310,10 @@ public class CommandLineArguments {
    * @return
    */
   public String getGIndex() {
-    return get("gindex");
+    String gindex = get("gindex");
+    if (gindex == null)
+      gindex = get("global");
+    return gindex;
   }
   
   /**
@@ -307,8 +324,12 @@ public class CommandLineArguments {
    * @return
    */
   public String getLIndex() {
-    return get("lindex");
+    String lindex = get("lindex");
+    if (lindex == null)
+      lindex = get("local");
+    return lindex; 
   }
+  
 
   public long getSeed() {
     String seed = get("seed");

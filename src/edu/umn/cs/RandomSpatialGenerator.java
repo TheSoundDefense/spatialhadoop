@@ -16,6 +16,7 @@ import org.apache.hadoop.mapred.spatial.RTreeGridRecordWriter;
 import org.apache.hadoop.spatial.CellInfo;
 import org.apache.hadoop.spatial.GridInfo;
 import org.apache.hadoop.spatial.Point;
+import org.apache.hadoop.spatial.Polygon;
 import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.ShapeRecordWriter;
@@ -55,14 +56,14 @@ public class RandomSpatialGenerator {
    * @param outFS
    * @param outFilePath
    * @param mbr
-   * @param stockShape 
+   * @param shape 
    * @param totalSize
    * @param blocksize - Size of each block in the generated file
    * @param rtree
    * @throws IOException
    */
   public static void generateGridFile(FileSystem outFS, Path outFilePath,
-      Shape stockShape, final long totalSize, final Rectangle mbr, int rectSize,
+      Shape shape, final long totalSize, final Rectangle mbr, int rectSize,
       long seed,
       long blocksize, String gindex, String lindex, boolean overwrite) throws IOException {
     GridInfo gridInfo = new GridInfo(mbr.x, mbr.y, mbr.width, mbr.height);
@@ -95,43 +96,30 @@ public class RandomSpatialGenerator {
     } else if (lindex.equals("rtree")) {
       recordWriter = new RTreeGridRecordWriter(outFS, outFilePath, cellInfo,
           overwrite);
-      recordWriter.setStockObject(stockShape);
+      recordWriter.setStockObject(shape);
       ((RTreeGridRecordWriter)recordWriter).setBlockSize(blocksize);
     } else {
       throw new RuntimeException("Unsupported local index: " + lindex);
     }
 
-    Point point = (Point) (stockShape instanceof Point ? stockShape : null);
-    Rectangle rectangle = (Rectangle) (stockShape instanceof Rectangle ? stockShape : null);
-    if (point == null && rectangle == null)
-      throw new RuntimeException("Cannot generate shapes of type: "+stockShape.getClass());
-
     long generatedSize = 0;
     if (rectSize == 0)
       rectSize = 100;
     
+    int minPoints = 3, maxPoints = 5;
+    
     long t1 = System.currentTimeMillis();
     while (true) {
       // Generate a random rectangle
-      if (point != null) {
-        point.x = Math.abs(random.nextLong()) % mbr.width + mbr.x;
-        point.y = Math.abs(random.nextLong()) % mbr.height + mbr.y;
-      } else if (rectangle != null) {
-        rectangle.x = Math.abs(random.nextLong()) % mbr.width + mbr.x;
-        rectangle.y = Math.abs(random.nextLong()) % mbr.height + mbr.y;
-        rectangle.width = Math.min(Math.abs(random.nextLong()) % rectSize,
-            mbr.width + mbr.x - rectangle.x);
-        rectangle.height = Math.min(Math.abs(random.nextLong()) % rectSize,
-            mbr.height + mbr.y - rectangle.y);
-      }
+      generateShape(shape, mbr, rectSize, random, minPoints, maxPoints);
 
       // Serialize it to text first to make it easy count its size
       text.clear();
-      stockShape.toText(text);
+      shape.toText(text);
       if (text.getLength() + NEW_LINE.length + generatedSize > totalSize)
         break;
       
-      recordWriter.write(stockShape, text);
+      recordWriter.write(shape, text);
       
       generatedSize += text.getLength() + NEW_LINE.length;
     }
@@ -148,16 +136,16 @@ public class RandomSpatialGenerator {
    * @param outputFile - The file name to write to. If either outFS or
    *   outputFile is null, data is generated to the standard output
    * @param mbr - The whole MBR to generate in
-   * @param stockShape 
+   * @param shape 
    * @param totalSize - The total size of the generated file
    * @param blocksize 
    * @throws IOException 
    */
   public static void generateHeapFile(FileSystem outFS, Path outputFilePath,
-      Shape stockShape, long totalSize, Rectangle mbr, int rectSize, long seed,
+      Shape shape, long totalSize, Rectangle mbr, int rectSize, long seed,
       long blocksize, boolean overwrite) throws IOException {
     OutputStream out = null;
-    if (blocksize == 0)
+    if (blocksize == 0 && outFS != null)
       blocksize = outFS.getDefaultBlockSize();
     if (outFS == null || outputFilePath == null)
       out = new BufferedOutputStream(System.out);
@@ -168,31 +156,20 @@ public class RandomSpatialGenerator {
     long generatedSize = 0;
     Random random = new Random(seed);
     Text text = new Text();
-    Point point = (Point) (stockShape instanceof Point ? stockShape : null);
-    Rectangle rectangle = (Rectangle) (stockShape instanceof Rectangle ? stockShape : null);
-    if (point == null && rectangle == null)
-      throw new RuntimeException("Cannot generate shapes of type: "+stockShape.getClass());
+    
+    // Range for number of points to generate in case of polygons (inclusive)
+    int minPoints = 3, maxPoints = 5;
     
     if (rectSize == 0)
       rectSize = 100;
     long t1 = System.currentTimeMillis();
     while (true) {
       // Generate a random rectangle
-      if (point != null) {
-        point.x = Math.abs(random.nextLong()) % mbr.width + mbr.x;
-        point.y = Math.abs(random.nextLong()) % mbr.height + mbr.y;
-      } else if (rectangle != null) {
-        rectangle.x = Math.abs(random.nextLong()) % mbr.width + mbr.x;
-        rectangle.y = Math.abs(random.nextLong()) % mbr.height + mbr.y;
-        rectangle.width = Math.min(Math.abs(random.nextLong()) % rectSize,
-            mbr.width + mbr.x - rectangle.x);
-        rectangle.height = Math.min(Math.abs(random.nextLong()) % rectSize,
-            mbr.height + mbr.y - rectangle.y);
-      }
+      generateShape(shape, mbr, rectSize, random, minPoints, maxPoints);
       
       // Serialize it to text first to make it easy count its size
       text.clear();
-      stockShape.toText(text);
+      shape.toText(text);
       if (text.getLength() + NEW_LINE.length + generatedSize > totalSize)
         break;
       byte[] bytes = text.getBytes();
@@ -208,8 +185,42 @@ public class RandomSpatialGenerator {
     else
       out.flush();
     long t3 = System.currentTimeMillis();
-    System.out.println("Core time: "+(t2-t1)+" millis");
-    System.out.println("Close time: "+(t3-t2)+" millis");
+    if (outFS == null || outputFilePath == null) {
+      System.err.println("Core time: "+(t2-t1)+" millis");
+      System.err.println("Close time: "+(t3-t2)+" millis");
+    } else {
+      System.out.println("Core time: "+(t2-t1)+" millis");
+      System.out.println("Close time: "+(t3-t2)+" millis");
+    }
+  }
+
+  private static void generateShape(Shape shape, Rectangle mbr, int rectSize,
+      Random random, int minPoints, int maxPoints) {
+    if (shape instanceof Point) {
+      ((Point)shape).x = Math.abs(random.nextLong()) % mbr.width + mbr.x;
+      ((Point)shape).y = Math.abs(random.nextLong()) % mbr.height + mbr.y;
+    } else if (shape instanceof Rectangle) {
+      long x = ((Rectangle)shape).x = Math.abs(random.nextLong()) % mbr.width + mbr.x;
+      long y = ((Rectangle)shape).y = Math.abs(random.nextLong()) % mbr.height + mbr.y;
+      ((Rectangle)shape).width = Math.min(Math.abs(random.nextLong()) % rectSize,
+          mbr.width + mbr.x - x);
+      ((Rectangle)shape).height = Math.min(Math.abs(random.nextLong()) % rectSize,
+          mbr.height + mbr.y - y);
+    } else if (shape instanceof Polygon) {
+      int npoints = random.nextInt(maxPoints - minPoints + 1) + minPoints;
+      int xpoints[] = new int[npoints];
+      int ypoints[] = new int[npoints];
+      
+      int x = xpoints[0] = (int) (Math.abs(random.nextInt((int)mbr.width)) + mbr.x);
+      int y = ypoints[0] = (int) (Math.abs(random.nextInt((int)mbr.height)) + mbr.y);
+      for (int i = 1; i < npoints; i++) {
+        xpoints[i] = (int) Math.min(Math.abs(random.nextInt(rectSize)),
+            mbr.width + mbr.x - x);
+        ypoints[i] = (int) Math.min(Math.abs(random.nextInt(rectSize)),
+            mbr.height + mbr.y - y);
+      }
+      ((Polygon)shape).set(xpoints, ypoints, npoints);
+    }
   }
 
   /**
@@ -234,6 +245,12 @@ public class RandomSpatialGenerator {
     String lindex = cla.getLIndex();
     boolean overwrite = cla.isOverwrite();
 
+    if (mbr == null) {
+      System.err.println("Must provide the area in which to generate the file");
+      fs.close();
+      throw new RuntimeException("Set MBR of the generated file using rect:<x,y,w,h>");
+    }
+    
     if (outputFile != null) {
       System.out.print("Generating a file ");
       System.out.print("with gindex:"+gindex+" ");

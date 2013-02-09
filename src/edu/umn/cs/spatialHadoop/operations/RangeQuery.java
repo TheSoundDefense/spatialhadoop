@@ -159,7 +159,8 @@ public class RangeQuery {
    * @throws IOException
    */
   public static long rangeQueryMapReduce(FileSystem fs, Path file,
-      Shape queryShape, Shape shape, ResultCollector<Shape> output)
+      Shape queryShape, Shape shape, ResultCollector<Shape> output,
+      Text outputPathText)
       throws IOException {
     JobConf job = new JobConf(FileMBR.class);
     
@@ -169,6 +170,8 @@ public class RangeQuery {
       outputPath = new Path("/"+file.getName()+
           ".rangequery_"+(int)(Math.random() * 1000000));
     } while (outFs.exists(outputPath));
+    if (outputPathText != null)
+      outputPathText.set(outputPath.toString());
     
     job.setJobName("RangeQuery");
     ClusterStatus clusterStatus = new JobClient(job).getClusterStatus();
@@ -233,7 +236,9 @@ public class RangeQuery {
         }
       }
     }
-    //outFs.delete(outputPath, true);
+    
+    if (outputPathText == null)
+      outFs.delete(outputPath, true);
     
     return resultCount;
   }
@@ -320,7 +325,7 @@ public class RangeQuery {
                 int thread_i = threads.indexOf(this);
                 long result_count = rangeQueryMapReduce(fs, inputFile,
                     query_rectangles.elementAt(thread_i), stockShape,
-                    null);
+                    null, null);
                 results.add(result_count);
               } catch (IOException e) {
                 e.printStackTrace();
@@ -361,7 +366,7 @@ public class RangeQuery {
       System.out.println("Result size: "+results);
     } else {
       long resultCount = 
-          rangeQueryMapReduce(fs, inputFile, queryRange, stockShape, null);
+          rangeQueryMapReduce(fs, inputFile, queryRange, stockShape, null, null);
       System.out.println("Result size: "+resultCount);
     }
     
