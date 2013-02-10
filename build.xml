@@ -37,6 +37,7 @@
   <property name="core.final.name" value="${name}-core-${version}"/>
   <property name="test.final.name" value="${name}-test-${version}"/>
   <property name="examples.final.name" value="${name}-examples-${version}"/>
+  <property name="operations.final.name" value="${name}-operations-${version}"/>
   <property name="tools.final.name" value="${name}-tools-${version}"/>
   <property name="ant.final.name" value="${name}-ant-${version}"/>
   <property name="streaming.final.name" value="${name}-streaming-${version}"/>
@@ -49,6 +50,7 @@
   <property name="hdfs.src.dir" value="${src.dir}/hdfs"/>
   <property name="native.src.dir" value="${basedir}/src/native"/>
   <property name="examples.dir" value="${basedir}/src/examples"/>
+  <property name="operations.dir" value="${basedir}/src/operations"/>
   <property name="anttasks.dir" value="${basedir}/src/ant"/>
   <property name="lib.dir" value="${basedir}/lib"/>
   <property name="conf.dir" value="${basedir}/conf"/>
@@ -76,6 +78,7 @@
   <property name="build.tools" value="${build.dir}/tools"/>
   <property name="build.webapps" value="${build.dir}/webapps"/>
   <property name="build.examples" value="${build.dir}/examples"/>
+  <property name="build.operations" value="${build.dir}/operations"/>
   <property name="build.anttasks" value="${build.dir}/ant"/>
   <property name="build.librecordio" value="${build.dir}/librecordio"/>
   <!-- convert spaces to _ so that mac os doesn't break things -->
@@ -264,6 +267,11 @@
     location="${ivy.dir}/hadoop-examples-pom-template.xml"/>
   <property name="hadoop-examples.jar" 
     location="${build.dir}/${examples.final.name}.jar"/>
+  <property name="hadoop-operations.pom" location="${ivy.dir}/hadoop-operations-pom.xml"/>
+  <property name="hadoop-operations-pom-template.xml" 
+    location="${ivy.dir}/hadoop-operations-pom-template.xml"/>
+  <property name="hadoop-operations.jar" 
+    location="${build.dir}/${operations.final.name}.jar"/>
   <property name="hadoop-streaming.pom" 
     location="${ivy.dir}/hadoop-streaming-pom.xml"/>
   <property name="hadoop-streaming-pom-template.xml" 
@@ -354,6 +362,7 @@
     <pathelement location="${test.src.dir}"/>
     <pathelement location="${build.dir}"/>
     <pathelement location="${build.examples}"/>
+    <pathelement location="${build.operations}"/>
     <pathelement location="${build.tools}"/>
     <pathelement path="${clover.jar}"/>
     <path refid="test.lib.classpath"/>
@@ -398,6 +407,7 @@
     <mkdir dir="${build.webapps}/datanode/WEB-INF"/>
     <mkdir dir="${build.webapps}/secondary/WEB-INF"/>
     <mkdir dir="${build.examples}"/>
+    <mkdir dir="${build.operations}"/>
     <mkdir dir="${build.anttasks}"/>
     <mkdir dir="${build.dir}/c++"/>
  
@@ -732,6 +742,26 @@
     </javac>    
   </target>
 
+  <target name="compile-operations" 
+          depends="compile-core,compile-tools">
+    <javac 
+     encoding="${build.encoding}" 
+     srcdir="${operations.dir}"
+     includes="edu/umn/cs/**/*.java"
+     destdir="${build.operations}"
+     debug="${javac.debug}"
+     optimize="${javac.optimize}"
+     target="${javac.version}"
+     source="${javac.version}"
+     deprecation="${javac.deprecation}">
+      <compilerarg line="${javac.args} ${javac.args.warnings}" />
+      <classpath>
+        <path refid="classpath"/>
+        <pathelement location="${build.tools}"/>
+      </classpath>
+    </javac>    
+  </target>
+
   <!-- ================================================================== -->
   <!-- Make hadoop.jar                                                     -->
   <!-- ================================================================== -->
@@ -823,6 +853,32 @@
       </manifest>
     </jar>
   </target>
+
+  <!-- ================================================================== -->
+  <!-- Make the Hadoop operations jar.                                    -->
+  <!-- ================================================================== -->
+  <!--                                                                    -->
+  <!-- ================================================================== -->
+  <target name="operations" depends="jar, compile-operations" description="Make the SpatialHadoop operations jar.">
+    <macro-jar-operations
+      build.dir="${build.dir}"
+      basedir="${build.operations}">
+    </macro-jar-operations>
+  </target>
+
+  <macrodef name="macro-jar-operations">
+    <attribute name="build.dir" />
+    <attribute name="basedir" />
+    <sequential>
+      <jar jarfile="@{build.dir}/${operations.final.name}.jar"
+           basedir="@{basedir}">
+        <manifest>
+          <attribute name="Main-Class"
+                    value="edu/umn/cs/spatialHadoop/operations/Main"/>
+        </manifest>
+      </jar>
+    </sequential>
+  </macrodef>
 
   <!-- ================================================================== -->
   <!-- Make the Hadoop metrics plugin dev/sdk jar. (for use outside Hadoop)              -->
@@ -1272,10 +1328,12 @@
       <sourcePath path="${mapred.src.dir}"/>
       <sourcePath path="${hdfs.src.dir}"/>
       <sourcePath path="${examples.dir}" />
+      <sourcePath path="${operations.dir}" />
       <sourcePath path="${tools.src}" />
       <sourcePath path="${basedir}/src/contrib/streaming/src/java" />
       <class location="${build.dir}/${core.final.name}.jar" />
       <class location="${build.dir}/${examples.final.name}.jar" />
+      <class location="${build.dir}/${operations.final.name}.jar" />
       <class location="${build.dir}/${tools.final.name}.jar" />
       <class location="${build.dir}/contrib/streaming/${streaming.final.name}.jar" />
     </findbugs>
@@ -1365,6 +1423,7 @@
         <packageset dir="${mapred.src.dir}"/>
         <packageset dir="${hdfs.src.dir}"/>        	
     	<packageset dir="${examples.dir}"/>
+    	<packageset dir="${operations.dir}"/>
 
     	<packageset dir="src/contrib/streaming/src/java"/>
     	<packageset dir="src/contrib/data_join/src/java"/>
@@ -1382,6 +1441,7 @@
 
     	<group title="Core" packages="org.apache.*"/>
     	<group title="Examples" packages="org.apache.hadoop.examples*"/>
+    	<group title="Operations" packages="edu.umn.cs.spatialHadoop*"/>
 
        <group title="contrib: Streaming" packages="org.apache.hadoop.streaming*"/>
        <group title="contrib: DataJoin" packages="org.apache.hadoop.contrib.utils.join*"/>
@@ -1407,6 +1467,7 @@
         <packageset dir="${core.src.dir}"/>
         <packageset dir="${mapred.src.dir}"/>
     	<packageset dir="${examples.dir}"/>
+    	<packageset dir="${operations.dir}"/>
 
     	<packageset dir="src/contrib/streaming/src/java"/>
     	<packageset dir="src/contrib/data_join/src/java"/>
@@ -1427,6 +1488,7 @@
 
     	<group title="Core" packages="org.apache.*"/>
     	<group title="Examples" packages="org.apache.hadoop.examples*"/>
+    	<group title="Operations" packages="edu.umn.cs.spatialHadoop.operations*"/>
 
        <group title="contrib: Streaming" packages="org.apache.hadoop.streaming*"/>
        <group title="contrib: DataJoin" packages="org.apache.hadoop.contrib.utils.join*"/>
@@ -1498,7 +1560,7 @@
   <!-- ================================================================== -->
   <!--                                                                    -->
   <!-- ================================================================== -->
-  <target name="package" depends="compile, jar, javadoc, docs, cn-docs, api-report, examples, tools-jar, jar-test, ant-tasks, package-librecordio"
+  <target name="package" depends="compile, jar, javadoc, docs, cn-docs, api-report, examples, operations, tools-jar, jar-test, ant-tasks, package-librecordio"
 	  description="assembles multi-platform artifacts for distribution">
     <delete dir="${dist.dir}"/>
     <mkdir dir="${dist.dir}"/>
@@ -1671,7 +1733,7 @@
     </macro_tar>
   </target>
 
-  <target name="bin-package" depends="compile, jar, examples, tools-jar, jar-test, ant-tasks, package-librecordio" 
+  <target name="bin-package" depends="compile, jar, examples, operations, tools-jar, jar-test, ant-tasks, package-librecordio" 
 		description="assembles platform-specific artifacts for binary targets">
     <delete dir="${dist.dir}"/>
     <mkdir dir="${dist.dir}"/>
@@ -2358,6 +2420,8 @@
                 output="${build.dir.eclipse-tools-classes}" />
         <source path="${examples.dir}"
                 output="${build.dir.eclipse-example-classes}" />
+        <source path="${operations.dir}"
+                output="${build.dir.eclipse-operations-classes}" />
         <source path="${contrib.dir}/data_join/src/examples"
                 output="${build.dir.eclipse-contrib-classes}/data_join/examples" />
         <source path="${contrib.dir}/data_join/src/test"
@@ -2556,6 +2620,7 @@
      <artifact:pom file="${hadoop-core.pom}" id="hadoop.core"/>
      <artifact:pom file="${hadoop-test.pom}" id="hadoop.test"/>
      <artifact:pom file="${hadoop-examples.pom}" id="hadoop.examples"/>
+     <artifact:pom file="${hadoop-operations.pom}" id="hadoop.operations"/>
      <artifact:pom file="${hadoop-tools.pom}" id="hadoop.tools"/>
      <artifact:pom file="${hadoop-streaming.pom}" id="hadoop.streaming"/>
      <artifact:pom file="${hadoop-client.pom}" id="hadoop.client"/>
@@ -2572,6 +2637,9 @@
      </artifact:install>
      <artifact:install file="${hadoop-examples.jar}">
         <pom refid="hadoop.examples"/>
+     </artifact:install>
+     <artifact:install file="${hadoop-operations.jar}">
+        <pom refid="hadoop.operations"/>
      </artifact:install>
      <artifact:install file="${hadoop-streaming.jar}">
         <pom refid="hadoop.streaming"/>
@@ -2591,6 +2659,7 @@
      <artifact:pom file="${hadoop-core.pom}" id="hadoop.core"/>
      <artifact:pom file="${hadoop-test.pom}" id="hadoop.core.test"/>
      <artifact:pom file="${hadoop-examples.pom}" id="hadoop.examples"/>
+     <artifact:pom file="${hadoop-operations.pom}" id="hadoop.operations"/>
      <artifact:pom file="${hadoop-tools.pom}" id="hadoop.tools"/>
      <artifact:pom file="${hadoop-streaming.pom}" id="hadoop.streaming"/>
      <artifact:pom file="${hadoop-client.pom}" id="hadoop.client"/>
@@ -2620,6 +2689,12 @@
          <pom refid="hadoop.examples"/>
          <attach file="${hadoop-examples.jar}.asc" type="jar.asc"/>
          <attach file="${hadoop-examples.pom}.asc" type="pom.asc"/>
+     </artifact:deploy>
+     <artifact:deploy file="${hadoop-operations.jar}">
+         <remoteRepository id="apache.staging.https" url="${asfstagingrepo}"/> 
+         <pom refid="hadoop.operations"/>
+         <attach file="${hadoop-operations.jar}.asc" type="jar.asc"/>
+         <attach file="${hadoop-operations.pom}.asc" type="pom.asc"/>
      </artifact:deploy>
      <artifact:deploy file="${hadoop-streaming.jar}">
          <remoteRepository id="apache.staging.https" url="${asfstagingrepo}"/> 
@@ -2670,6 +2745,8 @@
      output.file="${hadoop-tools.jar}.asc" gpg.passphrase="${gpg.passphrase}"/>
     <sign-artifact input.file="${hadoop-examples.jar}" 
      output.file="${hadoop-examples.jar}.asc" gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact input.file="${hadoop-operations.jar}" 
+     output.file="${hadoop-operations.jar}.asc" gpg.passphrase="${gpg.passphrase}"/>
     <sign-artifact input.file="${hadoop-streaming.jar}" 
      output.file="${hadoop-streaming.jar}.asc" gpg.passphrase="${gpg.passphrase}"/>
     <sign-artifact input.file="${hadoop-client.jar}" 
@@ -2684,6 +2761,8 @@
      output.file="${hadoop-tools.pom}.asc" gpg.passphrase="${gpg.passphrase}"/>
     <sign-artifact input.file="${hadoop-examples.pom}" 
      output.file="${hadoop-examples.pom}.asc" gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact input.file="${hadoop-operations.pom}" 
+     output.file="${hadoop-operations.pom}.asc" gpg.passphrase="${gpg.passphrase}"/>
     <sign-artifact input.file="${hadoop-streaming.pom}" 
      output.file="${hadoop-streaming.pom}.asc" gpg.passphrase="${gpg.passphrase}"/>
     <sign-artifact input.file="${hadoop-client.pom}"
@@ -2696,6 +2775,7 @@
      <artifact:pom file="${hadoop-core.pom}" id="hadoop.core"/>
      <artifact:pom file="${hadoop-test.pom}" id="hadoop.test"/>
      <artifact:pom file="${hadoop-examples.pom}" id="hadoop.examples"/>
+     <artifact:pom file="${hadoop-operations.pom}" id="hadoop.operations"/>
      <artifact:pom file="${hadoop-tools.pom}" id="hadoop.tools"/>
      <artifact:pom file="${hadoop-streaming.pom}" id="hadoop.streaming"/>
      <artifact:pom file="${hadoop-client.pom}" id="hadoop.client"/>
@@ -2713,6 +2793,10 @@
      <artifact:deploy file="${hadoop-examples.jar}">
          <remoteRepository id="apache.snapshots.https" url="${asfsnapshotrepo}"/>
          <pom refid="hadoop.examples"/>
+     </artifact:deploy>
+     <artifact:deploy file="${hadoop-operations.jar}">
+         <remoteRepository id="apache.snapshots.https" url="${asfsnapshotrepo}"/>
+         <pom refid="hadoop.operations"/>
      </artifact:deploy>
      <artifact:deploy file="${hadoop-tools.jar}">
          <remoteRepository id="apache.snapshots.https" url="${asfsnapshotrepo}"/>
@@ -2736,6 +2820,7 @@
     <delete file="${hadoop-core.pom}"/>
     <delete file="${hadoop-test.pom}"/>
     <delete file="${hadoop-examples.pom}"/>
+    <delete file="${hadoop-operations.pom}"/>
     <delete file="${hadoop-tools.pom}"/>
     <delete file="${hadoop-streaming.pom}"/>
     <delete file="${hadoop-client.pom}"/>
@@ -2743,6 +2828,7 @@
     <copy file="${hadoop-core-pom-template.xml}" tofile="${hadoop-core.pom}"/>
     <copy file="${hadoop-test-pom-template.xml}" tofile="${hadoop-test.pom}"/>
     <copy file="${hadoop-examples-pom-template.xml}" tofile="${hadoop-examples.pom}"/>
+    <copy file="${hadoop-operations-pom-template.xml}" tofile="${hadoop-operations.pom}"/>
     <copy file="${hadoop-tools-pom-template.xml}" tofile="${hadoop-tools.pom}"/>
     <copy file="${hadoop-streaming-pom-template.xml}" tofile="${hadoop-streaming.pom}"/>
     <copy file="${hadoop-client-pom-template.xml}" tofile="${hadoop-client.pom}"/>
@@ -2755,6 +2841,7 @@
         <include name="hadoop-test-pom.xml"/>
         <include name="hadoop-tools-pom.xml"/>
         <include name="hadoop-examples-pom.xml"/>
+        <include name="hadoop-operations-pom.xml"/>
         <include name="hadoop-streaming-pom.xml"/>
         <include name="hadoop-client-pom.xml"/>
         <include name="hadoop-minicluster-pom.xml"/>
