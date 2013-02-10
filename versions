@@ -1,0 +1,6 @@
+0.1.0
+ WriteGridFile added as a shell command line
+
+0.1.1
+ Faster writing of GridFiles
+ Fixed bugs with writing point files
