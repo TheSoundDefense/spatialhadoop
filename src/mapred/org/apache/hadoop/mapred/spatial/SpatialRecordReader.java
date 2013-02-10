@@ -121,6 +121,7 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
     } else {
       ((FSDataInputStream)in).seek(start);
     }
+    this.pos = start;
   }
   
   /**
@@ -168,6 +169,8 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
    * @throws IOException
    */
   protected boolean moveToNextBlock() throws IOException {
+    // Caution this method is called at the very beginning with pos points
+    // to the start position but the file was never read
     long new_pos = getPos();
     if (blockSize != 0 && getPos() % blockSize > 0) {
       // Currently in the middle of a block, move to the beginning of next block
