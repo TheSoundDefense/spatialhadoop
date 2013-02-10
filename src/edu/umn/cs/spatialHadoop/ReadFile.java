@@ -1,4 +1,4 @@
-package edu.umn.cs;
+package edu.umn.cs.spatialHadoop;
 
 import java.util.HashMap;
 import java.util.Map;

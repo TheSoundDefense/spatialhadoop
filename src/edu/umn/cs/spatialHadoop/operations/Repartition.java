@@ -39,7 +39,7 @@ import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.ShapeRecordWriter;
 import org.apache.hadoop.spatial.SpatialSite;
 
-import edu.umn.cs.CommandLineArguments;
+import edu.umn.cs.spatialHadoop.CommandLineArguments;
 
 /**
  * Repartitions a file according to a different grid through a MapReduce job
@@ -90,7 +90,7 @@ public class Repartition {
       shape.toText(shapeText);
       for (int cellIndex = 0; cellIndex < cellInfos.length; cellIndex++) {
         if (cellInfos[cellIndex].isIntersected(shape)) {
-          cellId.set((int)cellInfos[cellIndex].cellId);
+          cellId.set((byte)cellInfos[cellIndex].cellId);
           output.collect(cellId, shapeText);
         }
       }
@@ -109,14 +109,15 @@ public class Repartition {
     public void reduce(IntWritable cellId, Iterator<Text> values,
         OutputCollector<IntWritable, Text> output, Reporter reporter)
             throws IOException {
+      IntWritable cid = new IntWritable(cellId.get());
       // Initial check which avoids closing the cell for empty partitions
       if (values.hasNext()) {
         while (values.hasNext()) {
           Text value = values.next();
-          output.collect(cellId, value);
+          output.collect(cid, value);
         }
         // Close this cell as we will not write any more data to it
-        output.collect(cellId, new Text());
+        output.collect(cid, new Text());
       }
     }
   }

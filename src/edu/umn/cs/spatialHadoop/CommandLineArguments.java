@@ -1,4 +1,4 @@
-package edu.umn.cs;
+package edu.umn.cs.spatialHadoop;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -22,7 +22,6 @@ import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.ResultCollector;
 import org.apache.hadoop.spatial.Shape;
 
-import edu.umn.cs.spatialHadoop.TigerShape;
 import edu.umn.cs.spatialHadoop.operations.Sampler;
 
 public class CommandLineArguments {
@@ -61,7 +60,7 @@ public class CommandLineArguments {
   
   public Path getPath() {
     Path[] paths = getPaths();
-    return paths.length > 1? paths[0] : null;
+    return paths.length > 0? paths[0] : null;
   }
   
   public GridInfo getGridInfo() {

@@ -36,7 +36,7 @@ import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.LineReader;
 
-import edu.umn.cs.CommandLineArguments;
+import edu.umn.cs.spatialHadoop.CommandLineArguments;
 
 /**
  * Performs a range query over a spatial file.

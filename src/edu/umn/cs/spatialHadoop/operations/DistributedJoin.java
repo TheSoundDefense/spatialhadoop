@@ -49,7 +49,7 @@ import org.apache.hadoop.util.IndexedSortable;
 import org.apache.hadoop.util.LineReader;
 import org.apache.hadoop.util.QuickSort;
 
-import edu.umn.cs.CommandLineArguments;
+import edu.umn.cs.spatialHadoop.CommandLineArguments;
 
 /**
  * Performs a spatial join between two or more files using the redistribute-join

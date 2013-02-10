@@ -1,6 +1,6 @@
 package edu.umn.cs.spatialHadoop.operations;
 
-import edu.umn.cs.RandomSpatialGenerator;
+import edu.umn.cs.spatialHadoop.RandomSpatialGenerator;
 
 /**
  * The main entry point to all queries.

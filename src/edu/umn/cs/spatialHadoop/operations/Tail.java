@@ -12,7 +12,7 @@ import org.apache.hadoop.io.TextSerializable;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.spatial.ResultCollector;
 
-import edu.umn.cs.CommandLineArguments;
+import edu.umn.cs.spatialHadoop.CommandLineArguments;
 
 /**
  * Reads the last n lines of a text file

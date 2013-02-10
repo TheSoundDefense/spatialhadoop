@@ -1,4 +1,4 @@
-package edu.umn.cs;
+package edu.umn.cs.spatialHadoop;
 
 import java.io.BufferedOutputStream;
 import java.io.IOException;
@@ -21,6 +21,7 @@ import org.apache.hadoop.spatial.Rectangle;
 import org.apache.hadoop.spatial.Shape;
 import org.apache.hadoop.spatial.ShapeRecordWriter;
 import org.apache.hadoop.spatial.SpatialSite;
+
 
 
 /**

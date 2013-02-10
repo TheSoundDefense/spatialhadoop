@@ -22,7 +22,7 @@ import org.apache.hadoop.mapred.TextInputFormat;
 import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.spatial.CellInfo;
 
-import edu.umn.cs.CommandLineArguments;
+import edu.umn.cs.spatialHadoop.CommandLineArguments;
 
 
 /**

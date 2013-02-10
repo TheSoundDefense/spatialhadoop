@@ -44,7 +44,7 @@ import org.apache.hadoop.spatial.SpatialAlgorithms;
 import org.apache.hadoop.spatial.SpatialSite;
 import org.apache.hadoop.util.LineReader;
 
-import edu.umn.cs.CommandLineArguments;
+import edu.umn.cs.spatialHadoop.CommandLineArguments;
 
 /**
  * An implementation of Spatial Join MapReduce as it appears in

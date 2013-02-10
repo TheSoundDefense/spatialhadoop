@@ -1,4 +1,4 @@
-package edu.umn.cs;
+package edu.umn.cs.spatialHadoop;
 
 /**
  * Estimates a given value by taking a random sample from sample space until
