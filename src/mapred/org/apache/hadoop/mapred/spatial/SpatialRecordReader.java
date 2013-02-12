@@ -204,11 +204,11 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
       if (skipFirstLine) {
         // Search for the first occurrence of a new line
         int eol = RTree.skipToEOL(buffer, 0);
-        // NB: It might happen that the buffer is exactly a line
-        // In this case, eol will be equal to buffer.length, yet, we do not
-        // need to skip any more lines from the stream. buffer can be safely
-        // set to null as it does not contain any valuable data
-        boolean no_eol_in_buffer = eol < buffer.length &&
+        // If we found an end of line in the buffer, we do not need to skip
+        // a line from the open stream. This happens if the EOL returned is
+        // beyond the end of buffer and the buffer is not a complete line
+        // by itself
+        boolean skip_another_line_from_stream = eol >= buffer.length &&
             buffer[buffer.length - 1] != '\n';
         if (eol < buffer.length) {
           // Found an EOL in the buffer and there are some remaining bytes
@@ -224,7 +224,7 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
           buffer = null;
         }
         
-        if (no_eol_in_buffer) {
+        if (skip_another_line_from_stream) {
           // Didn't find an EOL in the buffer, need to skip it from the stream
           pos += lineReader.readLine(tempLine, 0, (int)(end - pos));
         }
