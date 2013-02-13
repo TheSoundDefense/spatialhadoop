@@ -106,7 +106,7 @@ public abstract class BinaryRecordReader<K extends Writable, V extends Writable>
     float progress1 = internalReaders[0].getProgress();
     float progress2 = internalReaders[1].getProgress();
     // Scale 0-9 for most significant digit
-    float progress = (float) Math.ceil(progress1 * 0.9);
+    float progress = (float) Math.ceil(progress1 * 9) / 10.0f;
     // Scale 0-10 for least significant digit
     progress += progress2 * 0.1;
     return progress;
