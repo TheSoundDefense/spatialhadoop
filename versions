@@ -1,6 +1,17 @@
-0.1.0
- WriteGridFile added as a shell command line
-
-0.1.1
- Faster writing of GridFiles
- Fixed bugs with writing point files
+1.0.0
+  Initial release of SpatialHadoop with the following main features
+   - Spatial data types: Point, Rectangle, Circle, Polygon and TigerShape
+   - Spatial indexes: Grid and R-tree global indexes. R-tree local index.
+   - Spatial MapReduce components:
+     = SpatialRecordReader: Reads all types of blocks in spatial files (Heap, R-tree indexed)
+     = BinaryRecordReader: Reads all types of blocks for binary operations
+     = SpatialInputFormat: Base type for all types of input formats for spatial data. Uses BlockFilter to filter out unneeded blocks.
+     = BinaryInputFormat: Base type of binary input formats. Used the binary version of BlockFilter to filter out unneeded blocks.
+   - Spatial Operations:
+     = RangeQuery: Performs a range query operation on both heap and spatially indexed files
+     = KNN: Performs a KNN operation on both heap and spatially indexed files
+     = DistributedJoin: Performs a spatial join on globally indexed files. Local index is not used yet.
+     = SJMR: Performas a spatial join on heap files or globally indexed files.
+     = FileMBR: Finds the MBR of a file
+     = Randomizer: Randomizes an input file, i.e., shuffles the lines
+     = Sampler: Reads an unbiased random sample from a file
