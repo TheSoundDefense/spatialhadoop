@@ -52,6 +52,14 @@ public class SpatialSite {
    * in a field (e.g. localIndexType).
    */
   public static final long RTreeFileMarker = -0x00012345678910L;
+
+  /**
+   * Maximum number of shapes to read in one read operation and return when
+   * reading a file as array
+   */
+  public static final String MaxShapesInOneRead =
+      "spatialHadoop.mapred.MaxShapesPerRead";
+
   public static byte[] RTreeFileMarkerB;
   
   static {

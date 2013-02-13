@@ -80,7 +80,7 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
     
     if (fileSystem.exists(outFile)) {
       if (!overwrite)
-        throw new RuntimeException("File already exists and overwrite not set");
+        throw new RuntimeException("File already exists and -overwrite flag is not set");
       fileSystem.delete(outFile, true);
     }
 

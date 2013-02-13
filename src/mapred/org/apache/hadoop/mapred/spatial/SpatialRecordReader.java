@@ -39,6 +39,9 @@ import org.apache.hadoop.util.LineReader;
 public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
   private static final Log LOG = LogFactory.getLog(SpatialRecordReader.class);
   
+  /**Maximum number of shapes to read in one operation to return as array*/
+  private int maxShapesInRead;
+  
   enum BlockType { HEAP, RTREE};
   
   /** First offset that is read from the input */
@@ -122,6 +125,7 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
       ((FSDataInputStream)in).seek(start);
     }
     this.pos = start;
+    this.maxShapesInRead = job.getInt(SpatialSite.MaxShapesInOneRead, 1000000);
   }
   
   /**
@@ -321,21 +325,16 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
    * @throws IOException
    */
   protected boolean nextShapes(ArrayWritable shapes) throws IOException {
-    // We always read the whole block in one shot
-    if (getPos() >= end || !moveToNextBlock())
-      return false;
-    
+    // Prepare a vector that will hold all objects in this 
+    Vector<Shape> vshapes = new Vector<Shape>();
     try {
       Shape stockObject = (Shape) shapes.getValueClass().newInstance();
       // Reached the end of this split
       if (getPos() >= end)
         return false;
       
-      // Prepare a vector that will hold all objects in this 
-      Vector<Shape> vshapes = new Vector<Shape>();
-      
       // Read all shapes in this block
-      while (nextShape(stockObject, false)) {
+      while (nextShape(stockObject, true) && vshapes.size() < maxShapesInRead) {
         vshapes.add(stockObject.clone());
       }
 
@@ -347,6 +346,9 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
       e1.printStackTrace();
     } catch (IllegalAccessException e1) {
       e1.printStackTrace();
+    } catch (OutOfMemoryError e) {
+      LOG.error("Error reading shapes. Stopped with "+vshapes.size()+" shapes");
+      throw e;
     }
     return false;
   }

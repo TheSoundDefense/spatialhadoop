@@ -103,7 +103,12 @@ public abstract class BinaryRecordReader<K extends Writable, V extends Writable>
 
   @Override
   public float getProgress() throws IOException {
-    return (internalReaders[0].getProgress() +
-        internalReaders[1].getProgress()) / 2;
+    float progress1 = internalReaders[0].getProgress();
+    float progress2 = internalReaders[1].getProgress();
+    // Scale 0-9 for most significant digit
+    float progress = (float) Math.ceil(progress1 * 0.9);
+    // Scale 0-10 for least significant digit
+    progress += progress2 * 0.1;
+    return progress;
   }
 }

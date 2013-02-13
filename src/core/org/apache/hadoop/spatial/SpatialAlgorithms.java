@@ -77,7 +77,7 @@ public class SpatialAlgorithms {
     Comparator<Shape> comparator = new Comparator<Shape>() {
       @Override
       public int compare(Shape o1, Shape o2) {
-        return (int) (o1.getMBR().getX1() - o2.getMBR().getX1());
+        return o1.getMBR().x < o2.getMBR().x ? -1 : 1;
       }
     };
 
@@ -131,7 +131,7 @@ public class SpatialAlgorithms {
     final Comparator<Shape> comparator = new Comparator<Shape>() {
       @Override
       public int compare(Shape o1, Shape o2) {
-        return (int) (o1.getMBR().getX1() - o2.getMBR().getX1());
+        return o1.getMBR().x < o2.getMBR().x ? -1 : 1;
       }
     };
     
