@@ -46,7 +46,7 @@ public abstract class BinaryRecordReader<K extends Writable, V extends Writable>
   public BinaryRecordReader(Configuration conf, CombineFileSplit split) throws IOException {
     this.conf = conf;
     this.split = split;
-    internalReaders = new RecordReader[(int) split.getLength()];
+    internalReaders = new RecordReader[(int) split.getNumPaths()];
     // Initialize all record readers
     for (int i = 0; i < split.getNumPaths(); i++) {
       this.internalReaders[i] = createRecordReader(this.conf, this.split, i);
