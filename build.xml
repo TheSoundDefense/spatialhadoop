@@ -1995,6 +1995,7 @@
         <exclude name="core-site.xml" />
         <exclude name="hdfs-site.xml" />
         <exclude name="mapred-site.xml" />
+        <exclude name="spatial-site.xml" />
         <include name="**" />
       </tarfileset>
       <tarfileset dir="${basedir}/src/packages/deb/init.d" filemode="755" prefix="/etc/init.d">
