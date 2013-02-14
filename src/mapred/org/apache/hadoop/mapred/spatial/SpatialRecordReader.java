@@ -182,6 +182,7 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
     }
     if (new_pos >= end)
       return false;
+    LOG.info("Seeking to a new block at position "+new_pos);
     // Seek to the start of the needed block
     if (in instanceof Seekable) {
       ((Seekable)in).seek(new_pos);
@@ -190,21 +191,30 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
     }
     pos = new_pos;
     
+    // Get the cell info for the current block
+    if (path != null) {
+      BlockLocation[] blockLocations =
+          fs.getFileBlockLocations(fs.getFileStatus(path), pos, 1);
+      cellInfo = blockLocations[0].getCellInfo();
+    }
+    
     // Read the first part of the block to determine its type
     buffer = new byte[8];
     in.read(buffer);
     if (Arrays.equals(buffer, SpatialSite.RTreeFileMarkerB)) {
-      LOG.info("Block is RTree indexed at position "+start);
       blockType = BlockType.RTREE;
       pos += 8;
+      LOG.info("Block is RTree indexed at position "+pos);
     } else {
+      LOG.info("Found a heap block at position "+pos);
       blockType = BlockType.HEAP;
       // The read buffer might contain some data that must be read
       // File is text file
       lineReader = new LineReader(in);
   
       // Skip the first line unless we are reading the first block in file
-      boolean skipFirstLine = getPos() != 0;
+      // For globally indexed blocks, never skip the first line in the block
+      boolean skipFirstLine = getPos() != 0 && cellInfo == null;
       if (skipFirstLine) {
         // Search for the first occurrence of a new line
         int eol = RTree.skipToEOL(buffer, 0);
@@ -233,14 +243,9 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
           pos += lineReader.readLine(tempLine, 0, (int)(end - pos));
         }
       }
+      LOG.info("After line skip: "+(buffer == null? 0 : buffer.length)+" bytes in buffer and pos="+pos);
     }
     
-    // Get the cell info for this block
-    if (path != null) {
-      BlockLocation[] blockLocations =
-          fs.getFileBlockLocations(fs.getFileStatus(path), pos, 1);
-      cellInfo = blockLocations[0].getCellInfo();
-    }
     
     return true;
   }
@@ -253,9 +258,9 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
    * @throws IOException
    */
   protected boolean nextLine(Text value, boolean moveAcrossBlocks) throws IOException {
-    if (blockType == null)
-      moveToNextBlock();
-    while (getPos() <= end) {
+    if (blockType == null && !moveToNextBlock())
+      return false;
+    while (getPos() < end) {
       value.clear();
       if (buffer != null) {
         // Read the first line encountered in buffer
@@ -282,10 +287,10 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
       // Append the part read from stream to the part extracted from buffer
       value.append(temp.getBytes(), 0, temp.getLength());
       
-      if (value.getLength() > 1) {
+      if (value.getLength() > 1)
         // Read a non-empty line. Note that end-of-line character is included
         return true;
-      }
+      
       // Line read is empty or contains only the new line character
       if (!moveAcrossBlocks)
         return false;
