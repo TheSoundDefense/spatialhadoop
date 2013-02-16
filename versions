@@ -15,3 +15,8 @@
      = FileMBR: Finds the MBR of a file
      = Randomizer: Randomizes an input file, i.e., shuffles the lines
      = Sampler: Reads an unbiased random sample from a file
+
+1.0.1
+  Minor bug fixes to ensure the result is the same whatever index structure or algorithm you use for the same dataset
+  - Improved the RandomSpatialGenerator to avoid generating rectangles of zero width and/or height
+  - Handle special cases with the RandomSpatialGenerator to correctly read lines at the boundaries of the block
