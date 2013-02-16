@@ -260,7 +260,7 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
   protected boolean nextLine(Text value, boolean moveAcrossBlocks) throws IOException {
     if (blockType == null && !moveToNextBlock())
       return false;
-    while (getPos() < end) {
+    while (getPos() <= end) {
       value.clear();
       if (buffer != null) {
         // Read the first line encountered in buffer
