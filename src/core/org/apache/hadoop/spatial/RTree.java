@@ -979,19 +979,65 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
    * @param x
    * @return
    */
-  public static int log2(int x) {
-    // TODO
-    throw new RuntimeException("Not implemented");
+  public static int log2Floor(int x) {
+    if (x == 0)
+      return -1;
+    int pos = 0;
+    if ((x & 0xFFFF0000) != 0) {
+      pos += 16;
+      x >>>= 16;
+    }
+    if ((x & 0xFF00) != 0) {
+      pos += 8;
+      x >>>= 8;
+    }
+    if ((x & 0xF0) != 0) {
+      pos += 4;
+      x >>>= 4;
+    }
+    if ((x & 0xC) != 0) {
+      pos += 2;
+      x >>>= 2;
+    }
+    if ((x & 0x2) != 0) {
+      pos++;
+      x >>>= 1;
+    }
+    
+    return pos;
   }
   
-  /**
-   * Find power to the base 2 quickly
-   * @param x
-   * @return
-   */
-  public static int pow2(int x) {
-    // TODO
-    throw new RuntimeException("Not implemented");
+  public static int powInt(int base, int exponent) {
+    int pow = 1;
+    while (exponent != 0) {
+      if ((exponent & 1) != 0)
+        pow *= base;
+      exponent >>>= 1;
+      base *= base;
+    }
+    return pow;
+  }
+  
+  private static final double LogLookupTable[];
+  
+  static {
+    int count = 100;
+    LogLookupTable = new double[count];
+    for (int i = 0; i < count; i++) {
+      LogLookupTable[i] = Math.log(i);
+    }
+  }
+  
+  public static double fastLog(int x) {
+    if (x < LogLookupTable.length) {
+      return LogLookupTable[x];
+    }
+    return Math.log(x);
+  }
+  
+  public static double fastPow(double a, double b) {
+    final long tmp = (long) (9076650 * (a - 1) / (a + 1 + 4 * (Math.sqrt(a))) * b + 1072632447);
+    return Double.longBitsToDouble(tmp << 32);
   }
   
   /**
@@ -1006,43 +1052,27 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
     // Maximum number of nodes that can be stored in the bytesAvailable
     int maxNodeCount = (bytesAvailable - TreeHeaderSize) / NodeSize;
     // Calculate maximum possible tree height to store the given record count
-    // TODO calculate log to the base 2 quickly by checking highest set bit
-    int h_max = (int) (Math.log(recordCount / 2) / Math.log(2));
+    int h_max = log2Floor(recordCount / 2);
     // Minimum height is always 1 (degree = recordCount)
-    int h_min = 1;
+    int h_min = 2;
     // Best degree is the minimum degree
     int d_best = Integer.MAX_VALUE;
+    double log_recordcount_e = Math.log(recordCount/2);
+    double log_recordcount_2 = log_recordcount_e/fastLog(2);
     // Find the best height among all possible heights
     for (int h = h_min; h <= h_max; h++) {
       // Find the minimum degree for the given height (h)
-      int d_min = (int) Math.ceil(Math.pow(2.0, Math.log(recordCount/2)/Math.log(2)/(h+1)));
+      // This approximation is good enough for our case.
+      // Not proven but tested with millions of random cases
+      int d_min = (int) Math.ceil(fastPow(2.0, log_recordcount_2 /(h+1)));
       // Some heights are invalid, recalculate the height to ensure it's valid
-      int h_recalculated = (int) Math.floor(Math.log(recordCount/2)/Math.log(d_min));
+      int h_recalculated = (int) Math.floor(log_recordcount_e/fastLog(d_min));
       if (h != h_recalculated)
         continue;
-      int nodeCount = (int) ((Math.pow(d_min, h+1)-1) / (d_min-1));
+      int nodeCount = (int) ((powInt(d_min, h+1)-1) / (d_min-1));
       if (nodeCount < maxNodeCount && d_min < d_best)
         d_best = d_min;
     }
     return d_best;
-  }
-  
-  public static void main(String[] args) {
-    int recordCount = 4000000;
-    int bytesAvailable = 2*1024*1024;
-    int degree = findBestDegree(bytesAvailable, recordCount);
-    System.out.println(recordCount+": "+degree);
-    int storageOverhead = calculateStorageOverhead(recordCount, degree);
-    System.out.println("storageOverhead: "+storageOverhead);
-    // Make sure this degree is valid
-    if (storageOverhead > bytesAvailable)
-      throw new RuntimeException("Invalid "+recordCount);
-    if (degree > 2) {
-      // Make sure that this is indeed the minimum degree
-      storageOverhead = calculateStorageOverhead(recordCount, degree-1);
-      if (storageOverhead <= bytesAvailable) {
-        throw new RuntimeException("Invalid "+recordCount);
-      }
-    }
   }
 }
