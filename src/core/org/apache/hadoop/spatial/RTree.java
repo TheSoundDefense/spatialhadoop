@@ -883,7 +883,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
         @Override
         public void collect(T shape) {
           distances.add((long) shape.distanceTo(qx, qy));
-          shapes.add(shape);
+          shapes.add((T) shape.clone());
         }
       });
       if (shapes.size() < k) {
@@ -965,7 +965,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
     int height = Math.max(1, 
         (int) Math.ceil(Math.log(elementCount)/Math.log(degree)));
     int leafNodeCount = (int) Math.pow(degree, height - 1);
-    if (elementCount <  2 * leafNodeCount && height > 1) {
+    if (elementCount <=  2 * leafNodeCount && height > 1) {
       height--;
       leafNodeCount = (int) Math.pow(degree, height - 1);
     }
@@ -973,5 +973,76 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
     int storage_overhead = 4 + TreeHeaderSize + nodeCount * NodeSize;
     return storage_overhead;
   }
+
+  /**
+   * Find log to the base 2 quickly
+   * @param x
+   * @return
+   */
+  public static int log2(int x) {
+    // TODO
+    throw new RuntimeException("Not implemented");
+  }
   
+  /**
+   * Find power to the base 2 quickly
+   * @param x
+   * @return
+   */
+  public static int pow2(int x) {
+    // TODO
+    throw new RuntimeException("Not implemented");
+  }
+  
+  /**
+   * Find the best (minimum) degree that can index the given number of records
+   * such that the whole tree structure can be stored in the given bytes
+   * available.
+   * @param bytesAvailable
+   * @param recordCount
+   * @return
+   */
+  public static int findBestDegree(int bytesAvailable, int recordCount) {
+    // Maximum number of nodes that can be stored in the bytesAvailable
+    int maxNodeCount = (bytesAvailable - TreeHeaderSize) / NodeSize;
+    // Calculate maximum possible tree height to store the given record count
+    // TODO calculate log to the base 2 quickly by checking highest set bit
+    int h_max = (int) (Math.log(recordCount / 2) / Math.log(2));
+    // Minimum height is always 1 (degree = recordCount)
+    int h_min = 1;
+    // Best degree is the minimum degree
+    int d_best = Integer.MAX_VALUE;
+    // Find the best height among all possible heights
+    for (int h = h_min; h <= h_max; h++) {
+      // Find the minimum degree for the given height (h)
+      int d_min = (int) Math.ceil(Math.pow(2.0, Math.log(recordCount/2)/Math.log(2)/(h+1)));
+      // Some heights are invalid, recalculate the height to ensure it's valid
+      int h_recalculated = (int) Math.floor(Math.log(recordCount/2)/Math.log(d_min));
+      if (h != h_recalculated)
+        continue;
+      int nodeCount = (int) ((Math.pow(d_min, h+1)-1) / (d_min-1));
+      if (nodeCount < maxNodeCount && d_min < d_best)
+        d_best = d_min;
+    }
+    return d_best;
+  }
+  
+  public static void main(String[] args) {
+    int recordCount = 4000000;
+    int bytesAvailable = 2*1024*1024;
+    int degree = findBestDegree(bytesAvailable, recordCount);
+    System.out.println(recordCount+": "+degree);
+    int storageOverhead = calculateStorageOverhead(recordCount, degree);
+    System.out.println("storageOverhead: "+storageOverhead);
+    // Make sure this degree is valid
+    if (storageOverhead > bytesAvailable)
+      throw new RuntimeException("Invalid "+recordCount);
+    if (degree > 2) {
+      // Make sure that this is indeed the minimum degree
+      storageOverhead = calculateStorageOverhead(recordCount, degree-1);
+      if (storageOverhead <= bytesAvailable) {
+        throw new RuntimeException("Invalid "+recordCount);
+      }
+    }
+  }
 }
