@@ -6,6 +6,7 @@ import java.io.OutputStream;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -21,14 +22,20 @@ public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> 
    */
   private int[] cellCount;
 
-  /**The degree of the trees built*/
-  private final int rtreeDegree;
+  /**
+   * The preferred rtreeDegree by the user. The constructed Rtree can be of,
+   * at most, this degree. It can freely go under this value.
+   */
+  private final int preferredRtreeDegree;
   
   /**
    * Whether to use the fast mode for building RTree or not.
    * @see RTree#bulkLoadWrite(byte[], int, int, int, java.io.DataOutput, boolean)
    */
   protected boolean fastRTree;
+  
+  /**The maximum storage (in bytes) that can be accepted by the user*/
+  protected int maximumStorageOverhead;
 
   /**
    * Initializes a new RTreeGridRecordWriter.
@@ -47,8 +54,11 @@ public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> 
     cellCount = new int[cells.length];
     
     // Determine the size of each RTree to decide when to flush a cell
-    this.rtreeDegree = fileSystem.getConf().getInt(SpatialSite.RTREE_DEGREE, 25);
-    this.fastRTree = fileSystem.getConf().get(SpatialSite.RTREE_BUILD_MODE, "fast").equals("fast");
+    Configuration conf = fileSystem.getConf();
+    this.preferredRtreeDegree = conf.getInt(SpatialSite.RTREE_DEGREE, 25);
+    this.fastRTree = conf.get(SpatialSite.RTREE_BUILD_MODE, "fast").equals("fast");
+    this.maximumStorageOverhead =
+        (int) (conf.getFloat(SpatialSite.INDEXING_OVERHEAD, 0.1f) * blockSize);
   }
   
   @Override
@@ -61,22 +71,22 @@ public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> 
     }
     FSDataOutputStream cellOutput = (FSDataOutputStream) getCellStream(cellIndex);
 
-    // Check if the RTree will overflow when writing this new object
-    int storage_overhead = RTree.calculateStorageOverhead(
-        cellCount[cellIndex] + 1, rtreeDegree);
-    // Calculate the expected RTree file size after writing this new object
-    // 8: File signature
-    // storage_overhead: Total size of the RTree after adding this object
-    // cellOutput.getPos(): Current data size
-    // text.getLength() + NEW_LINE.length: New object data size
-    long rtree_file_size = 8 + storage_overhead + cellOutput.getPos()
-        + text.getLength() + NEW_LINE.length;
-    if (rtree_file_size > blockSize) {
-      // Write an empty line to close the cell
-      super.writeInternal(cellIndex, new Text());
-      return;
+    // Check if inserting this object will increase the degree of the R-tree
+    // above the threshold
+    int new_data_size =
+        (int) (cellOutput.getPos() + text.getLength() + NEW_LINE.length);
+    int bytes_available = (int) (blockSize - 8 - new_data_size);
+    if (bytes_available < maximumStorageOverhead) {
+      // Check if we need to flush current data
+      int degree = RTree.findBestDegree(bytes_available, cellCount[cellIndex] + 1);
+      if (degree > preferredRtreeDegree) {
+        LOG.info("Early flushing an RTree with data "+cellOutput.getPos());
+        // Writing this element will get the degree above the threshold
+        // Flush current file and start a new file
+        super.writeInternal(cellIndex, new Text());
+      }
     }
-
+    
     super.writeInternal(cellIndex, text);
     cellCount[cellIndex]++;
   }
@@ -127,8 +137,8 @@ public class RTreeGridRecordWriter<S extends Shape> extends GridRecordWriter<S> 
     FSDataOutputStream cellStream =
       (FSDataOutputStream) createCellStream(cellFilePath, cellInfo);
     cellStream.writeLong(SpatialSite.RTreeFileMarker);
-    rtree.bulkLoadWrite(cellData, 0, (int) length, rtreeDegree, cellStream,
-        fastRTree);
+    rtree.bulkLoadWrite(cellData, 0, (int) length,
+        (int) (blockSize - length - 8), cellStream, fastRTree);
     cellData = null; // To allow GC to collect it
     // Call the parent implementation which will stuff it with new lines
     super.closeCell(cellFilePath, cellStream);

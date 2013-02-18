@@ -78,7 +78,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
    * @param elements - serialization of elements to be written
    * @param offset - index of the first element to use in the elements array
    * @param len - number of bytes to user from the elements array
-   * @param degree - required degree of the tree to be built
+   * @param bytesAvailable - size available (in bytes) to store the tree structures
    * @param dataOut - an output to use for writing the tree to
    * @param fast_sort - setting this to <code>true</code> allows the method
    *  to run faster by materializing the offset of each element in the list
@@ -87,7 +87,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
    *  an additional 16 M bytes (approximately).
    */
   public void bulkLoadWrite(final byte[] element_bytes, final int offset, final int len,
-      final int degree, DataOutput dataOut, final boolean fast_sort) {
+      int bytesAvailable, DataOutput dataOut, final boolean fast_sort) {
     try {
     
       // Count number of elements in the given text
@@ -101,7 +101,7 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
         i_start = i_end;
       }
       LOG.info("Bulk loading an RTree with "+elementCount+" elements");
-      
+      final int degree = findBestDegree(bytesAvailable, elementCount);
       
       int height = Math.max(1, 
           (int) Math.ceil(Math.log(elementCount)/Math.log(degree)));

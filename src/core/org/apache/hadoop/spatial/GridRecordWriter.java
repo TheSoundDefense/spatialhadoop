@@ -168,7 +168,13 @@ public class GridRecordWriter<S extends Shape> implements ShapeRecordWriter<S> {
     if (text.getLength() == 0) {
       closeCell(cellIndex, false);
     } else {
-      OutputStream cellStream = getCellStream(cellIndex);
+      FSDataOutputStream cellStream = (FSDataOutputStream) getCellStream(cellIndex);
+      // Check if this line will take the file beyond one block.
+      int new_size = (int) (cellStream.getPos() + text.getLength() + NEW_LINE.length);
+      if (new_size > blockSize) {
+        // Need to close this file first to ensure it fits one block
+        closeCell(cellIndex, false);
+      }
       cellStream.write(text.getBytes(), 0, text.getLength());
       cellStream.write(NEW_LINE);
     }
