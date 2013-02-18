@@ -101,7 +101,9 @@ public class RTree<T extends Shape> implements Writable, Iterable<T> {
         i_start = i_end;
       }
       LOG.info("Bulk loading an RTree with "+elementCount+" elements");
+      
       final int degree = findBestDegree(bytesAvailable, elementCount);
+      LOG.info("Writing an RTree with degree "+degree);
       
       int height = Math.max(1, 
           (int) Math.ceil(Math.log(elementCount)/Math.log(degree)));
