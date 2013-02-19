@@ -24,3 +24,4 @@
   - Improve writing of R-tree local indexes to ensure it fits one HDFS block
   - Fixed a bug with SpatialRecordReader#nextShapes that causes a few records to be skipped
   - Ensure that DistributedJoin produce answer pairs in the same ordering of input
+  - Check input file existence in all operations
