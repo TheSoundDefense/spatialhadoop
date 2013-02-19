@@ -22,3 +22,5 @@
   - Handle special cases with the RandomSpatialGenerator to correctly read lines at the boundaries of the block
   - Improve KNN to remove duplicates in the reduce phase
   - Improve writing of R-tree local indexes to ensure it fits one HDFS block
+  - Fixed a bug with SpatialRecordReader#nextShapes that causes a few records to be skipped
+  - Ensure that DistributedJoin produce answer pairs in the same ordering of input
