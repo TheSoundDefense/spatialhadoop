@@ -339,7 +339,7 @@ public abstract class SpatialRecordReader<K, V> implements RecordReader<K, V> {
         return false;
       
       // Read all shapes in this block
-      while (nextShape(stockObject, true) && vshapes.size() < maxShapesInRead) {
+      while (vshapes.size() < maxShapesInRead && nextShape(stockObject, true)) {
         vshapes.add(stockObject.clone());
       }
 
